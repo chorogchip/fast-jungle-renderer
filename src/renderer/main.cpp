@@ -157,10 +157,10 @@ namespace {
 } // namespace
 
 int WINAPI wWinMain(
-    HINSTANCE instance,
-    HINSTANCE,
-    PWSTR,
-    int show_command) {
+    _In_ HINSTANCE instance,
+    _In_opt_ HINSTANCE,
+    _In_ PWSTR,
+    _In_ int show_command) {
 
     constexpr UINT initial_width = 1280;
     constexpr UINT initial_height = 720;
