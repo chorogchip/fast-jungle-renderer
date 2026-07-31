@@ -1,0 +1,77 @@
+
+
+# 성능 / 환경 고정
+
+Target machine : GTX 1060 Mobile
+Target OS : Windows
+Target scene : Intel Jungle Ruins, 60 fps
+Resolution: 1920x1080 FHD
+Executeable: FastJungle.exe
+Quality : basic PBR, alpha-tested foliage, light/shadow
+Concept : avoid generality, gain performance by fixed target
+
+DX12 / DXC / SM 6.6
+
+# 알아야 할 수치
+count / size of instnace / triangle / draw / submesh / material / texture
+
+usd scene -[OpenUSD]-> memory -[offline cooker]-> custom scene binary -[online read]-> renderer
+
+
+culling : meshlet, Hi-z, Frustum, ...
+
+| 항목                     |        규모 |
+| ---------------------- | --------: |
+| Point instance         | 8,674,676 |
+| PointInstancer source  |       778 |
+| 고유 prototype 이름        |        53 |
+| 일반/native instance     |       142 |
+| 일반 draw instance       |       162 |
+| Scatter system         |       205 |
+| Cinematic terrain cell |        16 |
+| Extended terrain cell  |        64 |
+
+900만개 instance, 2천만개 submesh instance
+river forest : 240만 / river seeding : 230만 / pytamid moss : 200만 / queen forest : 120만 (4개 합 90%)
+
+instance 하나 48 B, 합계 430 MiB
+(compression 가능)
+
+
+
+
+FastJungle/
+├─ CMakeLists.txt
+├─ include/
+│  └─ FastJungle/
+│     ├─ Core/
+│     ├─ Scene/
+│     ├─ Cooker/
+│     └─ Renderer/
+│
+├─ src/
+│  ├─ core/
+│  ├─ scene/
+│  ├─ cooker/
+│  │  └─ main.cpp
+│  └─ renderer/
+│     └─ main.cpp
+│
+├─ shaders/
+│  ├─ *.vs.hlsl
+│  ├─ *.ps.hlsl
+│  ├─ *.cs.hlsl
+│  └─ *.hlsli
+│
+│
+├─ assets/
+│scene/                         # Git 무시
+││  └─ JungleRuins_1_0_1b/
+││     ├─ USD/
+││     │  ├─ JungleRuins_Karma.usda
+││     │  ├─ cameras/
+││     │  └─ elements/
+││     └─ textures/
+│└─ cooked/                  
+
+

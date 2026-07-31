@@ -1,6 +1,7 @@
-# CMake build
-build/
+# Build trees and generated files
 out/
+build/
+cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
@@ -8,23 +9,35 @@ CTestTestfile.cmake
 Makefile
 compile_commands.json
 _deps/
+external/
 
-# Visual Studio
+# Source assets and cooked runtime data
+assets/scene/
+assets/cooked/
+
+# Visual Studio / Visual Studio CMake
 .vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
 *.user
+*.userosscache
 *.suo
-*.VC.db
-*.VC.VC.opendb
+*.sln.docstates
+CMakeUserPresets.json
 
-# C/C++ build outputs
+# Compiler and linker outputs
 [Dd]ebug/
 [Rr]elease/
 x64/
 x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
 [Bb]in/
 [Oo]bj/
-
 *.obj
+*.iobj
 *.pch
 *.pdb
 *.ipdb
@@ -32,29 +45,56 @@ x86/
 *.idb
 *.tlog
 *.lastbuildstate
+*.recipe
 *.exp
 *.lib
 *.dll
 *.exe
+*.app
+*.out
 
-# DX12 / shader outputs
+# Generated scene and shader binaries
+*.fjscene
 *.cso
 *.dxil
+*.spv
 *.shaderbin
 *.hlslbin
 
-# Graphics captures
+# PIX / profiling / crash data
 *.wpix
 *.pix3
 *.pixrun
-
-# Temporary / system files
-*.log
-*.tmp
-*.bak
+*.vsp
+*.vspx
 *.dmp
+*.mdmp
+
+# NuGet and local dependency caches
+packages/
+*.nupkg
+.nuget/
+
+# Editors and IDEs
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# OS and temporary files
 Thumbs.db
+ehthumbs.db
 Desktop.ini
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.log
 
 # Local environment
 .env
