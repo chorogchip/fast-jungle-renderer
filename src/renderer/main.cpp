@@ -1,195 +1,149 @@
-#include <Windows.h>
-#include <objbase.h>
+#include "FastJungle/renderer/Application.hpp"
 
-#include <cstdlib>
-#include <exception>
-#include <stdexcept>
-#include <string>
+#include <Windows.h>
 
 namespace {
 
-    constexpr wchar_t kWindowClassName[] = L"FastJungleRendererWindow";
-    constexpr wchar_t kWindowTitle[] = L"FastJungle Renderer";
-    constexpr int kInitialClientWidth = 1600;
-    constexpr int kInitialClientHeight = 900;
-
-    struct RendererState {
-        bool initialized = false;
-        UINT width = 0;
-        UINT height = 0;
+    struct Win32State {
+        fjr::Application* application = nullptr;
         bool minimized = false;
     };
 
-    [[nodiscard]] RendererState* getRendererState(HWND window) noexcept {
-        return reinterpret_cast<RendererState*>(
-            GetWindowLongPtrW(window, GWLP_USERDATA));
-    }
-
-    void resizeRenderer(RendererState& state, UINT width, UINT height) {
-        state.width = width;
-        state.height = height;
-        state.minimized = width == 0 || height == 0;
-
-        if (!state.initialized || state.minimized) {
-            return;
-        }
-
-        // Resize the DXGI swap chain and recreate RTV/DSV resources here.
-    }
-
-    [[nodiscard]] bool initializeRenderer(
-        RendererState& state,
-        HWND window,
-        UINT width,
-        UINT height) {
-
-        UNREFERENCED_PARAMETER(window);
-
-        state.width = width;
-        state.height = height;
-
-        // Initialize the runtime-only pipeline here:
-        //
-        // 1. Create the DXGI factory and select an adapter.
-        // 2. Create the D3D12 device, queues, fences, and descriptor heaps.
-        // 3. Create the swap chain for 'window'.
-        // 4. Load the cooked .fjscene binary from assets/cooked.
-        // 5. Create GPU buffers, textures, pipelines, and root signatures.
-        // 6. Load the build-time DXIL files from the configured shader directory.
-
-        state.initialized = true;
-        return true;
-    }
-
-    void renderFrame(RendererState& state) {
-        if (!state.initialized || state.minimized) {
-            return;
-        }
-
-        // Record and submit the current frame, present the swap chain,
-        // and advance per-frame synchronization here.
-    }
-
-    void shutdownRenderer(RendererState& state) noexcept {
-        if (!state.initialized) {
-            return;
-        }
-
-        // Wait for the GPU and release renderer resources here.
-        state.initialized = false;
-    }
-
-    LRESULT CALLBACK windowProcedure(
-        HWND window,
+    LRESULT CALLBACK window_proc(
+        HWND hwnd,
         UINT message,
-        WPARAM wParam,
-        LPARAM lParam) {
+        WPARAM wparam,
+        LPARAM lparam) {
+
+        auto* state =
+            reinterpret_cast<Win32State*>(
+                GetWindowLongPtrW(
+                    hwnd,
+                    GWLP_USERDATA));
 
         switch (message) {
         case WM_NCCREATE: {
             const auto* create =
-                reinterpret_cast<const CREATESTRUCTW*>(lParam);
-            auto* state =
-                static_cast<RendererState*>(create->lpCreateParams);
+                reinterpret_cast<const CREATESTRUCTW*>(
+                    lparam);
+
+            state =
+                static_cast<Win32State*>(
+                    create->lpCreateParams);
 
             SetWindowLongPtrW(
-                window,
+                hwnd,
                 GWLP_USERDATA,
                 reinterpret_cast<LONG_PTR>(state));
+
             return TRUE;
         }
 
         case WM_SIZE:
-            if (auto* state = getRendererState(window)) {
-                resizeRenderer(
-                    *state,
-                    LOWORD(lParam),
-                    HIWORD(lParam));
+            if (state != nullptr) {
+                state->minimized =
+                    wparam == SIZE_MINIMIZED;
+
+                if (state->application != nullptr) {
+                    state->application->request_resize(
+                        static_cast<UINT>(LOWORD(lparam)),
+                        static_cast<UINT>(HIWORD(lparam)));
+                }
             }
+
             return 0;
 
-        case WM_ERASEBKGND:
-            // The renderer covers the full client area.
-            return 1;
-
-        case WM_KEYDOWN:
-            if (wParam == VK_ESCAPE) {
-                PostMessageW(window, WM_CLOSE, 0, 0);
-                return 0;
-            }
-            break;
-
         case WM_CLOSE:
-            DestroyWindow(window);
+            DestroyWindow(hwnd);
             return 0;
 
         case WM_DESTROY:
-            PostQuitMessage(EXIT_SUCCESS);
+            PostQuitMessage(0);
             return 0;
 
-        case WM_NCDESTROY:
-            SetWindowLongPtrW(window, GWLP_USERDATA, 0);
-            break;
-
         default:
-            break;
+            return DefWindowProcW(
+                hwnd,
+                message,
+                wparam,
+                lparam);
         }
-
-        return DefWindowProcW(window, message, wParam, lParam);
     }
 
-    [[nodiscard]] ATOM registerWindowClass(HINSTANCE instance) {
-        WNDCLASSEXW windowClass{
-            .cbSize = sizeof(WNDCLASSEXW),
-            .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-            .lpfnWndProc = windowProcedure,
-            .cbClsExtra = 0,
-            .cbWndExtra = 0,
-            .hInstance = instance,
-            .hIcon = LoadIconW(nullptr, IDI_APPLICATION),
-            .hCursor = LoadCursorW(nullptr, IDC_ARROW),
-            .hbrBackground = nullptr,
-            .lpszMenuName = nullptr,
-            .lpszClassName = kWindowClassName,
-            .hIconSm = LoadIconW(nullptr, IDI_APPLICATION),
-        };
+    bool pump_messages(void* context) {
+        auto* state =
+            static_cast<Win32State*>(context);
 
-        const ATOM atom = RegisterClassExW(&windowClass);
-        if (atom == 0) {
-            throw std::runtime_error("RegisterClassExW failed.");
+        MSG message{};
+
+        while (PeekMessageW(
+            &message,
+            nullptr,
+            0,
+            0,
+            PM_REMOVE)) {
+
+            if (message.message == WM_QUIT) {
+                return false;
+            }
+
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
         }
 
-        return atom;
+        if (state->minimized) {
+            WaitMessage();
+        }
+
+        return true;
     }
 
-    [[nodiscard]] HWND createMainWindow(
+    HWND create_window(
         HINSTANCE instance,
-        RendererState& state,
-        int showCommand) {
+        Win32State* state,
+        UINT width,
+        UINT height) {
+
+        constexpr wchar_t class_name[] =
+            L"FastJungleWindow";
+
+        WNDCLASSEXW window_class{};
+        window_class.cbSize =
+            sizeof(window_class);
+        window_class.style =
+            CS_HREDRAW | CS_VREDRAW;
+        window_class.lpfnWndProc =
+            window_proc;
+        window_class.hInstance =
+            instance;
+        window_class.hCursor =
+            LoadCursorW(nullptr, IDC_ARROW);
+        window_class.lpszClassName =
+            class_name;
+
+        if (RegisterClassExW(&window_class) == 0) {
+            return nullptr;
+        }
 
         RECT rectangle{
-            .left = 0,
-            .top = 0,
-            .right = kInitialClientWidth,
-            .bottom = kInitialClientHeight,
+            0,
+            0,
+            static_cast<LONG>(width),
+            static_cast<LONG>(height)
         };
 
-        constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW;
-        constexpr DWORD extendedStyle = 0;
-
-        if (!AdjustWindowRectEx(
+        if (!AdjustWindowRect(
             &rectangle,
-            windowStyle,
-            FALSE,
-            extendedStyle)) {
-            throw std::runtime_error("AdjustWindowRectEx failed.");
+            WS_OVERLAPPEDWINDOW,
+            FALSE)) {
+            return nullptr;
         }
 
-        HWND window = CreateWindowExW(
-            extendedStyle,
-            kWindowClassName,
-            kWindowTitle,
-            windowStyle,
+        return CreateWindowExW(
+            0,
+            class_name,
+            L"Fast Jungle",
+            WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             rectangle.right - rectangle.left,
@@ -197,136 +151,72 @@ namespace {
             nullptr,
             nullptr,
             instance,
-            &state);
-
-        if (!window) {
-            throw std::runtime_error("CreateWindowExW failed.");
-        }
-
-        ShowWindow(window, showCommand);
-        UpdateWindow(window);
-        return window;
-    }
-
-    [[nodiscard]] int runMessageLoop(RendererState& state) {
-        MSG message{};
-
-        while (true) {
-            while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
-                if (message.message == WM_QUIT) {
-                    return static_cast<int>(message.wParam);
-                }
-
-                TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
-
-            renderFrame(state);
-
-            // Remove this wait once renderFrame blocks on the frame-latency
-            // waitable object or another renderer synchronization primitive.
-            MsgWaitForMultipleObjectsEx(
-                0,
-                nullptr,
-                1,
-                QS_ALLINPUT,
-                MWMO_INPUTAVAILABLE);
-        }
+            state);
     }
 
 } // namespace
 
 int WINAPI wWinMain(
-    _In_ HINSTANCE instance,
-    _In_opt_ HINSTANCE previousInstance,
-    _In_ PWSTR commandLine,
-    _In_ int showCommand) {
+    HINSTANCE instance,
+    HINSTANCE,
+    PWSTR,
+    int show_command) {
 
-    UNREFERENCED_PARAMETER(previousInstance);
-    UNREFERENCED_PARAMETER(commandLine);
+    constexpr UINT initial_width = 1280;
+    constexpr UINT initial_height = 720;
 
-    SetProcessDpiAwarenessContext(
-        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    fjr::Application application;
 
-    const HRESULT comResult = CoInitializeEx(
-        nullptr,
-        COINIT_MULTITHREADED);
+    Win32State state{
+        .application = nullptr,
+        .minimized = false
+    };
 
-    if (FAILED(comResult) &&
-        comResult != RPC_E_CHANGED_MODE) {
-        MessageBoxW(
-            nullptr,
-            L"COM initialization failed.",
-            kWindowTitle,
-            MB_OK | MB_ICONERROR);
-        return EXIT_FAILURE;
+    HWND hwnd = create_window(
+        instance,
+        &state,
+        initial_width,
+        initial_height);
+
+    if (hwnd == nullptr) {
+        return 1;
     }
 
-    const bool ownsComInitialization = SUCCEEDED(comResult);
+    RECT client_rectangle{};
 
-    RendererState rendererState{};
-
-    try {
-        (void) registerWindowClass(instance);
-
-        const HWND window =
-            createMainWindow(instance, rendererState, showCommand);
-
-        RECT clientRectangle{};
-        if (!GetClientRect(window, &clientRectangle)) {
-            throw std::runtime_error("GetClientRect failed.");
-        }
-
-        const UINT clientWidth = static_cast<UINT>(
-            clientRectangle.right - clientRectangle.left);
-        const UINT clientHeight = static_cast<UINT>(
-            clientRectangle.bottom - clientRectangle.top);
-
-        if (!initializeRenderer(
-            rendererState,
-            window,
-            clientWidth,
-            clientHeight)) {
-            throw std::runtime_error(
-                "Renderer initialization failed.");
-        }
-
-        const int exitCode = runMessageLoop(rendererState);
-        shutdownRenderer(rendererState);
-
-        if (ownsComInitialization) {
-            CoUninitialize();
-        }
-        return exitCode;
-    } catch (const std::exception& exception) {
-        shutdownRenderer(rendererState);
-
-        if (ownsComInitialization) {
-            CoUninitialize();
-        }
-
-        const std::string message =
-            std::string{ "Unhandled renderer exception:\n" } +
-            exception.what();
-
-        MessageBoxA(
-            nullptr,
-            message.c_str(),
-            "FastJungle Renderer",
-            MB_OK | MB_ICONERROR);
-        return EXIT_FAILURE;
-    } catch (...) {
-        shutdownRenderer(rendererState);
-
-        if (ownsComInitialization) {
-            CoUninitialize();
-        }
-
-        MessageBoxW(
-            nullptr,
-            L"Unhandled renderer exception.",
-            kWindowTitle,
-            MB_OK | MB_ICONERROR);
-        return EXIT_FAILURE;
+    if (!GetClientRect(
+        hwnd,
+        &client_rectangle)) {
+        return 1;
     }
+
+    const UINT client_width =
+        static_cast<UINT>(
+            client_rectangle.right -
+            client_rectangle.left);
+
+    const UINT client_height =
+        static_cast<UINT>(
+            client_rectangle.bottom -
+            client_rectangle.top);
+
+    application.init(
+        hwnd,
+        client_width,
+        client_height);
+
+    state.application = &application;
+
+    ShowWindow(
+        hwnd,
+        show_command);
+
+    UpdateWindow(hwnd);
+
+    const fjr::RunLoop run_loop{
+        .context = &state,
+        .pump_messages = pump_messages
+    };
+
+    return application.run(run_loop);
 }
