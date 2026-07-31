@@ -75,3 +75,110 @@ FastJungle/
 │└─ cooked/                  
 
 
+
+
+
+
+
+
+
+
+FastJungle/
+├─ CMakeLists.txt
+├─ .gitignore
+│
+├─ include/
+│  └─ FastJungle/
+│     ├─ Core/
+│     │  ├─ Error.h
+│     │  ├─ FileIO.h
+│     │  ├─ Logger.h
+│     │  └─ Types.h
+│     │
+│     ├─ Scene/
+│     │  ├─ SceneFormat.h
+│     │  ├─ SceneHeader.h
+│     │  ├─ SceneData.h
+│     │  ├─ MeshData.h
+│     │  ├─ MaterialData.h
+│     │  ├─ TextureData.h
+│     │  └─ InstanceData.h
+│     │
+│     ├─ Cooker/
+│     │  ├─ SceneCooker.h
+│     │  ├─ UsdSceneReader.h
+│     │  ├─ UsdMeshReader.h
+│     │  ├─ UsdMaterialReader.h
+│     │  ├─ UsdInstanceReader.h
+│     │  ├─ TextureCooker.h
+│     │  └─ SceneWriter.h
+│     │
+│     └─ Renderer/
+│        ├─ Application.h
+│        ├─ Window.h
+│        ├─ Renderer.h
+│        ├─ Device.h
+│        ├─ CommandQueue.h
+│        ├─ SwapChain.h
+│        ├─ DescriptorHeap.h
+│        ├─ PipelineState.h
+│        ├─ ShaderLoader.h
+│        ├─ SceneLoader.h
+│        ├─ GpuScene.h
+│        ├─ UploadContext.h
+│        └─ FrameContext.h
+│
+├─ src/
+│  ├─ core/
+│  │  ├─ Error.cpp
+│  │  ├─ FileIO.cpp
+│  │  └─ Logger.cpp
+│  │
+│  ├─ scene/
+│  │  ├─ SceneFormat.cpp
+│  │  └─ SceneData.cpp
+│  │
+│  ├─ cooker/
+│  │  ├─ main.cpp
+│  │  ├─ SceneCooker.cpp
+│  │  ├─ UsdSceneReader.cpp
+│  │  ├─ UsdMeshReader.cpp
+│  │  ├─ UsdMaterialReader.cpp
+│  │  ├─ UsdInstanceReader.cpp
+│  │  ├─ TextureCooker.cpp
+│  │  └─ SceneWriter.cpp
+│  │
+│  └─ renderer/
+│     ├─ main.cpp
+│     ├─ Application.cpp
+│     ├─ Window.cpp
+│     ├─ Renderer.cpp
+│     ├─ Device.cpp
+│     ├─ CommandQueue.cpp
+│     ├─ SwapChain.cpp
+│     ├─ DescriptorHeap.cpp
+│     ├─ PipelineState.cpp
+│     ├─ ShaderLoader.cpp
+│     ├─ SceneLoader.cpp
+│     ├─ GpuScene.cpp
+│     ├─ UploadContext.cpp
+│     └─ FrameContext.cpp
+│
+├─ shaders/
+│  ├─ Common.hlsli
+│  ├─ SceneTypes.hlsli
+│  ├─ VisibilityBuffer.vs.hlsl
+│  ├─ VisibilityBuffer.ps.hlsl
+│  ├─ MaterialResolve.cs.hlsl
+│  ├─ Fullscreen.vs.hlsl
+│  └─ Tonemap.ps.hlsl
+│
+└─ assets/
+   ├─ scene/
+   │  └─ JungleRuins_1_0_1b/
+   │     ├─ USD/
+   │     │  └─ JungleRuins_Karma.usda
+   │     └─ textures/
+   │
+   └─ cooked/
+      └─ JungleRuins_1_0_1b.fjscene

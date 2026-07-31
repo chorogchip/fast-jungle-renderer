@@ -132,7 +132,7 @@ target_compile_options(FastJungleProjectOptions INTERFACE
     /utf-8
     /diagnostics:caret
     "$<$<CONFIG:Release>:/O2>"
-    "$<$<CONFIG:Release>:/Ob3>"
+    "$<$<CONFIG:Release>:/Ob2>"
     "$<$<CONFIG:Release>:/Oi>"
     "$<$<CONFIG:Release>:/Ot>"
     "$<$<CONFIG:Release>:/Gy>"
