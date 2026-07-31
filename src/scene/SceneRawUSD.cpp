@@ -1,7 +1,7 @@
-#if 0
-
 #include "FastJungle/scene/SceneRawUSD.hpp"
-#include "FastJungle/scene/SceneRawUSDUsdAccess.hpp"
+#include "FastJungle/scene/SceneRawUSDAccess.hpp"
+
+#if 0
 
 #include <algorithm>
 #include <array>
@@ -1081,6 +1081,5 @@ namespace scene::raw {
     }
 
 } // namespace scene::raw
-
 
 #endif

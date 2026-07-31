@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace scene::raw {
+namespace fjr::scene::raw {
 
     enum RawUSDPrimState : uint32_t {
         RawUSDPrimStateActive = 1u << 0u,
@@ -147,6 +147,7 @@ namespace scene::raw {
     // in OpenUSD and are queried from the retained raw document on demand.
     class SceneRawUSD {
     public:
+#if 0
         static std::unique_ptr<SceneRawUSD> open(
             const std::filesystem::path& root_path);
 
@@ -155,6 +156,7 @@ namespace scene::raw {
         SceneRawUSD& operator=(SceneRawUSD&&) noexcept;
         SceneRawUSD(const SceneRawUSD&) = delete;
         SceneRawUSD& operator=(const SceneRawUSD&) = delete;
+
 
         const std::filesystem::path& root_path() const;
         const RawUSDStageInfo& stage_info() const;
@@ -178,6 +180,7 @@ namespace scene::raw {
         explicit SceneRawUSD(std::unique_ptr<Impl> impl);
 
         std::unique_ptr<Impl> impl_;
+#endif
     };
 
 } // namespace scene::raw

@@ -29,7 +29,7 @@ namespace fjr::log {
         void flush();
 
         [[noreturn]]
-        void abort(std::source_location loc);
+        void abort(std::source_location loc = std::source_location::current());
 
         template<typename T>
         Logger& operator<<(const T& data) {
@@ -48,7 +48,7 @@ namespace fjr::log {
         void flush_unlocked();
 
         [[noreturn]]
-        void abort_unlocked(std::source_location loc);
+        void abort_unlocked(std::source_location loc = std::source_location::current());
 
     private:
         std::ostringstream logging_stream_;

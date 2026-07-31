@@ -2,7 +2,7 @@
 
 FastJungle is a DirectX 12 renderer specialized for the Intel Jungle Ruins scene.
 
-The project targets **1920¡¿1080 at 60 FPS on a GTX 1060 Mobile**. Instead of building a general-purpose renderer, it uses a fixed scene and hardware target to enable aggressive offline processing, compact data layouts, GPU-driven culling, and scene-specific optimization.
+The project targets **1920 x 1080 at 60 FPS on a GTX 1060 Mobile**. Instead of building a general-purpose renderer, it uses a fixed scene and hardware target to enable aggressive offline processing, compact data layouts, GPU-driven culling, and scene-specific optimization.
 
 ## Target
 
@@ -11,7 +11,7 @@ The project targets **1920¡¿1080 at 60 FPS on a GTX 1060 Mobile**. Instead of bu
 * API: DirectX 12
 * Shader compiler: DXC
 * Shader model: SM 6.6
-* Resolution: 1920¡¿1080
+* Resolution: 1920 x 1080
 * Target frame rate: 60 FPS
 * Quality: basic PBR, alpha-tested foliage, lighting, and shadows
 * Executable: `FastJungle.exe`
