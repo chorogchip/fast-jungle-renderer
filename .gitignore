@@ -1,0 +1,62 @@
+# CMake build
+build/
+out/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+_deps/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+
+# C/C++ build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+
+*.obj
+*.pch
+*.pdb
+*.ipdb
+*.ilk
+*.idb
+*.tlog
+*.lastbuildstate
+*.exp
+*.lib
+*.dll
+*.exe
+
+# DX12 / shader outputs
+*.cso
+*.dxil
+*.shaderbin
+*.hlslbin
+
+# Graphics captures
+*.wpix
+*.pix3
+*.pixrun
+
+# Temporary / system files
+*.log
+*.tmp
+*.bak
+*.dmp
+Thumbs.db
+Desktop.ini
+
+# Local environment
+.env
+.env.*
+!.env.example
