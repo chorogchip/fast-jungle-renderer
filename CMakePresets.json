@@ -1,0 +1,59 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 26,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "FASTJUNGLE_BUILD_RENDERER": "ON",
+        "FASTJUNGLE_BUILD_COOKER": "OFF"
+      }
+    },
+    {
+      "name": "runtime-debug",
+      "displayName": "Runtime Debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "runtime-release",
+      "displayName": "Runtime Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "full-debug",
+      "displayName": "Full Debug",
+      "inherits": "runtime-debug",
+      "cacheVariables": {
+        "FASTJUNGLE_BUILD_COOKER": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "runtime-debug",
+      "configurePreset": "runtime-debug"
+    },
+    {
+      "name": "runtime-release",
+      "configurePreset": "runtime-release"
+    },
+    {
+      "name": "full-debug",
+      "configurePreset": "full-debug"
+    }
+  ]
+}

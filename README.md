@@ -25,12 +25,17 @@ Intel Jungle Ruins contains a large amount of instanced vegetation.
 | Point instances         | 8,674,676 |
 | PointInstancer sources  |       778 |
 | Unique prototypes       |        53 |
-| Native instances        |       142 |
+| Native USD instances    |       741 |
+| Native USD prototypes   |        21 |
+| Owned mesh definitions  |       142 |
 | Scatter systems         |       205 |
 | Cinematic terrain cells |        16 |
 | Extended terrain cells  |        64 |
 
-Most instances belong to a small number of vegetation groups, including River Forest, River Seedling, Pyramid Moss, and Queen Forest.
+The USD stage itself contains 121 mesh prims. Importing the 21 native USD
+prototype trees brings the project-owned total to 142 mesh definitions. Most
+point instances belong to a small number of vegetation groups, including River
+Forest, River Seedling, Pyramid Moss, and Queen Forest.
 
 The current uncompressed instance representation uses approximately 430 MiB. Instance compression and spatial organization are therefore major parts of the project.
 
@@ -38,11 +43,11 @@ The current uncompressed instance representation uses approximately 430 MiB. Ins
 
 ```text
 USD scene
-  ¡é OpenUSD
+  â†“ OpenUSD
 In-memory source scene
-  ¡é offline cooker
+  â†“ offline cooker
 FastJungle custom scene binary
-  ¡é runtime loader
+  â†“ runtime loader
 GPU renderer
 ```
 
@@ -58,6 +63,9 @@ The offline cooker will handle:
 * custom scene binary serialization
 
 The runtime renderer will load only the cooked data and will not depend on OpenUSD.
+
+The current importer boundary and the facts verified from the distributed scene
+are documented in [docs/JungleSceneImport.md](docs/JungleSceneImport.md).
 
 ## Rendering Direction
 

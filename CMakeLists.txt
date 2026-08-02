@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.26)
 project(FastJungle VERSION 0.1.0 LANGUAGES CXX)
 
 include(CheckIPOSupported)
-include(ExternalProject)
-include(FetchContent)
 
 # =============================================================================
 # Supported environment
@@ -53,51 +51,70 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY
 )
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
 # =============================================================================
 # Paths and options
 # =============================================================================
+
+option(FASTJUNGLE_BUILD_RENDERER
+    "Build the FastJungle runtime renderer"
+    ON
+)
+option(FASTJUNGLE_BUILD_COOKER
+    "Build the FastJungle offline cooker"
+    OFF
+)
+option(FASTJUNGLE_ENABLE_IPO
+    "Enable Release IPO/LTCG for FastJungle targets"
+    ON
+)
+
+if(FASTJUNGLE_BUILD_RENDERER OR FASTJUNGLE_BUILD_COOKER)
+    include(FetchContent)
+    set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+endif()
+
+if(FASTJUNGLE_BUILD_COOKER)
+    include(ExternalProject)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+endif()
 
 set(FASTJUNGLE_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(FASTJUNGLE_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(FASTJUNGLE_SHADER_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 set(FASTJUNGLE_ASSET_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
-set(FASTJUNGLE_SCENE_DIR
-    "${FASTJUNGLE_ASSET_DIR}/scene/JungleRuins_1_0_1b"
-    CACHE PATH "Jungle Ruins source directory"
-)
-set(FASTJUNGLE_SCENE_USD
-    "${FASTJUNGLE_SCENE_DIR}/USD/JungleRuins_Karma.usda"
-    CACHE FILEPATH "Root USD layer"
-)
-set(FASTJUNGLE_TEXTURE_DIR
-    "${FASTJUNGLE_SCENE_DIR}/textures"
-    CACHE PATH "Source texture directory"
-)
 set(FASTJUNGLE_COOKED_DIR
     "${FASTJUNGLE_ASSET_DIR}/cooked"
     CACHE PATH "Cooked scene output directory"
 )
 
-set(FASTJUNGLE_OPENUSD_TAG "v26.05" CACHE STRING "Pinned OpenUSD tag")
-set(FASTJUNGLE_ONETBB_TAG  "v2021.9.0" CACHE STRING "Pinned oneTBB tag")
-set(FASTJUNGLE_DXC_VERSION "1.8.2505.32")
-set(FASTJUNGLE_DXC_EXECUTABLE "" CACHE FILEPATH
-    "Optional dxc.exe override; empty downloads the pinned NuGet package"
-)
+if(FASTJUNGLE_BUILD_COOKER)
+    set(FASTJUNGLE_SCENE_DIR
+        "${FASTJUNGLE_ASSET_DIR}/scene/JungleRuins_1_0_1b"
+        CACHE PATH "Jungle Ruins source directory"
+    )
+    set(FASTJUNGLE_SCENE_USD
+        "${FASTJUNGLE_SCENE_DIR}/USD/JungleRuins_Karma.usda"
+        CACHE FILEPATH "Root USD layer"
+    )
+    set(FASTJUNGLE_TEXTURE_DIR
+        "${FASTJUNGLE_SCENE_DIR}/textures"
+        CACHE PATH "Source texture directory"
+    )
+    set(FASTJUNGLE_OPENUSD_TAG "v26.05" CACHE STRING "Pinned OpenUSD tag")
+    set(FASTJUNGLE_ONETBB_TAG  "v2021.9.0" CACHE STRING "Pinned oneTBB tag")
+    option(FASTJUNGLE_ENABLE_OPENEXR
+        "Link an installed OpenEXR package for .exr source textures"
+        OFF
+    )
+endif()
 
-option(FASTJUNGLE_ENABLE_IPO
-    "Enable Release IPO/LTCG for FastJungle targets"
-    ON
-)
-option(FASTJUNGLE_ENABLE_OPENEXR
-    "Link an installed OpenEXR package for .exr source textures"
-    OFF
-)
+if(FASTJUNGLE_BUILD_RENDERER)
+    set(FASTJUNGLE_DXC_VERSION "1.8.2505.32")
+    set(FASTJUNGLE_DXC_EXECUTABLE "" CACHE FILEPATH
+        "Optional dxc.exe override; empty downloads the pinned NuGet package"
+    )
+endif()
 
 set(FASTJUNGLE_RUNTIME_DIR "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(FASTJUNGLE_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
@@ -166,56 +183,61 @@ endfunction()
 # DirectXTex: offline DDS conversion
 # =============================================================================
 
-set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
-set(BUILD_DX11 OFF CACHE BOOL "" FORCE)
-set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
-set(BC_USE_OPENMP OFF CACHE BOOL "" FORCE)
+if(FASTJUNGLE_BUILD_COOKER)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+    set(BUILD_DX11 OFF CACHE BOOL "" FORCE)
+    set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
+    set(BC_USE_OPENMP OFF CACHE BOOL "" FORCE)
 
-FetchContent_Declare(
-    directxtex
-    GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
-    GIT_TAG may2026
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(directxtex)
+    FetchContent_Declare(
+        directxtex
+        GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
+        GIT_TAG may2026
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(directxtex)
 
-if(NOT TARGET DirectXTex)
-    message(FATAL_ERROR "DirectXTex did not create the expected target.")
-endif()
-set_target_properties(DirectXTex PROPERTIES FOLDER "External/DirectXTex")
+    if(NOT TARGET DirectXTex)
+        message(FATAL_ERROR "DirectXTex did not create the expected target.")
+    endif()
+    set_target_properties(DirectXTex PROPERTIES FOLDER "External/DirectXTex")
 
-if(FASTJUNGLE_ENABLE_OPENEXR)
-    find_package(OpenEXR CONFIG REQUIRED)
+    if(FASTJUNGLE_ENABLE_OPENEXR)
+        find_package(OpenEXR CONFIG REQUIRED)
+    endif()
 endif()
 
 # =============================================================================
 # DXC: build-time HLSL compilation
 # =============================================================================
 
-if(NOT FASTJUNGLE_DXC_EXECUTABLE)
-    FetchContent_Declare(
-        fastjungle_dxc
-        URL
-            "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.DXC/${FASTJUNGLE_DXC_VERSION}"
-        URL_HASH
-            SHA256=C6E82B70C14552F1DD58E4A79C93EEAB1567EEB0A9EE63A51564C410429BCE3E
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    )
-    FetchContent_MakeAvailable(fastjungle_dxc)
-    set(FASTJUNGLE_DXC_EXECUTABLE
-        "${fastjungle_dxc_SOURCE_DIR}/build/native/bin/x64/dxc.exe"
-    )
-endif()
+if(FASTJUNGLE_BUILD_RENDERER)
+    if(NOT FASTJUNGLE_DXC_EXECUTABLE)
+        FetchContent_Declare(
+            fastjungle_dxc
+            URL
+                "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.DXC/${FASTJUNGLE_DXC_VERSION}"
+            URL_HASH
+                SHA256=C6E82B70C14552F1DD58E4A79C93EEAB1567EEB0A9EE63A51564C410429BCE3E
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        FetchContent_MakeAvailable(fastjungle_dxc)
+        set(FASTJUNGLE_DXC_EXECUTABLE
+            "${fastjungle_dxc_SOURCE_DIR}/build/native/bin/x64/dxc.exe"
+        )
+    endif()
 
-if(NOT EXISTS "${FASTJUNGLE_DXC_EXECUTABLE}")
-    message(FATAL_ERROR "dxc.exe was not found: ${FASTJUNGLE_DXC_EXECUTABLE}")
+    if(NOT EXISTS "${FASTJUNGLE_DXC_EXECUTABLE}")
+        message(FATAL_ERROR "dxc.exe was not found: ${FASTJUNGLE_DXC_EXECUTABLE}")
+    endif()
 endif()
 
 # =============================================================================
 # OpenUSD + oneTBB: shared monolithic build used only by the cooker
 # =============================================================================
 
+if(FASTJUNGLE_BUILD_COOKER)
 set(FASTJUNGLE_EXTERNAL_ROOT "${CMAKE_BINARY_DIR}/external")
 
 set(FASTJUNGLE_TBB_PREFIX  "${FASTJUNGLE_EXTERNAL_ROOT}/oneTBB-prefix")
@@ -239,7 +261,7 @@ else()
 endif()
 
 set(FASTJUNGLE_USD_IMPLIB "${FASTJUNGLE_USD_INSTALL}/lib/usd_ms.lib")
-set(FASTJUNGLE_USD_DLL    "${FASTJUNGLE_USD_INSTALL}/bin/usd_ms.dll")
+set(FASTJUNGLE_USD_DLL    "${FASTJUNGLE_USD_INSTALL}/lib/usd_ms.dll")
 
 set(FASTJUNGLE_EXTERNAL_CMAKE_ARGS
     "-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>"
@@ -344,6 +366,7 @@ set_target_properties(FastJungleOpenUSD PROPERTIES
     INTERFACE_LINK_LIBRARIES
         "${FASTJUNGLE_TBB_IMPLIB};Shlwapi;Dbghelp;Ws2_32"
 )
+endif()
 
 # =============================================================================
 # Automatic source discovery
@@ -365,15 +388,19 @@ fastjungle_glob_cpp(FASTJUNGLE_CORE_SOURCES
 fastjungle_glob_cpp(FASTJUNGLE_SCENE_SOURCES
     "${FASTJUNGLE_SOURCE_DIR}/scene"
 )
-fastjungle_glob_cpp(FASTJUNGLE_COOKER_SOURCES
-    "${FASTJUNGLE_SOURCE_DIR}/cooker"
-)
-fastjungle_glob_cpp(FASTJUNGLE_RENDERER_SOURCES
-    "${FASTJUNGLE_SOURCE_DIR}/renderer"
-)
-fastjungle_glob_cpp(FASTJUNGLE_DX12_SOURCES
-    "${FASTJUNGLE_SOURCE_DIR}/dx12"
-)
+if(FASTJUNGLE_BUILD_COOKER)
+    fastjungle_glob_cpp(FASTJUNGLE_COOKER_SOURCES
+        "${FASTJUNGLE_SOURCE_DIR}/cooker"
+    )
+endif()
+if(FASTJUNGLE_BUILD_RENDERER)
+    fastjungle_glob_cpp(FASTJUNGLE_RENDERER_SOURCES
+        "${FASTJUNGLE_SOURCE_DIR}/renderer"
+    )
+    fastjungle_glob_cpp(FASTJUNGLE_DX12_SOURCES
+        "${FASTJUNGLE_SOURCE_DIR}/dx12"
+    )
+endif()
 
 file(GLOB_RECURSE FASTJUNGLE_HEADERS CONFIGURE_DEPENDS
     "${FASTJUNGLE_INCLUDE_DIR}/*.h"
@@ -382,22 +409,25 @@ file(GLOB_RECURSE FASTJUNGLE_HEADERS CONFIGURE_DEPENDS
 )
 list(SORT FASTJUNGLE_HEADERS)
 
-set(FASTJUNGLE_COOKER_MAIN
-    "${FASTJUNGLE_SOURCE_DIR}/cooker/main.cpp"
-)
-set(FASTJUNGLE_RENDERER_MAIN
-    "${FASTJUNGLE_SOURCE_DIR}/renderer/main.cpp"
-)
-
-if(NOT EXISTS "${FASTJUNGLE_COOKER_MAIN}")
-    message(FATAL_ERROR
-        "Missing ${FASTJUNGLE_COOKER_MAIN}; the cooker entry point must be wmain."
+if(FASTJUNGLE_BUILD_COOKER)
+    set(FASTJUNGLE_COOKER_MAIN
+        "${FASTJUNGLE_SOURCE_DIR}/cooker/main.cpp"
     )
+    if(NOT EXISTS "${FASTJUNGLE_COOKER_MAIN}")
+        message(FATAL_ERROR
+            "Missing ${FASTJUNGLE_COOKER_MAIN}; the cooker entry point must be wmain."
+        )
+    endif()
 endif()
-if(NOT EXISTS "${FASTJUNGLE_RENDERER_MAIN}")
-    message(FATAL_ERROR
-        "Missing ${FASTJUNGLE_RENDERER_MAIN}; the renderer entry point must be wWinMain."
+if(FASTJUNGLE_BUILD_RENDERER)
+    set(FASTJUNGLE_RENDERER_MAIN
+        "${FASTJUNGLE_SOURCE_DIR}/renderer/main.cpp"
     )
+    if(NOT EXISTS "${FASTJUNGLE_RENDERER_MAIN}")
+        message(FATAL_ERROR
+            "Missing ${FASTJUNGLE_RENDERER_MAIN}; the renderer entry point must be wWinMain."
+        )
+    endif()
 endif()
 if(NOT FASTJUNGLE_CORE_SOURCES)
     message(FATAL_ERROR "No C++ sources found under src/core.")
@@ -443,6 +473,7 @@ fastjungle_enable_ipo(FastJungleScene)
 # Cooker: console executable with wmain
 # =============================================================================
 
+if(FASTJUNGLE_BUILD_COOKER)
 add_executable(FastJungleCooker
     ${FASTJUNGLE_COOKER_SOURCES}
     ${FASTJUNGLE_HEADERS}
@@ -505,6 +536,9 @@ endif()
 ]=])
 
 add_custom_command(TARGET FastJungleCooker POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${FASTJUNGLE_USD_DLL}"
+        "$<TARGET_FILE_DIR:FastJungleCooker>"
     COMMAND "${CMAKE_COMMAND}"
         "-DSOURCE_ROOT=${FASTJUNGLE_USD_INSTALL}"
         "-DDESTINATION=$<TARGET_FILE_DIR:FastJungleCooker>"
@@ -515,11 +549,13 @@ add_custom_command(TARGET FastJungleCooker POST_BUILD
     COMMENT "Deploying OpenUSD and oneTBB runtime files"
     VERBATIM
 )
+endif()
 
 # =============================================================================
 # Shaders: main entry point, Shader Model 6.6
 # =============================================================================
 
+if(FASTJUNGLE_BUILD_RENDERER)
 file(GLOB_RECURSE FASTJUNGLE_HLSL_SOURCES CONFIGURE_DEPENDS
     "${FASTJUNGLE_SHADER_DIR}/*.hlsl"
 )
@@ -648,12 +684,14 @@ target_compile_definitions(FastJungleRenderer PRIVATE
 )
 add_dependencies(FastJungleRenderer FastJungleShaders)
 set_target_properties(FastJungleRenderer PROPERTIES
+    OUTPUT_NAME "FastJungle"
     RUNTIME_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
     PDB_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     FOLDER "FastJungle/Applications"
 )
 fastjungle_enable_ipo(FastJungleRenderer)
+endif()
 
 # =============================================================================
 # IDE organization
@@ -679,7 +717,13 @@ endif()
 
 message(STATUS "FastJungle configuration : ${CMAKE_BUILD_TYPE}")
 message(STATUS "Runtime output           : ${FASTJUNGLE_RUNTIME_DIR}")
-message(STATUS "USD root                 : ${FASTJUNGLE_SCENE_USD}")
+message(STATUS "Build renderer           : ${FASTJUNGLE_BUILD_RENDERER}")
+message(STATUS "Build cooker             : ${FASTJUNGLE_BUILD_COOKER}")
 message(STATUS "Cooked output            : ${FASTJUNGLE_COOKED_DIR}")
-message(STATUS "DXC                       : ${FASTJUNGLE_DXC_EXECUTABLE}")
-message(STATUS "OpenUSD tag               : ${FASTJUNGLE_OPENUSD_TAG}")
+if(FASTJUNGLE_BUILD_RENDERER)
+    message(STATUS "DXC                       : ${FASTJUNGLE_DXC_EXECUTABLE}")
+endif()
+if(FASTJUNGLE_BUILD_COOKER)
+    message(STATUS "USD root                  : ${FASTJUNGLE_SCENE_USD}")
+    message(STATUS "OpenUSD tag               : ${FASTJUNGLE_OPENUSD_TAG}")
+endif()
