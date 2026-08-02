@@ -3,16 +3,10 @@
 #include "FastJungle/scene/JungleScene.hpp"
 #include "FastJungle/scene/JungleSceneValidator.hpp"
 
-#include <pxr/base/plug/registry.h>
-
-#include <Windows.h>
-
-#include <array>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -21,41 +15,6 @@
 namespace {
 
     using Scene = fjr::scene::JungleScene;
-
-    std::filesystem::path executable_directory() {
-        std::vector<wchar_t> buffer(1024);
-        for (;;) {
-            const auto length = GetModuleFileNameW(
-                nullptr,
-                buffer.data(),
-                static_cast<DWORD>(buffer.size()));
-            if (length == 0) {
-                throw std::runtime_error("GetModuleFileNameW failed.");
-            }
-            if (length < buffer.size() - 1) {
-                return std::filesystem::path{
-                    std::wstring_view{buffer.data(), length}}.parent_path();
-            }
-            buffer.resize(buffer.size() * 2);
-        }
-    }
-
-    void register_openusd_plugins() {
-        const auto runtime_root = executable_directory() / "openusd";
-        const std::array manifests{
-            runtime_root / "lib/usd/plugInfo.json",
-            runtime_root / "plugin/usd/plugInfo.json"
-        };
-        for (const auto& manifest : manifests) {
-            if (!std::filesystem::is_regular_file(manifest)) {
-                throw std::runtime_error(
-                    "Missing deployed OpenUSD plugin manifest: " +
-                    manifest.generic_string());
-            }
-            pxr::PlugRegistry::GetInstance().RegisterPlugins(
-                manifest.generic_string());
-        }
-    }
 
     struct VegetationSummary {
         Scene::ObjectKind kind;
@@ -216,7 +175,6 @@ int wmain(int argc, wchar_t* argv[]) {
     }
 
     try {
-        register_openusd_plugins();
         const std::filesystem::path root_layer = argc == 2
             ? std::filesystem::path{argv[1]}
             : std::filesystem::path{FASTJUNGLE_DEFAULT_SCENE_USD};

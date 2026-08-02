@@ -418,6 +418,9 @@ if(FASTJUNGLE_BUILD_COOKER)
             "Missing ${FASTJUNGLE_COOKER_MAIN}; the cooker entry point must be wmain."
         )
     endif()
+    list(REMOVE_ITEM FASTJUNGLE_COOKER_SOURCES
+        "${FASTJUNGLE_COOKER_MAIN}"
+    )
 endif()
 if(FASTJUNGLE_BUILD_RENDERER)
     set(FASTJUNGLE_RENDERER_MAIN
@@ -474,15 +477,34 @@ fastjungle_enable_ipo(FastJungleScene)
 # =============================================================================
 
 if(FASTJUNGLE_BUILD_COOKER)
-add_executable(FastJungleCooker
+add_library(FastJungleUsdImporter STATIC
     ${FASTJUNGLE_COOKER_SOURCES}
+    ${FASTJUNGLE_HEADERS}
+)
+target_link_libraries(FastJungleUsdImporter PUBLIC
+    FastJungle::ProjectOptions
+    FastJungle::Core
+    FastJungle::Scene
+    FastJungle::OpenUSD
+)
+target_include_directories(FastJungleUsdImporter PUBLIC
+    "${FASTJUNGLE_INCLUDE_DIR}"
+)
+add_dependencies(FastJungleUsdImporter FastJungleOpenUSDProject)
+set_target_properties(FastJungleUsdImporter PROPERTIES
+    FOLDER "FastJungle/Libraries"
+)
+fastjungle_enable_ipo(FastJungleUsdImporter)
+
+add_executable(FastJungleCooker
+    ${FASTJUNGLE_COOKER_MAIN}
     ${FASTJUNGLE_HEADERS}
 )
 target_link_libraries(FastJungleCooker PRIVATE
     FastJungle::ProjectOptions
     FastJungle::Core
     FastJungle::Scene
-    FastJungle::OpenUSD
+    FastJungleUsdImporter
     DirectXTex
     windowscodecs
     ole32
@@ -503,7 +525,6 @@ target_compile_definitions(FastJungleCooker PRIVATE
     "FASTJUNGLE_DEFAULT_TEXTURE_DIR=\"${FASTJUNGLE_TEXTURE_DIR}\""
     "FASTJUNGLE_DEFAULT_COOKED_DIR=\"${FASTJUNGLE_COOKED_DIR}\""
 )
-add_dependencies(FastJungleCooker FastJungleOpenUSDProject)
 set_target_properties(FastJungleCooker PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
     PDB_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
@@ -535,20 +556,24 @@ if(EXISTS "${SOURCE_ROOT}/plugin/usd")
 endif()
 ]=])
 
-add_custom_command(TARGET FastJungleCooker POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${FASTJUNGLE_USD_DLL}"
-        "$<TARGET_FILE_DIR:FastJungleCooker>"
-    COMMAND "${CMAKE_COMMAND}"
-        "-DSOURCE_ROOT=${FASTJUNGLE_USD_INSTALL}"
-        "-DDESTINATION=$<TARGET_FILE_DIR:FastJungleCooker>"
-        -P "${FASTJUNGLE_DEPLOY_OPENUSD_SCRIPT}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-        "${FASTJUNGLE_TBB_INSTALL}/bin"
-        "$<TARGET_FILE_DIR:FastJungleCooker>"
-    COMMENT "Deploying OpenUSD and oneTBB runtime files"
-    VERBATIM
-)
+function(fastjungle_deploy_openusd target)
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${FASTJUNGLE_USD_DLL}"
+            "$<TARGET_FILE_DIR:${target}>"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DSOURCE_ROOT=${FASTJUNGLE_USD_INSTALL}"
+            "-DDESTINATION=$<TARGET_FILE_DIR:${target}>"
+            -P "${FASTJUNGLE_DEPLOY_OPENUSD_SCRIPT}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${FASTJUNGLE_TBB_INSTALL}/bin"
+            "$<TARGET_FILE_DIR:${target}>"
+        COMMENT "Deploying OpenUSD and oneTBB runtime files"
+        VERBATIM
+    )
+endfunction()
+
+fastjungle_deploy_openusd(FastJungleCooker)
 endif()
 
 # =============================================================================
@@ -647,7 +672,7 @@ if(FASTJUNGLE_HLSL_SOURCES OR FASTJUNGLE_HLSL_INCLUDES)
 endif()
 
 # =============================================================================
-# Renderer: WIN32 executable with wWinMain; no OpenUSD dependency
+# Renderer: WIN32 executable with wWinMain
 # =============================================================================
 
 add_executable(FastJungleRenderer WIN32
@@ -682,6 +707,16 @@ target_compile_definitions(FastJungleRenderer PRIVATE
     "FASTJUNGLE_DEFAULT_COOKED_DIR=\"${FASTJUNGLE_COOKED_DIR}\""
     "FASTJUNGLE_SHADER_OUTPUT_DIR=\"${FASTJUNGLE_COMPILED_SHADER_DIR}\""
 )
+if(FASTJUNGLE_BUILD_COOKER)
+    target_link_libraries(FastJungleRenderer PRIVATE
+        FastJungleUsdImporter
+    )
+    target_compile_definitions(FastJungleRenderer PRIVATE
+        FASTJUNGLE_HAS_USD_IMPORTER=1
+        "FASTJUNGLE_DEFAULT_SCENE_USD=\"${FASTJUNGLE_SCENE_USD}\""
+    )
+    fastjungle_deploy_openusd(FastJungleRenderer)
+endif()
 add_dependencies(FastJungleRenderer FastJungleShaders)
 set_target_properties(FastJungleRenderer PROPERTIES
     OUTPUT_NAME "FastJungle"
@@ -701,6 +736,7 @@ source_group(TREE "${FASTJUNGLE_SOURCE_DIR}" PREFIX "Source"
     FILES
         ${FASTJUNGLE_CORE_SOURCES}
         ${FASTJUNGLE_SCENE_SOURCES}
+        ${FASTJUNGLE_COOKER_MAIN}
         ${FASTJUNGLE_COOKER_SOURCES}
         ${FASTJUNGLE_RENDERER_SOURCES}
 )

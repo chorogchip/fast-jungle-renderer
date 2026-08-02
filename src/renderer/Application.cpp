@@ -7,7 +7,8 @@ namespace fjr {
     void Application::init(
         void* native_window,
         std::uint32_t width,
-        std::uint32_t height) {
+        std::uint32_t height,
+        const scene::JungleScene& scene) {
 
         if (native_window == nullptr ||
             width == 0 ||
@@ -18,7 +19,8 @@ namespace fjr {
         renderer_.init(
             native_window,
             width,
-            height);
+            height,
+            scene);
     }
 
     int Application::run(

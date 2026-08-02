@@ -1,5 +1,6 @@
 #include "FastJungle/cooker/JungleUsdImporter.hpp"
 
+#include <pxr/base/plug/registry.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/quath.h>
 #include <pxr/base/gf/vec2f.h>
@@ -32,17 +33,58 @@
 #include <pxr/usd/usdShade/output.h>
 #include <pxr/usd/usdShade/shader.h>
 
+#include <Windows.h>
+
+#include <array>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace fjr::cooker {
 
     namespace {
 
         using Scene = scene::JungleScene;
+
+        std::filesystem::path executable_directory() {
+            std::vector<wchar_t> buffer(1024);
+            for (;;) {
+                const auto length = GetModuleFileNameW(
+                    nullptr,
+                    buffer.data(),
+                    static_cast<DWORD>(buffer.size()));
+                if (length == 0) {
+                    throw std::runtime_error("GetModuleFileNameW failed.");
+                }
+                if (length < buffer.size() - 1) {
+                    return std::filesystem::path{
+                        std::wstring_view{buffer.data(), length}}
+                        .parent_path();
+                }
+                buffer.resize(buffer.size() * 2);
+            }
+        }
+
+        void register_openusd_plugins() {
+            const auto runtime_root = executable_directory() / "openusd";
+            const std::array manifests{
+                runtime_root / "lib/usd/plugInfo.json",
+                runtime_root / "plugin/usd/plugInfo.json"
+            };
+            for (const auto& manifest : manifests) {
+                if (!std::filesystem::is_regular_file(manifest)) {
+                    throw std::runtime_error(
+                        "Missing deployed OpenUSD plugin manifest: " +
+                        manifest.generic_string());
+                }
+                pxr::PlugRegistry::GetInstance().RegisterPlugins(
+                    manifest.generic_string());
+            }
+        }
 
         Scene::Float2 to_float2(const pxr::GfVec2f& value) {
             return {value[0], value[1]};
@@ -811,6 +853,8 @@ namespace fjr::cooker {
 
     scene::JungleScene JungleUsdImporter::import_scene(
         const std::filesystem::path& root_layer) {
+
+        register_openusd_plugins();
 
         const auto absolute_path = std::filesystem::absolute(root_layer);
         if (!std::filesystem::is_regular_file(absolute_path)) {

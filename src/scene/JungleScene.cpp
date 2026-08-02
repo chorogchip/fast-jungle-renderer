@@ -30,11 +30,11 @@ namespace fjr::scene {
             Rule{"/World/ShrubSorrel_", ObjectKind::ShrubSorrel},
             Rule{"/World/Shrub_", ObjectKind::Shrub},
             Rule{"/World/Nettle_", ObjectKind::Nettle},
+            Rule{"/root/Pyramid_v1a_DT", ObjectKind::Pyramid},
+            Rule{"/root/STT_Fixed_BanyanForest_Reduced", ObjectKind::Banyan},
+            Rule{"/root/River", ObjectKind::River},
+            Rule{"/root/Creek", ObjectKind::Creek},
             Rule{"/root/", ObjectKind::Terrain},
-            Rule{"/World/Pyramid", ObjectKind::Pyramid},
-            Rule{"/World/Banyan", ObjectKind::Banyan},
-            Rule{"/World/River", ObjectKind::River},
-            Rule{"/World/Creek", ObjectKind::Creek},
             Rule{"/Environment", ObjectKind::Environment},
         };
 

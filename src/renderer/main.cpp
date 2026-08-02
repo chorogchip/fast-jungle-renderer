@@ -1,6 +1,14 @@
 #include "FastJungle/renderer/Application.hpp"
 
+#ifdef FASTJUNGLE_HAS_USD_IMPORTER
+#include "FastJungle/cooker/JungleUsdImporter.hpp"
+#endif
+
 #include <Windows.h>
+
+#include <exception>
+#include <filesystem>
+#include <string>
 
 namespace {
 
@@ -162,6 +170,14 @@ int WINAPI wWinMain(
     _In_ PWSTR,
     _In_ int show_command) {
 
+#ifndef FASTJUNGLE_HAS_USD_IMPORTER
+    MessageBoxW(
+        nullptr,
+        L"Build the full-debug configuration to import the Jungle scene.",
+        L"Fast Jungle",
+        MB_OK | MB_ICONERROR);
+    return 1;
+#else
     constexpr UINT initial_width = 1280;
     constexpr UINT initial_height = 720;
 
@@ -200,10 +216,25 @@ int WINAPI wWinMain(
             client_rectangle.bottom -
             client_rectangle.top);
 
-    application.init(
-        hwnd,
-        client_width,
-        client_height);
+    try {
+        const auto scene =
+            fjr::cooker::JungleUsdImporter::import_scene(
+                std::filesystem::path{FASTJUNGLE_DEFAULT_SCENE_USD});
+        application.init(
+            hwnd,
+            client_width,
+            client_height,
+            scene);
+    }
+    catch (const std::exception& exception) {
+        MessageBoxA(
+            nullptr,
+            exception.what(),
+            "Fast Jungle",
+            MB_OK | MB_ICONERROR);
+        DestroyWindow(hwnd);
+        return 1;
+    }
 
     state.application = &application;
 
@@ -219,4 +250,5 @@ int WINAPI wWinMain(
     };
 
     return application.run(run_loop);
+#endif
 }

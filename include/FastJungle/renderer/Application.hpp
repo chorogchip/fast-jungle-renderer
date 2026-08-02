@@ -24,7 +24,8 @@ namespace fjr {
         void init(
             void* native_window,
             std::uint32_t width,
-            std::uint32_t height);
+            std::uint32_t height,
+            const scene::JungleScene& scene);
 
         [[nodiscard]]
         int run(const RunLoop& run_loop);
