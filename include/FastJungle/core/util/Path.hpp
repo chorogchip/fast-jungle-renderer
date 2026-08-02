@@ -68,6 +68,9 @@ namespace fjr::util {
         bool is_directory() const;
 
         [[nodiscard]]
+        bool starts_with(std::string_view prefix) const;
+
+        [[nodiscard]]
         bool contains_case_insensitive(std::string_view text) const;
 
         [[nodiscard]]

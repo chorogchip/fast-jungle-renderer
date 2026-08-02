@@ -1,6 +1,7 @@
 #include "FastJungle/cooker/JungleUsdImporter.hpp"
 
 #include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/scene/JungleSceneValidator.hpp"
 
 #include <pxr/base/plug/registry.h>
 
@@ -173,7 +174,7 @@ namespace {
                       << summary.instances << " instances\n";
         }
 
-        auto validation = Scene::validate(scene);
+        auto validation = fjr::scene::JungleSceneValidator::validate(scene);
         std::uint64_t warnings = 0;
         std::uint64_t errors = 0;
         const auto print_diagnostics = [&warnings, &errors](

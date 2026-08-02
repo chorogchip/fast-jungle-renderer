@@ -59,6 +59,10 @@ namespace fjr::util {
         return !error && result;
     }
 
+    bool Path::starts_with(std::string_view prefix) const {
+        return path_.generic_string().starts_with(prefix);
+    }
+
     bool Path::contains_case_insensitive(std::string_view text) const {
         if (text.empty()) {
             return true;

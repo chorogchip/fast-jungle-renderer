@@ -321,8 +321,6 @@ namespace fjr::scene {
         [[nodiscard]]
         static const char* object_kind_name(ObjectKind kind) noexcept;
 
-        [[nodiscard]]
-        static std::vector<Diagnostic> validate(const JungleScene& scene);
     };
 
 } // namespace fjr::scene
