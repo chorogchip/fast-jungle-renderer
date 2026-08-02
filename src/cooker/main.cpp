@@ -1,4 +1,4 @@
-#include "JungleUsdImporter.hpp"
+#include "FastJungle/cooker/JungleUsdImporter.hpp"
 
 #include "FastJungle/scene/JungleScene.hpp"
 
@@ -18,6 +18,8 @@
 #include <vector>
 
 namespace {
+
+    using Scene = fjr::scene::JungleScene;
 
     std::filesystem::path executable_directory() {
         std::vector<wchar_t> buffer(1024);
@@ -55,15 +57,15 @@ namespace {
     }
 
     struct VegetationSummary {
-        fjr::scene::JungleObjectKind kind;
+        Scene::ObjectKind kind;
         std::uint64_t instancers = 0;
         std::uint64_t instances = 0;
     };
 
     std::vector<VegetationSummary> summarize_vegetation(
-        const fjr::scene::JungleScene& scene) {
+        const Scene& scene) {
 
-        using Kind = fjr::scene::JungleObjectKind;
+        using Kind = Scene::ObjectKind;
         std::vector<VegetationSummary> result{
             {Kind::Anthurium},
             {Kind::GrassA},
@@ -91,7 +93,7 @@ namespace {
     }
 
     void count_asset(
-        const fjr::scene::AssetReference& asset,
+        const Scene::AssetReference& asset,
         std::uint64_t& assets,
         std::uint64_t& missing_assets) {
 
@@ -104,7 +106,7 @@ namespace {
         }
     }
 
-    int print_report(const fjr::scene::JungleScene& scene) {
+    int print_report(const Scene& scene) {
         std::uint64_t total_instances = 0;
         for (const auto& instancer : scene.point_instancers) {
             total_instances += instancer.positions.size();
@@ -115,9 +117,9 @@ namespace {
         for (const auto& shader : scene.shader_nodes) {
             for (const auto& input : shader.inputs) {
                 if (input.value.kind ==
-                    fjr::scene::ShaderValueKind::Asset) {
+                    Scene::ShaderValueKind::Asset) {
                     count_asset(
-                        std::get<fjr::scene::AssetReference>(
+                        std::get<Scene::AssetReference>(
                             input.value.data),
                         asset_references,
                         missing_assets);
@@ -166,26 +168,26 @@ namespace {
         std::cout << "\nVerified vegetation groups\n";
         for (const auto& summary : summarize_vegetation(scene)) {
             std::cout << "  "
-                      << fjr::scene::jungle_object_kind_name(summary.kind)
+                      << Scene::object_kind_name(summary.kind)
                       << ": " << summary.instancers << " instancers, "
                       << summary.instances << " instances\n";
         }
 
-        auto validation = fjr::scene::validate_jungle_scene(scene);
+        auto validation = Scene::validate(scene);
         std::uint64_t warnings = 0;
         std::uint64_t errors = 0;
         const auto print_diagnostics = [&warnings, &errors](
-            const std::vector<fjr::scene::SceneDiagnostic>& diagnostics) {
+            const std::vector<Scene::Diagnostic>& diagnostics) {
 
             for (const auto& diagnostic : diagnostics) {
                 const char* severity = "info";
                 if (diagnostic.severity ==
-                    fjr::scene::DiagnosticSeverity::Warning) {
+                    Scene::DiagnosticSeverity::Warning) {
                     severity = "warning";
                     ++warnings;
                 }
                 else if (diagnostic.severity ==
-                    fjr::scene::DiagnosticSeverity::Error) {
+                    Scene::DiagnosticSeverity::Error) {
                     severity = "error";
                     ++errors;
                 }
@@ -218,9 +220,10 @@ int wmain(int argc, wchar_t* argv[]) {
             ? std::filesystem::path{argv[1]}
             : std::filesystem::path{FASTJUNGLE_DEFAULT_SCENE_USD};
 
-        // import_jungle_usd owns the only UsdStage. It is destroyed before
+        // The importer owns the only UsdStage. It is destroyed before
         // this report touches the returned, runtime-neutral JungleScene.
-        const auto scene = fjr::cooker::import_jungle_usd(root_layer);
+        const auto scene = fjr::cooker::JungleUsdImporter::import_scene(
+            root_layer);
         return print_report(scene);
     }
     catch (const std::exception& exception) {

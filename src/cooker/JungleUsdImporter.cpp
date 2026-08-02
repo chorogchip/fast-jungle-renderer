@@ -1,4 +1,4 @@
-#include "JungleUsdImporter.hpp"
+#include "FastJungle/cooker/JungleUsdImporter.hpp"
 
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/quath.h>
@@ -42,15 +42,17 @@ namespace fjr::cooker {
 
     namespace {
 
-        scene::Float2 to_float2(const pxr::GfVec2f& value) {
+        using Scene = scene::JungleScene;
+
+        Scene::Float2 to_float2(const pxr::GfVec2f& value) {
             return {value[0], value[1]};
         }
 
-        scene::Float3 to_float3(const pxr::GfVec3f& value) {
+        Scene::Float3 to_float3(const pxr::GfVec3f& value) {
             return {value[0], value[1], value[2]};
         }
 
-        scene::Float4 to_float4(const pxr::GfVec4f& value) {
+        Scene::Float4 to_float4(const pxr::GfVec4f& value) {
             return {value[0], value[1], value[2], value[3]};
         }
 
@@ -75,10 +77,10 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::AssetReference make_asset_reference(
+        Scene::AssetReference make_asset_reference(
             const pxr::SdfAssetPath& asset_path) {
 
-            scene::AssetReference result;
+            Scene::AssetReference result;
             result.authored_path = asset_path.GetAssetPath();
             result.resolved_path = asset_path.GetResolvedPath();
             if (!result.resolved_path.empty()) {
@@ -88,8 +90,8 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::Matrix4x4 to_matrix(const pxr::GfMatrix4d& source) {
-            scene::Matrix4x4 result;
+        Scene::Matrix4x4 to_matrix(const pxr::GfMatrix4d& source) {
+            Scene::Matrix4x4 result;
             for (std::size_t row = 0; row < 4; ++row) {
                 for (std::size_t column = 0; column < 4; ++column) {
                     result.values[row * 4 + column] =
@@ -99,10 +101,10 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::ShaderConnection to_connection(
+        Scene::ShaderConnection to_connection(
             const pxr::UsdShadeConnectionSourceInfo& source) {
 
-            scene::ShaderConnection result;
+            Scene::ShaderConnection result;
             result.source_prim_path =
                 source.source.GetPrim().GetPath().GetString();
             result.source_name = source.sourceName.GetString();
@@ -112,13 +114,13 @@ namespace fjr::cooker {
         }
 
         template<typename ShadingProperty>
-        std::vector<scene::ShaderConnection> read_connections(
+        std::vector<Scene::ShaderConnection> read_connections(
             const ShadingProperty& property,
             std::vector<std::string>& invalid_source_paths) {
 
             pxr::SdfPathVector invalid_paths;
             const auto sources = property.GetConnectedSources(&invalid_paths);
-            std::vector<scene::ShaderConnection> result;
+            std::vector<Scene::ShaderConnection> result;
             result.reserve(sources.size());
             for (const auto& source : sources) {
                 result.push_back(to_connection(source));
@@ -130,11 +132,11 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::ShaderValue read_shader_value(
+        Scene::ShaderValue read_shader_value(
             const pxr::UsdAttribute& attribute,
-            std::vector<scene::SceneDiagnostic>& diagnostics) {
+            std::vector<Scene::Diagnostic>& diagnostics) {
 
-            scene::ShaderValue result;
+            Scene::ShaderValue result;
             result.type_name = attribute.GetTypeName().GetAsToken().GetString();
 
             pxr::VtValue value;
@@ -143,39 +145,39 @@ namespace fjr::cooker {
             }
 
             if (value.IsHolding<float>()) {
-                result.kind = scene::ShaderValueKind::Float;
+                result.kind = Scene::ShaderValueKind::Float;
                 result.data = value.UncheckedGet<float>();
             }
             else if (value.IsHolding<pxr::GfVec2f>()) {
-                result.kind = scene::ShaderValueKind::Float2;
+                result.kind = Scene::ShaderValueKind::Float2;
                 result.data = to_float2(value.UncheckedGet<pxr::GfVec2f>());
             }
             else if (value.IsHolding<pxr::GfVec3f>()) {
-                result.kind = scene::ShaderValueKind::Float3;
+                result.kind = Scene::ShaderValueKind::Float3;
                 result.data = to_float3(value.UncheckedGet<pxr::GfVec3f>());
             }
             else if (value.IsHolding<pxr::GfVec4f>()) {
-                result.kind = scene::ShaderValueKind::Float4;
+                result.kind = Scene::ShaderValueKind::Float4;
                 result.data = to_float4(value.UncheckedGet<pxr::GfVec4f>());
             }
             else if (value.IsHolding<pxr::TfToken>()) {
-                result.kind = scene::ShaderValueKind::Token;
+                result.kind = Scene::ShaderValueKind::Token;
                 result.data = value.UncheckedGet<pxr::TfToken>().GetString();
             }
             else if (value.IsHolding<std::string>()) {
-                result.kind = scene::ShaderValueKind::String;
+                result.kind = Scene::ShaderValueKind::String;
                 result.data = value.UncheckedGet<std::string>();
             }
             else if (value.IsHolding<pxr::SdfAssetPath>()) {
-                result.kind = scene::ShaderValueKind::Asset;
+                result.kind = Scene::ShaderValueKind::Asset;
                 result.data = make_asset_reference(
                     value.UncheckedGet<pxr::SdfAssetPath>());
             }
             else {
-                result.kind = scene::ShaderValueKind::Unsupported;
+                result.kind = Scene::ShaderValueKind::Unsupported;
                 result.unsupported_value = pxr::TfStringify(value);
                 diagnostics.push_back({
-                    scene::DiagnosticSeverity::Warning,
+                    Scene::DiagnosticSeverity::Warning,
                     attribute.GetPath().GetString(),
                     "Shader value type was retained as text: " +
                         result.type_name
@@ -184,10 +186,10 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::ShaderOutput read_shader_output(
+        Scene::ShaderOutput read_shader_output(
             const pxr::UsdShadeOutput& output) {
 
-            scene::ShaderOutput result;
+            Scene::ShaderOutput result;
             result.name = output.GetBaseName().GetString();
             result.type_name = output.GetTypeName().GetAsToken().GetString();
             result.connections = read_connections(
@@ -196,11 +198,11 @@ namespace fjr::cooker {
             return result;
         }
 
-        scene::Primvar read_primvar(
+        Scene::Primvar read_primvar(
             const pxr::UsdGeomPrimvar& source,
-            std::vector<scene::SceneDiagnostic>& diagnostics) {
+            std::vector<Scene::Diagnostic>& diagnostics) {
 
-            scene::Primvar result;
+            Scene::Primvar result;
             result.name = source.GetPrimvarName().GetString();
             result.type_name = source.GetTypeName().GetAsToken().GetString();
             result.interpolation = source.GetInterpolation().GetString();
@@ -215,17 +217,17 @@ namespace fjr::cooker {
             pxr::VtValue value;
             if (!source.Get(&value)) {
                 diagnostics.push_back({
-                    scene::DiagnosticSeverity::Error,
+                    Scene::DiagnosticSeverity::Error,
                     source.GetAttr().GetPath().GetString(),
                     "Unable to read primvar value."
                 });
-                result.storage = scene::PrimvarStorage::Float;
+                result.storage = Scene::PrimvarStorage::Float;
                 result.data = std::vector<float>{};
                 return result;
             }
 
             if (value.IsHolding<pxr::VtBoolArray>()) {
-                result.storage = scene::PrimvarStorage::Boolean;
+                result.storage = Scene::PrimvarStorage::Boolean;
                 const auto& values = value.UncheckedGet<pxr::VtBoolArray>();
                 std::vector<std::uint8_t> copied;
                 copied.reserve(values.size());
@@ -235,65 +237,65 @@ namespace fjr::cooker {
                 result.data = std::move(copied);
             }
             else if (value.IsHolding<pxr::VtFloatArray>()) {
-                result.storage = scene::PrimvarStorage::Float;
+                result.storage = Scene::PrimvarStorage::Float;
                 result.data = copy_numeric_array<
                     pxr::VtFloatArray,
                     float>(value.UncheckedGet<pxr::VtFloatArray>());
             }
             else if (value.IsHolding<pxr::VtVec2fArray>()) {
-                result.storage = scene::PrimvarStorage::Float2;
+                result.storage = Scene::PrimvarStorage::Float2;
                 result.data = copy_array(
                     value.UncheckedGet<pxr::VtVec2fArray>(),
                     to_float2);
             }
             else if (value.IsHolding<pxr::VtVec3fArray>()) {
-                result.storage = scene::PrimvarStorage::Float3;
+                result.storage = Scene::PrimvarStorage::Float3;
                 result.data = copy_array(
                     value.UncheckedGet<pxr::VtVec3fArray>(),
                     to_float3);
             }
             else {
                 diagnostics.push_back({
-                    scene::DiagnosticSeverity::Error,
+                    Scene::DiagnosticSeverity::Error,
                     source.GetAttr().GetPath().GetString(),
                     "Unsupported Intel Jungle mesh primvar type: " +
                         result.type_name
                 });
-                result.storage = scene::PrimvarStorage::Float;
+                result.storage = Scene::PrimvarStorage::Float;
                 result.data = std::vector<float>{};
             }
             return result;
         }
 
-        scene::PrimKind classify_prim(const pxr::UsdPrim& prim) {
+        Scene::PrimKind classify_prim(const pxr::UsdPrim& prim) {
             if (prim.IsA<pxr::UsdGeomMesh>()) {
-                return scene::PrimKind::Mesh;
+                return Scene::PrimKind::Mesh;
             }
             if (prim.IsA<pxr::UsdGeomSubset>()) {
-                return scene::PrimKind::GeomSubset;
+                return Scene::PrimKind::GeomSubset;
             }
             if (prim.IsA<pxr::UsdGeomPointInstancer>()) {
-                return scene::PrimKind::PointInstancer;
+                return Scene::PrimKind::PointInstancer;
             }
             if (prim.IsA<pxr::UsdShadeMaterial>()) {
-                return scene::PrimKind::Material;
+                return Scene::PrimKind::Material;
             }
             if (prim.IsA<pxr::UsdShadeShader>()) {
-                return scene::PrimKind::Shader;
+                return Scene::PrimKind::Shader;
             }
             if (prim.IsA<pxr::UsdGeomCamera>()) {
-                return scene::PrimKind::Camera;
+                return Scene::PrimKind::Camera;
             }
             if (prim.IsA<pxr::UsdLuxDomeLight>()) {
-                return scene::PrimKind::Light;
+                return Scene::PrimKind::Light;
             }
             if (prim.IsA<pxr::UsdGeomScope>()) {
-                return scene::PrimKind::Scope;
+                return Scene::PrimKind::Scope;
             }
             if (prim.IsA<pxr::UsdGeomXform>()) {
-                return scene::PrimKind::Transform;
+                return Scene::PrimKind::Transform;
             }
-            return scene::PrimKind::Other;
+            return Scene::PrimKind::Other;
         }
 
         class ImportContext {
@@ -310,7 +312,7 @@ namespace fjr::cooker {
                 scene_.materials.reserve(140);
             }
 
-            scene::JungleScene run(const std::filesystem::path& source_root) {
+            Scene run(const std::filesystem::path& source_root) {
                 scene_.source_root = source_root.generic_string();
                 scene_.up_axis =
                     pxr::UsdGeomGetStageUpAxis(stage_).GetString();
@@ -340,7 +342,7 @@ namespace fjr::cooker {
             void read_layers() {
                 const auto root_layer = stage_->GetRootLayer();
                 for (const auto& layer : stage_->GetUsedLayers()) {
-                    scene::SourceLayer result;
+                    Scene::SourceLayer result;
                     result.identifier = layer->GetIdentifier();
                     result.resolved_path = layer->GetRealPath();
                     result.is_root = layer == root_layer;
@@ -352,23 +354,23 @@ namespace fjr::cooker {
                 const pxr::UsdPrim& prim,
                 bool inside_native_prototype) {
 
-                scene::SceneNode node;
+                Scene::Node node;
                 node.path = prim.GetPath().GetString();
                 node.name = prim.GetName().GetString();
                 node.usd_type_name = prim.GetTypeName().GetString();
                 node.prim_kind = classify_prim(prim);
-                node.object_kind = scene::classify_jungle_object(node.path);
+                node.object_kind = Scene::classify_object(node.path);
                 if (prim.IsActive()) {
-                    node.flags |= scene::SceneNodeActive;
+                    node.flags |= Scene::NodeActive;
                 }
                 if (inside_native_prototype) {
-                    node.flags |= scene::SceneNodeInsideNativePrototype;
+                    node.flags |= Scene::NodeInsideNativePrototype;
                 }
                 if (prim.IsPrototype()) {
-                    node.flags |= scene::SceneNodeNativePrototype;
+                    node.flags |= Scene::NodeNativePrototype;
                 }
                 if (prim.IsInstance()) {
-                    node.flags |= scene::SceneNodeNativeInstance;
+                    node.flags |= Scene::NodeNativeInstance;
                     const auto prototype = prim.GetPrototype();
                     if (prototype) {
                         node.native_prototype_path =
@@ -380,7 +382,7 @@ namespace fjr::cooker {
                 if (imageable) {
                     const auto visibility = imageable.ComputeVisibility();
                     if (visibility != pxr::UsdGeomTokens->invisible) {
-                        node.flags |= scene::SceneNodeVisible;
+                        node.flags |= Scene::NodeVisible;
                     }
                     pxr::TfToken purpose;
                     if (imageable.GetPurposeAttr().Get(&purpose)) {
@@ -398,7 +400,7 @@ namespace fjr::cooker {
                         node.local_transform = to_matrix(transform);
                     }
                     if (resets_transform) {
-                        node.flags |= scene::SceneNodeResetsTransform;
+                        node.flags |= Scene::NodeResetsTransform;
                     }
                 }
 
@@ -426,7 +428,7 @@ namespace fjr::cooker {
                 inspect_time_samples(prim);
 
                 if (prim.IsInstance()) {
-                    scene::NativeInstance instance;
+                    Scene::NativeInstance instance;
                     instance.prim_path = prim.GetPath().GetString();
                     const auto prototype = prim.GetPrototype();
                     if (prototype) {
@@ -434,7 +436,7 @@ namespace fjr::cooker {
                             prototype.GetPath().GetString();
                     }
                     instance.object_kind =
-                        scene::classify_jungle_object(instance.prim_path);
+                        Scene::classify_object(instance.prim_path);
                     scene_.native_instances.push_back(std::move(instance));
                 }
 
@@ -484,7 +486,7 @@ namespace fjr::cooker {
                         ++scene_.statistics.time_sampled_attribute_count;
                         scene_.statistics.time_sample_count += samples.size();
                         scene_.import_diagnostics.push_back({
-                            scene::DiagnosticSeverity::Error,
+                            Scene::DiagnosticSeverity::Error,
                             attribute.GetPath().GetString(),
                             "Time-sampled attribute is not materialized yet."
                         });
@@ -497,10 +499,10 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdGeomPointInstancer source{prim};
-                scene::PointInstancer result;
+                Scene::PointInstancer result;
                 result.prim_path = prim.GetPath().GetString();
                 result.object_kind =
-                    scene::classify_jungle_object(result.prim_path);
+                    Scene::classify_object(result.prim_path);
 
                 pxr::SdfPathVector prototypes;
                 source.GetPrototypesRel().GetTargets(&prototypes);
@@ -597,7 +599,7 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdGeomMesh source{prim};
-                scene::Mesh result;
+                Scene::Mesh result;
                 result.prim_path = prim.GetPath().GetString();
 
                 pxr::TfToken token;
@@ -654,7 +656,7 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdGeomSubset source{prim};
-                scene::MeshSubset result;
+                Scene::MeshSubset result;
                 result.prim_path = prim.GetPath().GetString();
                 result.mesh_path = prim.GetPath().GetParentPath().GetString();
 
@@ -689,7 +691,7 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdShadeMaterial source{prim};
-                scene::Material result;
+                Scene::Material result;
                 result.prim_path = prim.GetPath().GetString();
                 for (const auto& output : source.GetOutputs()) {
                     result.outputs.push_back(read_shader_output(output));
@@ -707,14 +709,14 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdShadeShader source{prim};
-                scene::ShaderNode result;
+                Scene::ShaderNode result;
                 result.prim_path = prim.GetPath().GetString();
                 pxr::TfToken shader_id;
                 source.GetShaderId(&shader_id);
                 result.shader_id = shader_id.GetString();
 
                 for (const auto& input : source.GetInputs()) {
-                    scene::ShaderInput imported;
+                    Scene::ShaderInput imported;
                     imported.name = input.GetBaseName().GetString();
                     imported.value = read_shader_value(
                         input.GetAttr(),
@@ -751,7 +753,7 @@ namespace fjr::cooker {
                 std::uint32_t node_index) {
 
                 const pxr::UsdGeomCamera source{prim};
-                scene::Camera result;
+                Scene::Camera result;
                 result.prim_path = prim.GetPath().GetString();
                 pxr::TfToken projection;
                 source.GetProjectionAttr().Get(&projection);
@@ -782,7 +784,7 @@ namespace fjr::cooker {
 
                 const pxr::UsdLuxDomeLight source{prim};
                 const pxr::UsdLuxLightAPI light{prim};
-                scene::EnvironmentLight result;
+                Scene::EnvironmentLight result;
                 result.prim_path = prim.GetPath().GetString();
                 pxr::GfVec3f color{1.0f};
                 light.GetColorAttr().Get(&color);
@@ -800,14 +802,14 @@ namespace fjr::cooker {
             }
 
             pxr::UsdStageRefPtr stage_;
-            scene::JungleScene scene_;
+            Scene scene_;
             std::unordered_map<std::string, std::uint32_t> node_indices_;
             std::unordered_map<std::string, std::uint32_t> material_indices_;
         };
 
     } // namespace
 
-    scene::JungleScene import_jungle_usd(
+    scene::JungleScene JungleUsdImporter::import_scene(
         const std::filesystem::path& root_layer) {
 
         const auto absolute_path = std::filesystem::absolute(root_layer);

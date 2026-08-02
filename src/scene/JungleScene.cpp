@@ -11,6 +11,13 @@ namespace fjr::scene {
 
     namespace {
 
+        using AssetReference = JungleScene::AssetReference;
+        using DiagnosticSeverity = JungleScene::DiagnosticSeverity;
+        using JungleObjectKind = JungleScene::ObjectKind;
+        using PointInstancer = JungleScene::PointInstancer;
+        using PrimKind = JungleScene::PrimKind;
+        using SceneDiagnostic = JungleScene::Diagnostic;
+
         bool starts_with_path(
             const std::string& path,
             std::string_view prefix) {
@@ -79,7 +86,8 @@ namespace fjr::scene {
 
     } // namespace
 
-    JungleObjectKind classify_jungle_object(const std::string& prim_path) {
+    JungleScene::ObjectKind JungleScene::classify_object(
+        const std::string& prim_path) {
         struct Rule {
             std::string_view prefix;
             JungleObjectKind kind;
@@ -119,7 +127,8 @@ namespace fjr::scene {
         return JungleObjectKind::Unknown;
     }
 
-    const char* jungle_object_kind_name(JungleObjectKind kind) {
+    const char* JungleScene::object_kind_name(
+        ObjectKind kind) noexcept {
         switch (kind) {
         case JungleObjectKind::Unknown: return "Unknown";
         case JungleObjectKind::Anthurium: return "Anthurium";
@@ -145,7 +154,7 @@ namespace fjr::scene {
         return "Unknown";
     }
 
-    std::vector<SceneDiagnostic> validate_jungle_scene(
+    std::vector<JungleScene::Diagnostic> JungleScene::validate(
         const JungleScene& scene) {
 
         std::vector<SceneDiagnostic> diagnostics;
@@ -185,7 +194,7 @@ namespace fjr::scene {
 
         for (std::size_t i = 0; i < scene.nodes.size(); ++i) {
             const auto& node = scene.nodes[i];
-            if (node.parent != INVALID_SCENE_INDEX &&
+            if (node.parent != JungleScene::INVALID_INDEX &&
                 node.parent >= scene.nodes.size()) {
                 add_error(diagnostics, node.path, "Invalid parent index.");
             }
@@ -216,7 +225,7 @@ namespace fjr::scene {
             default:
                 continue;
             }
-            if (node.payload == INVALID_SCENE_INDEX ||
+            if (node.payload == JungleScene::INVALID_INDEX ||
                 node.payload >= payload_count) {
                 add_error(diagnostics, node.path, "Invalid typed payload index.");
             }
@@ -384,7 +393,7 @@ namespace fjr::scene {
                 instance_count(scene, expected.kind) != expected.instances) {
                 add_error(
                     diagnostics,
-                    jungle_object_kind_name(expected.kind),
+                    JungleScene::object_kind_name(expected.kind),
                     "Instancer or instance count differs from the verified "
                     "Intel Jungle scene.");
             }
