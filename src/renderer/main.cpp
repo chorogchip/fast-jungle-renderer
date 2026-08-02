@@ -249,6 +249,9 @@ int WINAPI wWinMain(
         .pump_messages = pump_messages
     };
 
-    return application.run(run_loop);
+    const int exit_code = application.run(run_loop);
+    // The window procedure must not retain the stack object past run().
+    state.application = nullptr;
+    return exit_code;
 #endif
 }

@@ -16,6 +16,7 @@ namespace fjr {
             std::abort();
         }
 
+        minimized_ = false;
         renderer_.init(
             native_window,
             width,

@@ -397,6 +397,13 @@ if(FASTJUNGLE_BUILD_RENDERER)
     fastjungle_glob_cpp(FASTJUNGLE_RENDERER_SOURCES
         "${FASTJUNGLE_SOURCE_DIR}/renderer"
     )
+    file(GLOB_RECURSE FASTJUNGLE_RENDERER_INTERNAL_HEADERS CONFIGURE_DEPENDS
+        "${FASTJUNGLE_SOURCE_DIR}/renderer/*.hpp"
+    )
+    list(APPEND FASTJUNGLE_RENDERER_SOURCES
+        ${FASTJUNGLE_RENDERER_INTERNAL_HEADERS}
+    )
+    list(SORT FASTJUNGLE_RENDERER_SOURCES)
     fastjungle_glob_cpp(FASTJUNGLE_DX12_SOURCES
         "${FASTJUNGLE_SOURCE_DIR}/dx12"
     )
@@ -693,6 +700,7 @@ target_link_libraries(FastJungleRenderer PRIVATE
     gdi32
     shell32
     ole32
+    windowscodecs
 )
 target_include_directories(FastJungleRenderer PRIVATE
     "${FASTJUNGLE_INCLUDE_DIR}"

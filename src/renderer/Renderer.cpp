@@ -1,5 +1,7 @@
 #include "FastJungle/renderer/Renderer.hpp"
 
+#include "RendererMaterial.hpp"
+
 #include <DirectXMath.h>
 
 #include <algorithm>
@@ -12,6 +14,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -126,6 +129,27 @@ namespace fjr {
             DirectX::XMFLOAT4X4 transform{};
         };
 
+        struct Vertex {
+            DirectX::XMFLOAT3 position{};
+            DirectX::XMFLOAT3 normal{};
+            DirectX::XMFLOAT4 tangent{};
+            DirectX::XMFLOAT2 uv{};
+        };
+
+        struct GpuInstance {
+            std::array<DirectX::XMFLOAT4, 7> rows{};
+        };
+
+        struct FaceGroup {
+            std::string material_path;
+            std::vector<std::uint32_t> faces;
+        };
+
+        struct GeometryPart {
+            std::vector<Vertex> vertices;
+            std::vector<std::uint32_t> indices;
+        };
+
         void throw_if_failed(HRESULT result, const char* operation) {
             if (FAILED(result)) {
                 throw std::runtime_error(operation);
@@ -158,86 +182,373 @@ namespace fjr {
             return RENDER_ALL_OBJECT_KINDS || kind == RENDER_OBJECT_KIND;
         }
 
-        std::array<float, 4> object_color(ObjectKind kind) {
-            constexpr std::array colors{
-                std::array{0.91f, 0.25f, 0.29f, 1.0f},
-                std::array{0.32f, 0.72f, 0.32f, 1.0f},
-                std::array{0.17f, 0.58f, 0.31f, 1.0f},
-                std::array{0.47f, 0.76f, 0.22f, 1.0f},
-                std::array{0.20f, 0.63f, 0.48f, 1.0f},
-                std::array{0.13f, 0.48f, 0.35f, 1.0f},
-                std::array{0.17f, 0.66f, 0.58f, 1.0f},
-                std::array{0.44f, 0.79f, 0.61f, 1.0f},
-                std::array{0.63f, 0.84f, 0.50f, 1.0f},
-                std::array{0.81f, 0.55f, 0.28f, 1.0f},
-                std::array{0.70f, 0.36f, 0.57f, 1.0f},
-                std::array{0.50f, 0.72f, 0.24f, 1.0f},
-                std::array{0.59f, 0.47f, 0.33f, 1.0f},
-                std::array{0.82f, 0.68f, 0.31f, 1.0f},
-                std::array{0.33f, 0.52f, 0.25f, 1.0f},
-                std::array{0.20f, 0.48f, 0.78f, 1.0f},
-                std::array{0.24f, 0.67f, 0.82f, 1.0f},
-            };
-            const auto iterator = std::ranges::find(
-                RENDERABLE_OBJECT_KINDS,
-                kind);
-            if (iterator == RENDERABLE_OBJECT_KINDS.end()) {
-                return {1.0f, 0.0f, 1.0f, 1.0f};
+        std::vector<FaceGroup> build_face_groups(
+            const Scene& scene,
+            const Scene::Mesh& mesh) {
+
+            std::vector<std::string> face_materials(
+                mesh.face_vertex_counts.size(),
+                mesh.material_path);
+            for (const auto& subset : scene.mesh_subsets) {
+                if (subset.mesh_path != mesh.prim_path) {
+                    continue;
+                }
+                if (subset.element_type != "face") {
+                    throw std::runtime_error(
+                        "Non-face material subset in " + subset.prim_path);
+                }
+                if (subset.material_path.empty()) {
+                    throw std::runtime_error(
+                        "Unbound material subset in " + subset.prim_path);
+                }
+                for (const auto signed_face : subset.indices) {
+                    if (signed_face < 0 ||
+                        static_cast<std::size_t>(signed_face) >=
+                            face_materials.size()) {
+                        throw std::runtime_error(
+                            "Invalid material subset face in " +
+                            subset.prim_path);
+                    }
+                    auto& material = face_materials[
+                        static_cast<std::size_t>(signed_face)];
+                    if (material != mesh.material_path &&
+                        material != subset.material_path) {
+                        throw std::runtime_error(
+                            "Overlapping Jungle material subsets in " +
+                            mesh.prim_path);
+                    }
+                    material = subset.material_path;
+                }
             }
-            return colors[static_cast<std::size_t>(
-                iterator - RENDERABLE_OBJECT_KINDS.begin())];
+
+            std::vector<FaceGroup> result;
+            std::unordered_map<std::string, std::size_t> group_indices;
+            for (std::uint32_t face = 0;
+                face < face_materials.size();
+                ++face) {
+                const auto& material = face_materials[face];
+                if (material.empty()) {
+                    throw std::runtime_error(
+                        "Unbound Jungle mesh face in " + mesh.prim_path);
+                }
+                const auto [iterator, inserted] = group_indices.emplace(
+                    material,
+                    result.size());
+                if (inserted) {
+                    result.push_back({material, {}});
+                }
+                result[iterator->second].faces.push_back(face);
+            }
+            return result;
         }
 
-        std::vector<std::uint32_t> triangulate(const Scene::Mesh& mesh) {
-            std::unordered_set<std::int32_t> holes{
-                mesh.hole_indices.begin(),
-                mesh.hole_indices.end()
-            };
-            std::vector<std::uint32_t> result;
-            result.reserve(mesh.face_vertex_indices.size() * 3 / 2);
+        std::size_t interpolation_index(
+            std::string_view interpolation,
+            std::size_t face,
+            std::size_t corner,
+            std::uint32_t point) {
 
-            std::size_t corner = 0;
+            if (interpolation.empty() || interpolation == "constant") {
+                return 0;
+            }
+            if (interpolation == "uniform") {
+                return face;
+            }
+            if (interpolation == "vertex" || interpolation == "varying") {
+                return point;
+            }
+            if (interpolation == "faceVarying") {
+                return corner;
+            }
+            throw std::runtime_error(
+                "Unsupported Jungle interpolation " +
+                std::string{interpolation});
+        }
+
+        const Scene::Primvar& find_uv_primvar(
+            const Scene::Mesh& mesh,
+            std::string_view name) {
+
+            const auto primvar = std::ranges::find(
+                mesh.primvars,
+                name,
+                &Scene::Primvar::name);
+            if (primvar == mesh.primvars.end() ||
+                primvar->storage != Scene::PrimvarStorage::Float2) {
+                throw std::runtime_error(
+                    "Missing float2 primvar " + std::string{name} +
+                    " on " + mesh.prim_path);
+            }
+            return *primvar;
+        }
+
+        Scene::Float2 read_uv(
+            const Scene::Mesh& mesh,
+            const Scene::Primvar& primvar,
+            std::size_t face,
+            std::size_t corner,
+            std::uint32_t point) {
+
+            const auto source_index = interpolation_index(
+                primvar.interpolation,
+                face,
+                corner,
+                point);
+            std::int64_t value_index = static_cast<std::int64_t>(source_index);
+            if (!primvar.indices.empty()) {
+                if (source_index >= primvar.indices.size()) {
+                    throw std::runtime_error(
+                        "UV index stream is too small on " + mesh.prim_path);
+                }
+                value_index = primvar.indices[source_index];
+            }
+            const auto& values = std::get<std::vector<Scene::Float2>>(
+                primvar.data);
+            if (value_index < 0 ||
+                static_cast<std::size_t>(value_index) >= values.size()) {
+                throw std::runtime_error(
+                    "UV value index is invalid on " + mesh.prim_path);
+            }
+            return values[static_cast<std::size_t>(value_index)];
+        }
+
+        DirectX::XMVECTOR read_normal(
+            const Scene::Mesh& mesh,
+            std::size_t face,
+            std::size_t corner,
+            std::uint32_t point) {
+
+            if (mesh.normals.empty()) {
+                return DirectX::XMVectorZero();
+            }
+            const auto index = interpolation_index(
+                mesh.normals_interpolation,
+                face,
+                corner,
+                point);
+            if (index >= mesh.normals.size()) {
+                throw std::runtime_error(
+                    "Normal index is invalid on " + mesh.prim_path);
+            }
+            const auto& normal = mesh.normals[index];
+            return DirectX::XMVectorSet(normal.x, normal.y, normal.z, 0.0f);
+        }
+
+        void calculate_tangents(std::array<Vertex, 3>& triangle) {
+            const auto p0 = DirectX::XMLoadFloat3(&triangle[0].position);
+            const auto p1 = DirectX::XMLoadFloat3(&triangle[1].position);
+            const auto p2 = DirectX::XMLoadFloat3(&triangle[2].position);
+            const auto edge1 = DirectX::XMVectorSubtract(p1, p0);
+            const auto edge2 = DirectX::XMVectorSubtract(p2, p0);
+            const float du1 = triangle[1].uv.x - triangle[0].uv.x;
+            const float dv1 = triangle[1].uv.y - triangle[0].uv.y;
+            const float du2 = triangle[2].uv.x - triangle[0].uv.x;
+            const float dv2 = triangle[2].uv.y - triangle[0].uv.y;
+            const float determinant = du1 * dv2 - du2 * dv1;
+
+            DirectX::XMVECTOR tangent;
+            DirectX::XMVECTOR bitangent;
+            if (std::abs(determinant) > 1.0e-8f) {
+                const float inverse = 1.0f / determinant;
+                tangent = DirectX::XMVectorScale(
+                    DirectX::XMVectorSubtract(
+                        DirectX::XMVectorScale(edge1, dv2),
+                        DirectX::XMVectorScale(edge2, dv1)),
+                    inverse);
+                bitangent = DirectX::XMVectorScale(
+                    DirectX::XMVectorSubtract(
+                        DirectX::XMVectorScale(edge2, du1),
+                        DirectX::XMVectorScale(edge1, du2)),
+                    inverse);
+            }
+            else {
+                tangent = edge1;
+                bitangent = edge2;
+            }
+
+            for (auto& vertex : triangle) {
+                auto normal = DirectX::XMLoadFloat3(&vertex.normal);
+                auto orthogonal = DirectX::XMVectorSubtract(
+                    tangent,
+                    DirectX::XMVectorScale(
+                        normal,
+                        DirectX::XMVectorGetX(
+                            DirectX::XMVector3Dot(normal, tangent))));
+                if (DirectX::XMVectorGetX(
+                    DirectX::XMVector3LengthSq(orthogonal)) < 1.0e-10f) {
+                    const auto axis = std::abs(vertex.normal.z) < 0.9f
+                        ? DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)
+                        : DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+                    orthogonal = DirectX::XMVector3Cross(axis, normal);
+                }
+                orthogonal = DirectX::XMVector3Normalize(orthogonal);
+                const float sign = DirectX::XMVectorGetX(
+                    DirectX::XMVector3Dot(
+                        DirectX::XMVector3Cross(normal, orthogonal),
+                        bitangent)) < 0.0f ? -1.0f : 1.0f;
+                DirectX::XMStoreFloat4(
+                    &vertex.tangent,
+                    DirectX::XMVectorSetW(orthogonal, sign));
+            }
+        }
+
+        GeometryPart build_geometry_part(
+            const Scene::Mesh& mesh,
+            const FaceGroup& group,
+            std::string_view uv_primvar_name) {
+
+            const auto& uv_primvar = find_uv_primvar(
+                mesh,
+                uv_primvar_name);
+            std::vector<std::size_t> face_corners(
+                mesh.face_vertex_counts.size());
+            std::size_t corner_count = 0;
             for (std::size_t face = 0;
                 face < mesh.face_vertex_counts.size();
                 ++face) {
-
-                const auto signed_count = mesh.face_vertex_counts[face];
-                if (signed_count < 0) {
+                face_corners[face] = corner_count;
+                const auto count = mesh.face_vertex_counts[face];
+                if (count < 0) {
                     throw std::runtime_error(
                         "Negative face size in " + mesh.prim_path);
                 }
-                const auto count = static_cast<std::size_t>(signed_count);
-                if (corner + count > mesh.face_vertex_indices.size()) {
-                    throw std::runtime_error(
-                        "Face data exceeds index data in " + mesh.prim_path);
-                }
-                if (count >= 3 && !holes.contains(
-                    static_cast<std::int32_t>(face))) {
-                    for (std::size_t triangle = 1;
-                        triangle + 1 < count;
-                        ++triangle) {
+                corner_count += static_cast<std::size_t>(count);
+            }
+            if (corner_count != mesh.face_vertex_indices.size()) {
+                throw std::runtime_error(
+                    "Face data does not match index data in " +
+                    mesh.prim_path);
+            }
 
-                        const std::array corners{
-                            corner,
-                            corner + triangle,
-                            corner + triangle + 1
+            const std::unordered_set<std::int32_t> holes{
+                mesh.hole_indices.begin(),
+                mesh.hole_indices.end()
+            };
+            GeometryPart result;
+            for (const auto face : group.faces) {
+                if (holes.contains(static_cast<std::int32_t>(face))) {
+                    continue;
+                }
+                const auto count = static_cast<std::size_t>(
+                    mesh.face_vertex_counts[face]);
+                if (count < 3) {
+                    continue;
+                }
+                const auto first = face_corners[face];
+                for (std::size_t triangle_index = 1;
+                    triangle_index + 1 < count;
+                    ++triangle_index) {
+                    std::array<std::size_t, 3> corners{
+                        first,
+                        first + triangle_index,
+                        first + triangle_index + 1
+                    };
+                    if (mesh.orientation == "leftHanded") {
+                        std::swap(corners[1], corners[2]);
+                    }
+
+                    std::array<Vertex, 3> triangle;
+                    for (std::size_t vertex_index = 0;
+                        vertex_index < triangle.size();
+                        ++vertex_index) {
+                        const auto corner = corners[vertex_index];
+                        const auto signed_point =
+                            mesh.face_vertex_indices[corner];
+                        if (signed_point < 0 ||
+                            static_cast<std::size_t>(signed_point) >=
+                                mesh.points.size()) {
+                            throw std::runtime_error(
+                                "Invalid point index in " + mesh.prim_path);
+                        }
+                        const auto point = static_cast<std::uint32_t>(
+                            signed_point);
+                        const auto& position = mesh.points[point];
+                        triangle[vertex_index].position = {
+                            position.x,
+                            position.y,
+                            position.z
                         };
-                        for (const auto index : corners) {
-                            const auto point_index =
-                                mesh.face_vertex_indices[index];
-                            if (point_index < 0 ||
-                                static_cast<std::size_t>(point_index) >=
-                                    mesh.points.size()) {
-                                throw std::runtime_error(
-                                    "Invalid point index in " +
-                                    mesh.prim_path);
-                            }
-                            result.push_back(
-                                static_cast<std::uint32_t>(point_index));
+                        const auto uv = read_uv(
+                            mesh,
+                            uv_primvar,
+                            face,
+                            corner,
+                            point);
+                        triangle[vertex_index].uv = {uv.x, uv.y};
+                        const auto normal = read_normal(
+                            mesh,
+                            face,
+                            corner,
+                            point);
+                        if (DirectX::XMVectorGetX(
+                            DirectX::XMVector3LengthSq(normal)) >= 1.0e-10f) {
+                            DirectX::XMStoreFloat3(
+                                &triangle[vertex_index].normal,
+                                DirectX::XMVector3Normalize(normal));
                         }
                     }
+
+                    const auto p0 = DirectX::XMLoadFloat3(
+                        &triangle[0].position);
+                    const auto p1 = DirectX::XMLoadFloat3(
+                        &triangle[1].position);
+                    const auto p2 = DirectX::XMLoadFloat3(
+                        &triangle[2].position);
+                    const auto face_normal = DirectX::XMVector3Normalize(
+                        DirectX::XMVector3Cross(
+                            DirectX::XMVectorSubtract(p1, p0),
+                            DirectX::XMVectorSubtract(p2, p0)));
+                    for (auto& vertex : triangle) {
+                        if (DirectX::XMVectorGetX(
+                            DirectX::XMVector3LengthSq(
+                                DirectX::XMLoadFloat3(&vertex.normal))) <
+                                1.0e-10f) {
+                            DirectX::XMStoreFloat3(
+                                &vertex.normal,
+                                face_normal);
+                        }
+                    }
+                    calculate_tangents(triangle);
+
+                    for (const auto& vertex : triangle) {
+                        if (result.vertices.size() >=
+                            std::numeric_limits<std::uint32_t>::max()) {
+                            throw std::runtime_error(
+                                "Expanded Jungle mesh is too large.");
+                        }
+                        result.indices.push_back(
+                            static_cast<std::uint32_t>(
+                                result.vertices.size()));
+                        result.vertices.push_back(vertex);
+                    }
                 }
-                corner += count;
+            }
+            return result;
+        }
+
+        GpuInstance make_gpu_instance(DirectX::FXMMATRIX transform) {
+            GpuInstance result;
+            const auto normal_transform = DirectX::XMMatrixTranspose(
+                DirectX::XMMatrixInverse(nullptr, transform));
+            DirectX::XMFLOAT4X4 stored_transform;
+            DirectX::XMFLOAT4X4 stored_normal;
+            DirectX::XMStoreFloat4x4(&stored_transform, transform);
+            DirectX::XMStoreFloat4x4(&stored_normal, normal_transform);
+            for (std::size_t row = 0; row < 4; ++row) {
+                result.rows[row] = {
+                    stored_transform.m[row][0],
+                    stored_transform.m[row][1],
+                    stored_transform.m[row][2],
+                    stored_transform.m[row][3]
+                };
+            }
+            for (std::size_t row = 0; row < 3; ++row) {
+                result.rows[row + 4] = {
+                    stored_normal.m[row][0],
+                    stored_normal.m[row][1],
+                    stored_normal.m[row][2],
+                    0.0f
+                };
             }
             return result;
         }
@@ -712,7 +1023,8 @@ namespace fjr {
         dx::Buffer instance_buffer;
         D3D12_VERTEX_BUFFER_VIEW vertex_view{};
         D3D12_INDEX_BUFFER_VIEW index_view{};
-        std::array<float, 4> color{};
+        MaterialDescription material;
+        std::uint32_t material_index = 0;
         std::uint32_t index_count = 0;
         std::uint32_t instance_count = 0;
     };
@@ -726,6 +1038,7 @@ namespace fjr {
             command_context_.set_fence_value(0);
         }
         draw_batches_.clear();
+        texture_loader_.reset();
     }
 
     void Renderer::init(
@@ -786,7 +1099,9 @@ namespace fjr {
         enum class RootParameter : UINT {
             ViewProjection,
             InstanceTransforms,
-            ObjectColor,
+            MaterialConstants,
+            MaterialTextures,
+            MaterialSampler,
             Count
         };
         dx::RootSignatureBuilder root_builder;
@@ -800,9 +1115,23 @@ namespace fjr {
             .reg(0)
             .vis_vertex()
             .add();
-        root_builder.set_constants(RootParameter::ObjectColor)
+        root_builder.set_constants(RootParameter::MaterialConstants)
+            .reg(1)
+            .count(16)
+            .vis_pixel()
+            .add();
+        root_builder.set_resource_table(RootParameter::MaterialTextures)
+            .srv()
             .reg(1)
             .count(4)
+            .add_range()
+            .vis_pixel()
+            .add();
+        root_builder.set_sampler_table(RootParameter::MaterialSampler)
+            .sampler()
+            .reg(0)
+            .count(4)
+            .add_range()
             .vis_pixel()
             .add();
         root_builder.set_flags(
@@ -828,6 +1157,33 @@ namespace fjr {
                 0,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 0
+            },
+            {
+                "NORMAL",
+                0,
+                DXGI_FORMAT_R32G32B32_FLOAT,
+                0,
+                12,
+                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                0
+            },
+            {
+                "TANGENT",
+                0,
+                DXGI_FORMAT_R32G32B32A32_FLOAT,
+                0,
+                24,
+                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                0
+            },
+            {
+                "TEXCOORD",
+                0,
+                DXGI_FORMAT_R32G32_FLOAT,
+                0,
+                40,
+                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                0
             }
         };
         auto description = dx::PSOUtils::default_graphics_desc();
@@ -850,14 +1206,32 @@ namespace fjr {
             device_.Get(),
             description);
 
+        command_context_.reset();
         build_scene_geometry(scene);
+        command_context_.close();
+        ID3D12CommandList* upload_lists[]{
+            command_context_.get_command_list()
+        };
+        command_queue_.execute(std::span<ID3D12CommandList* const>{
+            upload_lists,
+            1
+        });
+        const auto upload_fence = command_queue_.signal();
+        command_queue_.wait(upload_fence);
+        command_context_.set_fence_value(0);
+        texture_loader_->finish_uploads();
         update_camera();
         frame_index_ = swap_chain_.get_current_frame();
 
         const auto title = std::wstring{L"Fast Jungle - "} +
             std::to_wstring(rendered_kind_count_) + L"/" +
             std::to_wstring(RENDERABLE_OBJECT_KINDS.size()) +
-            L" renderable object kinds";
+            L" kinds - " +
+            std::to_wstring(resolved_material_count_) + L" materials, " +
+            std::to_wstring(texture_loader_->loaded_texture_count()) +
+            L" textures, " +
+            std::to_wstring(texture_loader_->fallback_binding_count()) +
+            L" fallback maps";
         SetWindowTextW(window_, title.c_str());
     }
 
@@ -939,6 +1313,8 @@ namespace fjr {
             throw std::runtime_error("No Jungle object kind was selected.");
         }
 
+        MaterialResolver material_resolver{scene};
+        std::unordered_set<std::string> resolved_materials;
         Bounds gallery_bounds;
         for (std::uint32_t object_index = 0;
             object_index < objects.size();
@@ -951,19 +1327,20 @@ namespace fjr {
 
             for (auto& cpu_batch : object.batches) {
                 const auto& mesh = scene.meshes[cpu_batch.mesh_index];
-                const auto indices = triangulate(mesh);
-                if (mesh.points.empty() || indices.empty() ||
-                    cpu_batch.transforms.empty()) {
+                if (mesh.points.empty() || cpu_batch.transforms.empty()) {
                     continue;
                 }
 
                 std::vector<DirectX::XMFLOAT4X4> placed_transforms;
+                std::vector<GpuInstance> gpu_instances;
                 placed_transforms.reserve(cpu_batch.transforms.size());
+                gpu_instances.reserve(cpu_batch.transforms.size());
                 for (const auto& stored_transform : cpu_batch.transforms) {
-                    placed_transforms.push_back(store_matrix(
-                        DirectX::XMMatrixMultiply(
-                            DirectX::XMLoadFloat4x4(&stored_transform),
-                            placement)));
+                    const auto transform = DirectX::XMMatrixMultiply(
+                        DirectX::XMLoadFloat4x4(&stored_transform),
+                        placement);
+                    placed_transforms.push_back(store_matrix(transform));
+                    gpu_instances.push_back(make_gpu_instance(transform));
                 }
 
                 for (const auto& stored_transform : placed_transforms) {
@@ -978,52 +1355,77 @@ namespace fjr {
                                     point.z,
                                     1.0f),
                                 transform));
+                        }
+                }
+
+                for (const auto& face_group : build_face_groups(
+                    scene,
+                    mesh)) {
+                    auto material = material_resolver.resolve(
+                        face_group.material_path);
+                    auto geometry = build_geometry_part(
+                        mesh,
+                        face_group,
+                        material.uv_primvar);
+                    if (geometry.indices.empty()) {
+                        continue;
                     }
-                }
+                    if (geometry.vertices.size() * sizeof(Vertex) >
+                            std::numeric_limits<UINT>::max() ||
+                        geometry.indices.size() * sizeof(std::uint32_t) >
+                            std::numeric_limits<UINT>::max()) {
+                        throw std::runtime_error(
+                            "Jungle mesh exceeds a D3D12 buffer view.");
+                    }
 
-                if (mesh.points.size() * sizeof(Scene::Float3) >
-                        std::numeric_limits<UINT>::max() ||
-                    indices.size() * sizeof(std::uint32_t) >
-                        std::numeric_limits<UINT>::max()) {
-                    throw std::runtime_error(
-                        "Jungle mesh exceeds a D3D12 buffer view.");
+                    resolved_materials.insert(material.material_path);
+                    auto batch = std::make_unique<DrawBatch>();
+                    upload_vector(
+                        batch->vertex_buffer,
+                        device_.Get(),
+                        geometry.vertices);
+                    upload_vector(
+                        batch->index_buffer,
+                        device_.Get(),
+                        geometry.indices);
+                    upload_vector(
+                        batch->instance_buffer,
+                        device_.Get(),
+                        gpu_instances);
+                    batch->vertex_view.BufferLocation =
+                        batch->vertex_buffer->GetGPUVirtualAddress();
+                    batch->vertex_view.SizeInBytes = static_cast<UINT>(
+                        geometry.vertices.size() * sizeof(Vertex));
+                    batch->vertex_view.StrideInBytes = sizeof(Vertex);
+                    batch->index_view.BufferLocation =
+                        batch->index_buffer->GetGPUVirtualAddress();
+                    batch->index_view.SizeInBytes = static_cast<UINT>(
+                        geometry.indices.size() * sizeof(std::uint32_t));
+                    batch->index_view.Format = DXGI_FORMAT_R32_UINT;
+                    batch->material = std::move(material);
+                    batch->index_count = static_cast<std::uint32_t>(
+                        geometry.indices.size());
+                    batch->instance_count = static_cast<std::uint32_t>(
+                        gpu_instances.size());
+                    draw_batches_.push_back(std::move(batch));
                 }
-
-                auto batch = std::make_unique<DrawBatch>();
-                upload_vector(
-                    batch->vertex_buffer,
-                    device_.Get(),
-                    mesh.points);
-                upload_vector(
-                    batch->index_buffer,
-                    device_.Get(),
-                    indices);
-                upload_vector(
-                    batch->instance_buffer,
-                    device_.Get(),
-                    placed_transforms);
-                batch->vertex_view.BufferLocation =
-                    batch->vertex_buffer->GetGPUVirtualAddress();
-                batch->vertex_view.SizeInBytes = static_cast<UINT>(
-                    mesh.points.size() * sizeof(Scene::Float3));
-                batch->vertex_view.StrideInBytes = sizeof(Scene::Float3);
-                batch->index_view.BufferLocation =
-                    batch->index_buffer->GetGPUVirtualAddress();
-                batch->index_view.SizeInBytes = static_cast<UINT>(
-                    indices.size() * sizeof(std::uint32_t));
-                batch->index_view.Format = DXGI_FORMAT_R32_UINT;
-                batch->color = object_color(object.kind);
-                batch->index_count = static_cast<std::uint32_t>(
-                    indices.size());
-                batch->instance_count = static_cast<std::uint32_t>(
-                    placed_transforms.size());
-                draw_batches_.push_back(std::move(batch));
             }
         }
 
         if (!gallery_bounds.valid || draw_batches_.empty()) {
             throw std::runtime_error("Jungle gallery contains no triangles.");
         }
+        texture_loader_ = std::make_unique<TextureLoader>();
+        texture_loader_->init(
+            device_.Get(),
+            command_context_.get_command_list(),
+            draw_batches_.size());
+        for (auto& batch : draw_batches_) {
+            batch->material_index = texture_loader_->add_material(
+                batch->material);
+        }
+        resolved_material_count_ = static_cast<std::uint32_t>(
+            resolved_materials.size());
         render_bounds_ = {
             gallery_bounds.minimum.x,
             gallery_bounds.minimum.y,
@@ -1168,7 +1570,7 @@ namespace fjr {
 
         const auto rtv = rtv_heap_.get_cpu_handle(frame_index_);
         const auto dsv = dsv_heap_.get_cpu_handle(0);
-        constexpr float clear_color[] = {0.03f, 0.04f, 0.08f, 1.0f};
+        constexpr float clear_color[] = {0.06f, 0.075f, 0.10f, 1.0f};
         command_context_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
         command_context_->ClearRenderTargetView(
             rtv,
@@ -1199,6 +1601,13 @@ namespace fjr {
         };
         command_context_->RSSetViewports(1, &viewport);
         command_context_->RSSetScissorRects(1, &scissor);
+        ID3D12DescriptorHeap* descriptor_heaps[]{
+            texture_loader_->resource_heap(),
+            texture_loader_->sampler_heap()
+        };
+        command_context_->SetDescriptorHeaps(
+            static_cast<UINT>(std::size(descriptor_heaps)),
+            descriptor_heaps);
         command_context_->SetGraphicsRootSignature(root_signature_.Get());
         command_context_->SetGraphicsRoot32BitConstants(
             0,
@@ -1219,9 +1628,15 @@ namespace fjr {
                 batch->instance_buffer->GetGPUVirtualAddress());
             command_context_->SetGraphicsRoot32BitConstants(
                 2,
-                static_cast<UINT>(batch->color.size()),
-                batch->color.data(),
+                16,
+                &batch->material.constants,
                 0);
+            command_context_->SetGraphicsRootDescriptorTable(
+                3,
+                texture_loader_->material_handle(batch->material_index));
+            command_context_->SetGraphicsRootDescriptorTable(
+                4,
+                texture_loader_->sampler_handle(batch->material_index));
             command_context_->DrawIndexedInstanced(
                 batch->index_count,
                 batch->instance_count,

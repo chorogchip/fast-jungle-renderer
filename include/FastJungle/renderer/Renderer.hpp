@@ -52,6 +52,9 @@ namespace fjr {
         static constexpr UINT FRAME_COUNT = 2;
 
         struct DrawBatch;
+        struct MaterialDescription;
+        class MaterialResolver;
+        class TextureLoader;
 
         void init_depth_buffer();
         void build_scene_geometry(const scene::JungleScene& scene);
@@ -75,10 +78,12 @@ namespace fjr {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline_state_;
 
+        std::unique_ptr<TextureLoader> texture_loader_;
         std::vector<std::unique_ptr<DrawBatch>> draw_batches_;
         std::array<float, 16> view_projection_{};
         std::array<float, 6> render_bounds_{};
         std::uint32_t rendered_kind_count_ = 0;
+        std::uint32_t resolved_material_count_ = 0;
     };
 
 } // namespace fjr
