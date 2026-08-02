@@ -1,10 +1,11 @@
-#include "FastJungle/dx12/DeviceUtils.h"
+#include "FastJungle/dx12/DeviceUtils.hpp"
 
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 namespace fjr::dx {
 
-    Microsoft::WRL::ComPtr<IDXGIFactory4> create_factory() {
+    Microsoft::WRL::ComPtr<IDXGIFactory4>
+        DeviceUtils::create_factory() {
 #if defined(_DEBUG)
         Microsoft::WRL::ComPtr<ID3D12Debug> debug_controller;
 
@@ -22,7 +23,8 @@ namespace fjr::dx {
         return factory;
     }
 
-    Microsoft::WRL::ComPtr<ID3D12Device> create_device(
+    Microsoft::WRL::ComPtr<ID3D12Device>
+        DeviceUtils::create_device(
         IDXGIFactory4* factory) {
 
         for (UINT adapter_index = 0;; ++adapter_index) {
@@ -70,4 +72,4 @@ namespace fjr::dx {
         return device;
     }
 
-} // namespace fjr::dxd
+} // namespace fjr::dx

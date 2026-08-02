@@ -12,10 +12,10 @@ namespace fjr::dx {
         DeviceUtils() = delete;
 
         [[nodiscard]]
-        Microsoft::WRL::ComPtr<IDXGIFactory4> create_factory();
+        static Microsoft::WRL::ComPtr<IDXGIFactory4> create_factory();
 
         [[nodiscard]]
-        Microsoft::WRL::ComPtr<ID3D12Device> create_device(
+        static Microsoft::WRL::ComPtr<ID3D12Device> create_device(
             IDXGIFactory4* factory);
     };
 

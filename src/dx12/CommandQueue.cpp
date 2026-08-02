@@ -1,6 +1,6 @@
 #include "FastJungle/dx12/CommandQueue.hpp"
 
-#include "util/Utils.h"
+#include "FastJungle/dx12/WindowsUtils.hpp"
 
 #include <cstdlib>
 #include <utility>

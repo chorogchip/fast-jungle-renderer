@@ -15,18 +15,10 @@ namespace fjr {
             std::abort();
         }
 
-        native_window_ = native_window;
-
-        width_ = width;
-        height_ = height;
-
-        pending_width_ = width;
-        pending_height_ = height;
-
-        // renderer_.init(
-        //     native_window_,
-        //     width_,
-        //     height_);
+        renderer_.init(
+            native_window,
+            width,
+            height);
     }
 
     int Application::run(
@@ -39,23 +31,14 @@ namespace fjr {
         while (run_loop.pump_messages(
             run_loop.context)) {
 
-            if (resize_pending_) {
-                resize(
-                    pending_width_,
-                    pending_height_);
-
-                resize_pending_ = false;
-            }
-
             if (minimized_) {
                 continue;
             }
 
-            update();
-            render();
+            renderer_.render();
         }
 
-        // renderer_.flush();
+        renderer_.close();
 
         return 0;
     }
@@ -64,41 +47,10 @@ namespace fjr {
         std::uint32_t width,
         std::uint32_t height) noexcept {
 
-        pending_width_ = width;
-        pending_height_ = height;
-        resize_pending_ = true;
-    }
-
-    void Application::resize(
-        std::uint32_t width,
-        std::uint32_t height) {
-
-        if (width == 0 || height == 0) {
-            minimized_ = true;
-            return;
+        minimized_ = width == 0 || height == 0;
+        if (!minimized_) {
+            renderer_.resize(width, height);
         }
-
-        minimized_ = false;
-
-        if (width_ == width &&
-            height_ == height) {
-            return;
-        }
-
-        width_ = width;
-        height_ = height;
-
-        // renderer_.resize(
-        //     width_,
-        //     height_);
-    }
-
-    void Application::update() {
-        // 게임 및 애플리케이션 로직
-    }
-
-    void Application::render() {
-        // renderer_.render();
     }
 
 } // namespace fjr
