@@ -1,13 +1,58 @@
 #include "FastJungle/renderer/Application.hpp"
-#include "FastJungle/cooker/JungleSceneFile.hpp"
+#include "FastJungle/scene/StaticSceneSaver.hpp"
 
 #include <Windows.h>
+#include <shellapi.h>
 
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace {
+
+    std::optional<int> run_scene_verification_mode() noexcept {
+        int argc = 0;
+        wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv == nullptr) {
+            return EXIT_FAILURE;
+        }
+
+        const bool requested = argc >= 2 &&
+            std::wstring_view{argv[1]} == L"--verify-scene";
+        if (!requested) {
+            LocalFree(argv);
+            return std::nullopt;
+        }
+
+        if (argc != 3) {
+            OutputDebugStringA(
+                "Usage: FastJungle.exe --verify-scene input.fjscene\n");
+            LocalFree(argv);
+            return EXIT_FAILURE;
+        }
+
+        const std::filesystem::path path{argv[2]};
+        LocalFree(argv);
+
+        try {
+            const auto scene = fjr::scene::StaticSceneSaver::load(path);
+            const std::string message =
+                "FastJungle renderer read and validated StaticScene: " +
+                path.generic_string() + "\n";
+            OutputDebugStringA(message.c_str());
+            return EXIT_SUCCESS;
+        }
+        catch (const std::exception& exception) {
+            const std::string message =
+                "FastJungle renderer scene verification failed: " +
+                std::string{exception.what()} + "\n";
+            OutputDebugStringA(message.c_str());
+            return EXIT_FAILURE;
+        }
+    }
 
     struct Win32State {
         fjr::Application* application = nullptr;
@@ -166,6 +211,10 @@ int WINAPI wWinMain(
     _In_opt_ HINSTANCE,
     _In_ PWSTR,
     _In_ int show_command) {
+    if (const auto result = run_scene_verification_mode()) {
+        return *result;
+    }
+
     constexpr UINT initial_width = 1280;
     constexpr UINT initial_height = 720;
 
@@ -211,12 +260,12 @@ int WINAPI wWinMain(
             std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
             "JungleRuins.fjscene";
         const auto scene =
-            fjr::scene::JungleSceneFile::read(cooked_scene);
+            fjr::scene::StaticSceneSaver::load(cooked_scene);
         application.init(
             hwnd,
             client_width,
             client_height,
-            scene);
+            *scene);
     }
     catch (const std::exception& exception) {
         MessageBoxA(

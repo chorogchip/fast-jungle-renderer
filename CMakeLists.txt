@@ -166,6 +166,14 @@ list(SORT FASTJUNGLE_COOKER_SOURCES)
 list(SORT FASTJUNGLE_RENDERER_SOURCES)
 list(SORT FASTJUNGLE_DX12_SOURCES)
 
+# RendererMain is the StaticScene runtime. These are the superseded
+# JungleScene implementation files and refer to types removed by the
+# migration.
+list(REMOVE_ITEM FASTJUNGLE_RENDERER_SOURCES
+    "${FASTJUNGLE_SOURCE_DIR}/renderer/Renderer.cpp"
+    "${FASTJUNGLE_SOURCE_DIR}/renderer/RendererMaterial.cpp"
+)
+
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 
@@ -330,11 +338,19 @@ else()
     )
     option(FASTJUNGLE_ENABLE_OPENEXR
         "Enable .exr source textures"
-        OFF
+        ON
+    )
+    set(FASTJUNGLE_OPENEXR_TAG
+        "v3.4.12"
+        CACHE STRING "Pinned OpenEXR tag"
     )
 
     # DirectXTex is built in this build tree, so it automatically inherits
     # /MDd for Debug and /MD for Release from CMAKE_MSVC_RUNTIME_LIBRARY.
+    # The Jungle source scene contains EXR textures. Build OpenEXR as a static
+    # dependency first, then opt DirectXTex into compiling its auxiliary EXR
+    # codec. This keeps the cooker preset self-contained instead of requiring
+    # a separately installed OpenEXR package.
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
     set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
@@ -342,20 +358,86 @@ else()
     set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
     set(BC_USE_OPENMP OFF CACHE BOOL "" FORCE)
 
+    if(FASTJUNGLE_ENABLE_OPENEXR)
+        set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+        set(IMATH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(IMATH_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+        set(IMATH_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(IMATH_INSTALL OFF CACHE BOOL "" FORCE)
+        set(IMATH_INSTALL_PKG_CONFIG OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_FORCE_INTERNAL_DEFLATE ON CACHE BOOL "" FORCE)
+        set(OPENEXR_FORCE_INTERNAL_IMATH ON CACHE BOOL "" FORCE)
+        set(OPENEXR_INSTALL OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_INSTALL_DEVELOPER_TOOLS OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_INSTALL_PKG_CONFIG OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_INSTALL_TOOLS OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_TEST_LIBRARIES OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_TEST_PYTHON OFF CACHE BOOL "" FORCE)
+        set(OPENEXR_TEST_TOOLS OFF CACHE BOOL "" FORCE)
+
+        FetchContent_Declare(
+            openexr
+            GIT_REPOSITORY
+                https://github.com/AcademySoftwareFoundation/openexr.git
+            GIT_TAG "${FASTJUNGLE_OPENEXR_TAG}"
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(openexr)
+
+        if(NOT TARGET OpenEXR::OpenEXR)
+            message(FATAL_ERROR
+                "OpenEXR did not create the expected OpenEXR::OpenEXR target."
+            )
+        endif()
+
+        # DirectXTex calls find_package(OpenEXR) even when an in-tree target
+        # already exists. Supply a build-tree find-module so that call reuses
+        # this exact target without requiring OpenEXR to be installed first.
+        set(FASTJUNGLE_FIND_MODULE_DIR
+            "${CMAKE_BINARY_DIR}/cmake/find-modules"
+        )
+        file(MAKE_DIRECTORY "${FASTJUNGLE_FIND_MODULE_DIR}")
+        file(WRITE
+            "${FASTJUNGLE_FIND_MODULE_DIR}/FindOpenEXR.cmake"
+            [=[
+if(TARGET OpenEXR::OpenEXR)
+    set(OpenEXR_FOUND TRUE)
+else()
+    set(OpenEXR_FOUND FALSE)
+    set(OpenEXR_NOT_FOUND_MESSAGE
+        "The in-tree OpenEXR::OpenEXR target is missing.")
+endif()
+]=]
+        )
+        list(PREPEND CMAKE_MODULE_PATH "${FASTJUNGLE_FIND_MODULE_DIR}")
+
+        set(ENABLE_OPENEXR_SUPPORT ON CACHE BOOL "" FORCE)
+    else()
+        set(ENABLE_OPENEXR_SUPPORT OFF CACHE BOOL "" FORCE)
+    endif()
+
     FetchContent_Declare(
         directxtex
         GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
         GIT_TAG may2026
         GIT_SHALLOW TRUE
     )
+
+    # We consume DirectXTex only from the build tree. Its install export does
+    # not support an in-tree OpenEXR dependency, so suppress only the
+    # dependency's unused install rules while it is configured.
+    set(FASTJUNGLE_SAVED_SKIP_INSTALL_RULES "${CMAKE_SKIP_INSTALL_RULES}")
+    set(CMAKE_SKIP_INSTALL_RULES ON)
     FetchContent_MakeAvailable(directxtex)
+    set(CMAKE_SKIP_INSTALL_RULES "${FASTJUNGLE_SAVED_SKIP_INSTALL_RULES}")
+    unset(FASTJUNGLE_SAVED_SKIP_INSTALL_RULES)
 
     if(NOT TARGET DirectXTex)
         message(FATAL_ERROR "DirectXTex did not create the expected target.")
-    endif()
-
-    if(FASTJUNGLE_ENABLE_OPENEXR)
-        find_package(OpenEXR CONFIG REQUIRED)
     endif()
 
     set(FASTJUNGLE_OPENUSD_TAG
@@ -564,7 +646,11 @@ else()
     )
 
     if(FASTJUNGLE_ENABLE_OPENEXR)
-        target_link_libraries(FastJungleCooker PRIVATE OpenEXR::OpenEXR)
+        # DirectXTex intentionally does not publish its Auxiliary include
+        # directory. The EXR API lives there, so expose it only to the cooker.
+        target_include_directories(FastJungleCooker PRIVATE
+            "${directxtex_SOURCE_DIR}/Auxiliary"
+        )
         target_compile_definitions(FastJungleCooker PRIVATE
             FASTJUNGLE_HAS_OPENEXR=1
         )
@@ -631,4 +717,8 @@ if(FASTJUNGLE_BUILD STREQUAL "cooker")
     message(STATUS "Dependency ABI directory : ${FASTJUNGLE_DEPENDENCY_DIR}")
     message(STATUS "OpenUSD tag              : ${FASTJUNGLE_OPENUSD_TAG}")
     message(STATUS "oneTBB tag               : ${FASTJUNGLE_ONETBB_TAG}")
+    message(STATUS "OpenEXR support          : ${FASTJUNGLE_ENABLE_OPENEXR}")
+    if(FASTJUNGLE_ENABLE_OPENEXR)
+        message(STATUS "OpenEXR tag              : ${FASTJUNGLE_OPENEXR_TAG}")
+    endif()
 endif()

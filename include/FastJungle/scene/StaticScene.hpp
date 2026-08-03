@@ -36,8 +36,6 @@ namespace fjr::scene {
 
 		Front_CCW = false (default CW front fase)
 
-		tangent.xyz = tangent direction
-		tangent.w = bitangent sign
 		quarternion : (x, y, z, w)
 
 		clip space - x, y: -1 ~ +1 / z: 0 ~ +1
@@ -55,11 +53,10 @@ namespace fjr::scene {
 		struct Vertex {
 			DirectX::XMFLOAT3 position{};
 			DirectX::XMFLOAT3 normal{};
-			DirectX::XMFLOAT4 tangent{};
 			DirectX::XMFLOAT2 uv{};
 		};
 
-		static_assert(sizeof(Vertex) == 48);
+		static_assert(sizeof(Vertex) == 32);
 
 		enum class EnumSamplerFilter : uint32_t {
 			MIN_MAG_MIP_POINT = 0x000,
@@ -270,6 +267,10 @@ namespace fjr::scene {
 
 		struct SceneInfo {
 			math::AABB world_bounds{};
+			// Number of triangle corners before and unique vertices after
+			// submesh-local position/normal/UV indexing.
+			uint64_t vertex_count_before_indexing = 0;
+			uint64_t vertex_count_after_indexing = 0;
 		};
 
 		// strings is ascii null-terminated strings.

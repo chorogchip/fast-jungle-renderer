@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FastJungle/renderer/Renderer.hpp"
+#include "FastJungle/renderer/RendererMain.hpp"
 
 #include <cstdint>
 
@@ -25,7 +25,7 @@ namespace fjr {
             void* native_window,
             std::uint32_t width,
             std::uint32_t height,
-            const cooker::JungleScene& scene);
+            const scene::StaticScene& scene);
 
         [[nodiscard]]
         int run(const RunLoop& run_loop);
@@ -37,7 +37,7 @@ namespace fjr {
     private:
         bool minimized_ = false;
 
-        Renderer renderer_;
+        RendererMain renderer_;
     };
 
 } // namespace fjr

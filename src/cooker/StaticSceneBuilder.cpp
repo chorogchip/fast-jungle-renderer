@@ -44,6 +44,7 @@
 #include <objbase.h>
 
 #include <algorithm>
+#include <bit>
 #include <cctype>
 #include <array>
 #include <cmath>
@@ -96,6 +97,100 @@ namespace fjr::cooker {
             }
             return static_cast<std::uint32_t>(value);
         }
+
+        [[nodiscard]] std::array<std::uint32_t, 8> vertex_words(
+            const StaticScene::Vertex& vertex) noexcept {
+
+            static_assert(sizeof(StaticScene::Vertex) ==
+                sizeof(std::array<std::uint32_t, 8>));
+            return std::bit_cast<std::array<std::uint32_t, 8>>(vertex);
+        }
+
+        [[nodiscard]] std::uint64_t hash_vertex(
+            const StaticScene::Vertex& vertex) noexcept {
+
+            std::uint64_t hash = 14695981039346656037ull;
+            for (const auto word : vertex_words(vertex)) {
+                hash ^= word;
+                hash *= 1099511628211ull;
+            }
+            return hash;
+        }
+
+        [[nodiscard]] bool vertices_equal(
+            const StaticScene::Vertex& left,
+            const StaticScene::Vertex& right) noexcept {
+
+            return vertex_words(left) == vertex_words(right);
+        }
+
+        class VertexIndexer final {
+        public:
+            VertexIndexer(
+                std::vector<StaticScene::Vertex>& vertices,
+                std::uint32_t vertex_offset)
+                : vertices_(vertices), vertex_offset_(vertex_offset) {}
+
+            [[nodiscard]] std::uint32_t get_or_add(
+                const StaticScene::Vertex& vertex) {
+
+                if (slots_.empty() ||
+                    (unique_count_ + 1) * 10 > slots_.size() * 7) {
+                    rehash(slots_.empty() ? 16 : slots_.size() * 2);
+                }
+
+                const std::size_t slot = find_slot(vertex, slots_);
+                const std::uint32_t existing = slots_[slot];
+                if (existing != StaticScene::INVALID_INDEX) {
+                    return existing;
+                }
+
+                const std::uint32_t local_index = checked_u32(
+                    vertices_.size() - vertex_offset_,
+                    "Indexed submesh vertex count");
+                vertices_.push_back(vertex);
+                slots_[slot] = local_index;
+                ++unique_count_;
+                return local_index;
+            }
+
+        private:
+            [[nodiscard]] std::size_t find_slot(
+                const StaticScene::Vertex& vertex,
+                const std::vector<std::uint32_t>& slots) const noexcept {
+
+                const std::size_t mask = slots.size() - 1;
+                std::size_t slot = static_cast<std::size_t>(
+                    hash_vertex(vertex)) & mask;
+                while (slots[slot] != StaticScene::INVALID_INDEX &&
+                    !vertices_equal(
+                        vertices_[vertex_offset_ + slots[slot]],
+                        vertex)) {
+                    slot = (slot + 1) & mask;
+                }
+                return slot;
+            }
+
+            void rehash(std::size_t capacity) {
+                std::vector<std::uint32_t> replacement(
+                    capacity,
+                    StaticScene::INVALID_INDEX);
+                for (std::uint32_t local_index = 0;
+                     local_index < unique_count_;
+                     ++local_index) {
+                    const auto& vertex =
+                        vertices_[vertex_offset_ + local_index];
+                    const std::size_t slot = find_slot(vertex, replacement);
+                    replacement[slot] = local_index;
+                }
+                slots_ = std::move(replacement);
+            }
+
+            std::vector<StaticScene::Vertex>& vertices_;
+            std::uint32_t vertex_offset_ = 0;
+            std::uint32_t unique_count_ = 0;
+            std::vector<std::uint32_t> slots_;
+        };
 
         [[nodiscard]] std::filesystem::path executable_directory() {
             std::vector<wchar_t> buffer(1024);
@@ -460,6 +555,9 @@ namespace fjr::cooker {
                 if (result_->point_batches.empty()) {
                     fail("Intel Jungle produced no PointInstancer batches.");
                 }
+
+                result_->info.vertex_count_after_indexing =
+                    result_->vertices.size();
 
                 return std::move(result_);
             }
@@ -992,6 +1090,9 @@ namespace fjr::cooker {
                     submesh.flags = make_submesh_flags(
                         double_sided,
                         material.alpha_mode);
+                    VertexIndexer vertex_indexer{
+                        result_->vertices,
+                        submesh.vertex_offset};
 
                     for (const auto face : group.faces) {
                         if (holes[face] != 0u) {
@@ -1058,13 +1159,17 @@ namespace fjr::cooker {
                                 }
                             }
 
-                            calculate_triangle_basis(triangle);
+                            normalize_triangle_normals(triangle);
+                            if (result_->info.vertex_count_before_indexing >
+                                std::numeric_limits<std::uint64_t>::max() -
+                                    triangle.size()) {
+                                fail("Triangle vertex count exceeds uint64_t.");
+                            }
+                            result_->info.vertex_count_before_indexing +=
+                                triangle.size();
                             for (const auto& vertex : triangle) {
-                                const auto local_index = checked_u32(
-                                    result_->vertices.size() -
-                                        submesh.vertex_offset,
-                                    "Local vertex index");
-                                result_->vertices.push_back(vertex);
+                                const auto local_index =
+                                    vertex_indexer.get_or_add(vertex);
                                 result_->indices.push_back(local_index);
                                 submesh.local_bounds.merge(vertex.position);
                             }
@@ -1208,7 +1313,7 @@ namespace fjr::cooker {
                 fail("Unsupported mesh interpolation: ", interpolation.GetString());
             }
 
-            static void calculate_triangle_basis(
+            static void normalize_triangle_normals(
                 std::array<StaticScene::Vertex, 3>& triangle) {
 
                 const auto p0 = DirectX::XMLoadFloat3(&triangle[0].position);
@@ -1240,67 +1345,6 @@ namespace fjr::cooker {
                         normal = DirectX::XMVector3Normalize(normal);
                     }
                     DirectX::XMStoreFloat3(&vertex.normal, normal);
-                }
-
-                const float du1 = triangle[1].uv.x - triangle[0].uv.x;
-                const float dv1 = triangle[1].uv.y - triangle[0].uv.y;
-                const float du2 = triangle[2].uv.x - triangle[0].uv.x;
-                const float dv2 = triangle[2].uv.y - triangle[0].uv.y;
-                const float determinant = du1 * dv2 - du2 * dv1;
-
-                DirectX::XMVECTOR tangent;
-                DirectX::XMVECTOR bitangent;
-                if (std::abs(determinant) > 1.0e-8f) {
-                    const float inverse = 1.0f / determinant;
-                    tangent = DirectX::XMVectorScale(
-                        DirectX::XMVectorSubtract(
-                            DirectX::XMVectorScale(edge1, dv2),
-                            DirectX::XMVectorScale(edge2, dv1)),
-                        inverse);
-                    bitangent = DirectX::XMVectorScale(
-                        DirectX::XMVectorSubtract(
-                            DirectX::XMVectorScale(edge2, du1),
-                            DirectX::XMVectorScale(edge1, du2)),
-                        inverse);
-                }
-                else {
-                    tangent = edge1;
-                    bitangent = edge2;
-                }
-
-                for (auto& vertex : triangle) {
-                    const auto normal = DirectX::XMLoadFloat3(&vertex.normal);
-                    auto orthogonal = DirectX::XMVectorSubtract(
-                        tangent,
-                        DirectX::XMVectorScale(
-                            normal,
-                            DirectX::XMVectorGetX(
-                                DirectX::XMVector3Dot(normal, tangent))));
-
-                    if (DirectX::XMVectorGetX(
-                        DirectX::XMVector3LengthSq(orthogonal)) <=
-                        VECTOR_EPSILON) {
-                        const auto axis = std::abs(vertex.normal.y) < 0.9f
-                            ? DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-                            : DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-                        orthogonal = DirectX::XMVector3Cross(axis, normal);
-                    }
-                    orthogonal = DirectX::XMVector3Normalize(orthogonal);
-
-                    float sign = 1.0f;
-                    if (DirectX::XMVectorGetX(
-                        DirectX::XMVector3LengthSq(bitangent)) >
-                        VECTOR_EPSILON) {
-                        sign = DirectX::XMVectorGetX(
-                            DirectX::XMVector3Dot(
-                                DirectX::XMVector3Cross(normal, orthogonal),
-                                bitangent)) < 0.0f
-                            ? -1.0f
-                            : 1.0f;
-                    }
-                    DirectX::XMStoreFloat4(
-                        &vertex.tangent,
-                        DirectX::XMVectorSetW(orthogonal, sign));
                 }
             }
 

@@ -1,4 +1,5 @@
 #include "FastJungle/renderer/RendererMain.hpp"
+#include "FastJungle/scene/StaticSceneValidation.hpp"
 
 namespace fjr {
 
@@ -11,7 +12,7 @@ namespace fjr {
 		(void)window;
 		(void)width;
 		(void)height;
-		(void)scene;
+		scene::validate_static_scene(scene);
 
 		HWND hwnd = static_cast<HWND>(window);
 

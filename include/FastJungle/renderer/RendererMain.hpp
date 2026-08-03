@@ -12,7 +12,6 @@
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/Texture.hpp"
-#include "FastJungle/dx12/Texture.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr {
@@ -25,8 +24,8 @@ namespace fjr {
 
 		RendererMain(const RendererMain&) = delete;
 		RendererMain(RendererMain&&) = delete;
-		RendererMain operator=(const RendererMain&) = delete;
-		RendererMain operator=(RendererMain&&) = delete;
+		RendererMain& operator=(const RendererMain&) = delete;
+		RendererMain& operator=(RendererMain&&) = delete;
 
 		void init(
 			void* window,

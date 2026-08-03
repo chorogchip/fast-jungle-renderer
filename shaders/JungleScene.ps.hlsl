@@ -18,8 +18,8 @@ static const uint OPACITY_TEXTURE = 1u << 3u;
 
 struct PixelInput {
     float4 position : SV_POSITION;
+    float3 world_position : TEXCOORD1;
     float3 normal : NORMAL;
-    float4 tangent : TANGENT;
     float2 uv : TEXCOORD0;
     bool front_face : SV_IsFrontFace;
 };
@@ -37,9 +37,47 @@ float select_channel(float4 value, uint channel) {
     return value.r;
 }
 
+void build_tangent_frame(
+    float3 normal,
+    float3 position_dx,
+    float3 position_dy,
+    float2 uv_dx,
+    float2 uv_dy,
+    out float3 tangent,
+    out float3 bitangent) {
+
+    const float3 position_dy_perp = cross(position_dy, normal);
+    const float3 position_dx_perp = cross(normal, position_dx);
+    tangent =
+        position_dy_perp * uv_dx.x + position_dx_perp * uv_dy.x;
+    bitangent =
+        position_dy_perp * uv_dx.y + position_dx_perp * uv_dy.y;
+
+    const float maximum_length_squared = max(
+        dot(tangent, tangent),
+        dot(bitangent, bitangent));
+    if (maximum_length_squared > 1.0e-12) {
+        const float inverse_length = rsqrt(maximum_length_squared);
+        tangent *= inverse_length;
+        bitangent *= inverse_length;
+        return;
+    }
+
+    const float3 axis = abs(normal.y) < 0.9
+        ? float3(0.0, 1.0, 0.0)
+        : float3(0.0, 0.0, 1.0);
+    tangent = normalize(cross(axis, normal));
+    bitangent = normalize(cross(normal, tangent));
+}
+
 float4 main(PixelInput input) : SV_TARGET {
-    // Blender-authored USD UVs use the lower-left image origin.
-    const float2 uv = float2(input.uv.x, 1.0 - input.uv.y);
+    // StaticScene UVs have already been converted to the top-left origin.
+    const float2 uv = input.uv;
+    // Evaluate derivatives before alpha clipping so helper lanes remain valid.
+    const float3 position_dx = ddx(input.world_position);
+    const float3 position_dy = ddy(input.world_position);
+    const float2 uv_dx = ddx(uv);
+    const float2 uv_dy = ddy(uv);
     float4 albedo = base_color;
     if ((options.x & BASE_COLOR_TEXTURE) != 0u) {
         albedo *= base_color_texture.Sample(material_samplers[0], uv);
@@ -55,10 +93,16 @@ float4 main(PixelInput input) : SV_TARGET {
 
     float3 normal = normalize(input.normal) * (input.front_face ? 1.0 : -1.0);
     if ((options.x & NORMAL_TEXTURE) != 0u) {
-        const float3 tangent = normalize(
-            input.tangent.xyz - normal * dot(normal, input.tangent.xyz));
-        const float3 bitangent =
-            normalize(cross(normal, tangent)) * input.tangent.w;
+        float3 tangent;
+        float3 bitangent;
+        build_tangent_frame(
+            normal,
+            position_dx,
+            position_dy,
+            uv_dx,
+            uv_dy,
+            tangent,
+            bitangent);
         const float3 tangent_normal =
             normal_texture.Sample(material_samplers[1], uv).xyz * 2.0 - 1.0;
         normal = normalize(
