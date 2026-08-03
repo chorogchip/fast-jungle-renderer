@@ -45,11 +45,17 @@ The current uncompressed instance representation uses approximately 430 MiB. Ins
 USD scene
   ↓ OpenUSD
 In-memory source scene
-  ↓ offline cooker
-FastJungle custom scene binary
-  ↓ runtime loader
+  ↓ FastJungleCooker
+JungleRuins.fjscene
+  ↓ JungleSceneFile runtime reader
 GPU renderer
 ```
+
+The cooker currently writes a lossless version 0 scene file, and the runtime
+renderer reads that file without linking OpenUSD. Run the `full-debug` cooker
+once to create `assets/cooked/JungleRuins.fjscene`; both runtime presets then
+use that file. The v0 file deliberately keeps the analyzed source data intact
+and does not yet apply instance compression or GPU-oriented packing.
 
 The offline cooker will handle:
 
@@ -60,12 +66,14 @@ The offline cooker will handle:
 * GPU-oriented vertex and index layouts
 * texture conversion
 * meshlet and LOD generation
-* custom scene binary serialization
+* compact runtime scene serialization
 
 The runtime renderer will load only the cooked data and will not depend on OpenUSD.
 
 The current importer boundary and the facts verified from the distributed scene
 are documented in [docs/JungleSceneImport.md](docs/JungleSceneImport.md).
+The current binary contract and its deliberate limits are documented in
+[docs/JungleSceneFile.md](docs/JungleSceneFile.md).
 
 ## Rendering Direction
 

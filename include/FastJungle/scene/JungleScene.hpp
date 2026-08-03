@@ -17,12 +17,16 @@ namespace fjr::scene {
         struct Float2 {
             float x = 0.0f;
             float y = 0.0f;
+
+            bool operator==(const Float2&) const = default;
         };
 
         struct Float3 {
             float x = 0.0f;
             float y = 0.0f;
             float z = 0.0f;
+
+            bool operator==(const Float3&) const = default;
         };
 
         struct Float4 {
@@ -30,6 +34,8 @@ namespace fjr::scene {
             float y = 0.0f;
             float z = 0.0f;
             float w = 0.0f;
+
+            bool operator==(const Float4&) const = default;
         };
 
         // USD quaternions are stored as real + imaginary, not xyzw. Keeping
@@ -38,6 +44,8 @@ namespace fjr::scene {
         struct Quaternion {
             float real = 1.0f;
             Float3 imaginary{};
+
+            bool operator==(const Quaternion&) const = default;
         };
 
         struct Matrix4x4 {
@@ -47,6 +55,8 @@ namespace fjr::scene {
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0
             };
+
+            bool operator==(const Matrix4x4&) const = default;
         };
 
         enum class ObjectKind : std::uint8_t {
@@ -106,18 +116,24 @@ namespace fjr::scene {
             ObjectKind object_kind = ObjectKind::Unknown;
             std::uint32_t flags = 0;
             Matrix4x4 local_transform{};
+
+            bool operator==(const Node&) const = default;
         };
 
         struct SourceLayer {
             std::string identifier;
             std::string resolved_path;
             bool is_root = false;
+
+            bool operator==(const SourceLayer&) const = default;
         };
 
         struct AssetReference {
             std::string authored_path;
             std::string resolved_path;
             bool resolved_file_exists = false;
+
+            bool operator==(const AssetReference&) const = default;
         };
 
         enum class PrimvarStorage : std::uint8_t {
@@ -140,6 +156,8 @@ namespace fjr::scene {
             PrimvarStorage storage = PrimvarStorage::Float;
             PrimvarData data;
             std::vector<std::int32_t> indices;
+
+            bool operator==(const Primvar&) const = default;
         };
 
         struct Mesh {
@@ -155,6 +173,8 @@ namespace fjr::scene {
             std::vector<Float3> normals;
             std::vector<std::int32_t> hole_indices;
             std::vector<Primvar> primvars;
+
+            bool operator==(const Mesh&) const = default;
         };
 
         struct MeshSubset {
@@ -165,6 +185,8 @@ namespace fjr::scene {
             std::string family_type;
             std::string material_path;
             std::vector<std::int32_t> indices;
+
+            bool operator==(const MeshSubset&) const = default;
         };
 
         struct PointInstancer {
@@ -182,12 +204,16 @@ namespace fjr::scene {
             std::vector<std::int64_t> inactive_ids;
             std::vector<std::int64_t> invisible_ids;
             std::vector<Primvar> primvars;
+
+            bool operator==(const PointInstancer&) const = default;
         };
 
         struct NativeInstance {
             std::string prim_path;
             std::string prototype_path;
             ObjectKind object_kind = ObjectKind::Unknown;
+
+            bool operator==(const NativeInstance&) const = default;
         };
 
         enum class ShaderValueKind : std::uint8_t {
@@ -216,12 +242,16 @@ namespace fjr::scene {
             std::string unsupported_value;
             ShaderValueKind kind = ShaderValueKind::Empty;
             ShaderValueData data;
+
+            bool operator==(const ShaderValue&) const = default;
         };
 
         struct ShaderConnection {
             std::string source_prim_path;
             std::string source_name;
             bool source_is_output = true;
+
+            bool operator==(const ShaderConnection&) const = default;
         };
 
         struct ShaderInput {
@@ -229,6 +259,8 @@ namespace fjr::scene {
             ShaderValue value;
             std::vector<ShaderConnection> connections;
             std::vector<std::string> invalid_source_paths;
+
+            bool operator==(const ShaderInput&) const = default;
         };
 
         struct ShaderOutput {
@@ -236,6 +268,8 @@ namespace fjr::scene {
             std::string type_name;
             std::vector<ShaderConnection> connections;
             std::vector<std::string> invalid_source_paths;
+
+            bool operator==(const ShaderOutput&) const = default;
         };
 
         struct ShaderNode {
@@ -243,12 +277,16 @@ namespace fjr::scene {
             std::string shader_id;
             std::vector<ShaderInput> inputs;
             std::vector<ShaderOutput> outputs;
+
+            bool operator==(const ShaderNode&) const = default;
         };
 
         struct Material {
             std::string prim_path;
             std::vector<std::uint32_t> shader_nodes;
             std::vector<ShaderOutput> outputs;
+
+            bool operator==(const Material&) const = default;
         };
 
         struct Camera {
@@ -262,6 +300,8 @@ namespace fjr::scene {
             float focus_distance = 0.0f;
             float f_stop = 0.0f;
             Float2 clipping_range{};
+
+            bool operator==(const Camera&) const = default;
         };
 
         struct EnvironmentLight {
@@ -270,6 +310,8 @@ namespace fjr::scene {
             float intensity = 1.0f;
             float exposure = 0.0f;
             AssetReference texture;
+
+            bool operator==(const EnvironmentLight&) const = default;
         };
 
         enum class DiagnosticSeverity : std::uint8_t {
@@ -282,6 +324,8 @@ namespace fjr::scene {
             DiagnosticSeverity severity = DiagnosticSeverity::Information;
             std::string subject;
             std::string message;
+
+            bool operator==(const Diagnostic&) const = default;
         };
 
         struct Statistics {
@@ -295,6 +339,8 @@ namespace fjr::scene {
             std::uint64_t exact_origin_instance_count = 0;
             std::uint64_t time_sampled_attribute_count = 0;
             std::uint64_t time_sample_count = 0;
+
+            bool operator==(const Statistics&) const = default;
         };
 
         std::string source_root;
@@ -314,6 +360,8 @@ namespace fjr::scene {
         std::vector<Camera> cameras;
         std::vector<EnvironmentLight> environment_lights;
         std::vector<Diagnostic> import_diagnostics;
+
+        bool operator==(const JungleScene&) const = default;
 
         [[nodiscard]]
         static ObjectKind classify_object(const std::string& prim_path);

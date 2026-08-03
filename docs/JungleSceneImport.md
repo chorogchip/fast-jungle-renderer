@@ -27,6 +27,9 @@ names before opening the scene.
 - 197 position records are exactly `(0, 0, 0)`. They are retained as data; the
   importer does not guess whether they are exporter sentinels.
 - 741 native USD instance prims referencing 21 native prototype trees.
+- OpenUSD's generated native prototype numbers are normalized to stable project
+  paths using their composed instance relationships; authored prim paths are
+  not renamed.
 - 121 mesh, 37 `GeomSubset`, 134 material, 674 shader, 1 camera, and 1 dome-light
   prim in the composed traversal.
 - Traversing the native prototype trees raises the owned totals to 142 meshes,
@@ -90,7 +93,9 @@ data retained above. Unsupported mesh primvar or shader value types, invalid
 connections, and any future time-sampled attributes produce explicit import
 diagnostics instead of being silently dropped.
 
-No `.fjscene` layout, coordinate conversion, instance compression, culling
-structure, or renderer upload layout is chosen at this stage. Those decisions
-can now be made from `JungleScene` without spreading USD objects into runtime
-code.
+The first `.fjscene` layout now serializes this representation losslessly so
+the renderer can run without OpenUSD. It intentionally does not choose a
+coordinate conversion, instance compression, culling structure, or final GPU
+upload layout. Those decisions can be made from `JungleScene` without
+spreading USD objects into runtime code. See [JungleSceneFile.md](JungleSceneFile.md)
+for the version 0 contract and limits.

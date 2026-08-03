@@ -35,6 +35,7 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <stdexcept>
@@ -341,6 +342,18 @@ namespace fjr::cooker {
         }
 
         class ImportContext {
+            struct NativePrototypeEntry {
+                pxr::UsdPrim prim;
+                std::string source_path;
+                std::string anchor_instance_path;
+                std::string stable_path;
+            };
+
+            struct PrototypePathMapping {
+                std::string source_path;
+                std::string stable_path;
+            };
+
         public:
             explicit ImportContext(pxr::UsdStageRefPtr stage)
                 : stage_(std::move(stage)) {
@@ -369,13 +382,14 @@ namespace fjr::cooker {
                     import_prim(prim, false, true);
                 }
 
-                const auto prototypes = stage_->GetPrototypes();
+                auto prototypes = build_native_prototypes();
                 scene_.statistics.native_prototype_count = prototypes.size();
                 for (const auto& prototype : prototypes) {
-                    for (const auto& prim : pxr::UsdPrimRange(prototype)) {
+                    for (const auto& prim : pxr::UsdPrimRange(prototype.prim)) {
                         import_prim(prim, true, false);
                     }
                 }
+                stabilize_native_prototype_paths();
 
                 return std::move(scene_);
             }
@@ -385,10 +399,168 @@ namespace fjr::cooker {
                 const auto root_layer = stage_->GetRootLayer();
                 for (const auto& layer : stage_->GetUsedLayers()) {
                     Scene::SourceLayer result;
-                    result.identifier = layer->GetIdentifier();
+                    result.identifier = layer->IsAnonymous()
+                        ? "anonymous:" + layer->GetDisplayName()
+                        : layer->GetIdentifier();
                     result.resolved_path = layer->GetRealPath();
                     result.is_root = layer == root_layer;
                     scene_.source_layers.push_back(std::move(result));
+                }
+                std::sort(
+                    scene_.source_layers.begin(),
+                    scene_.source_layers.end(),
+                    [](const Scene::SourceLayer& left,
+                       const Scene::SourceLayer& right) {
+                        return left.identifier < right.identifier;
+                    });
+            }
+
+            std::vector<NativePrototypeEntry> build_native_prototypes() {
+                std::vector<NativePrototypeEntry> result;
+                for (const auto& prototype : stage_->GetPrototypes()) {
+                    NativePrototypeEntry entry;
+                    entry.prim = prototype;
+                    entry.source_path = prototype.GetPath().GetString();
+                    for (const auto& instance : scene_.native_instances) {
+                        if (instance.prototype_path != entry.source_path) {
+                            continue;
+                        }
+                        if (entry.anchor_instance_path.empty() ||
+                            instance.prim_path < entry.anchor_instance_path) {
+                            entry.anchor_instance_path = instance.prim_path;
+                        }
+                    }
+                    if (entry.anchor_instance_path.empty()) {
+                        throw std::runtime_error(
+                            "Native prototype has no composed Jungle instance: " +
+                            entry.source_path);
+                    }
+                    result.push_back(std::move(entry));
+                }
+
+                std::sort(
+                    result.begin(),
+                    result.end(),
+                    [](const NativePrototypeEntry& left,
+                       const NativePrototypeEntry& right) {
+                        return left.anchor_instance_path <
+                            right.anchor_instance_path;
+                    });
+                native_prototype_paths_.reserve(result.size());
+                for (std::size_t index = 0; index < result.size(); ++index) {
+                    auto& prototype = result[index];
+                    prototype.stable_path =
+                        "/__NativePrototype_" + std::to_string(index);
+                    native_prototype_paths_.push_back({
+                        prototype.source_path,
+                        prototype.stable_path
+                    });
+                }
+                return result;
+            }
+
+            std::string stable_prototype_path(
+                const std::string& path) const {
+
+                for (const auto& mapping : native_prototype_paths_) {
+                    if (path == mapping.source_path) {
+                        return mapping.stable_path;
+                    }
+                    if (path.size() > mapping.source_path.size() &&
+                        path.starts_with(mapping.source_path)) {
+                        const auto boundary = path[mapping.source_path.size()];
+                        if (boundary == '/' || boundary == '.') {
+                            return mapping.stable_path +
+                                path.substr(mapping.source_path.size());
+                        }
+                    }
+                }
+                return path;
+            }
+
+            void stabilize_connections(
+                std::vector<Scene::ShaderConnection>& connections) const {
+
+                for (auto& connection : connections) {
+                    connection.source_prim_path = stable_prototype_path(
+                        connection.source_prim_path);
+                }
+            }
+
+            void stabilize_shader_output(
+                Scene::ShaderOutput& output) const {
+
+                stabilize_connections(output.connections);
+                for (auto& path : output.invalid_source_paths) {
+                    path = stable_prototype_path(path);
+                }
+            }
+
+            void stabilize_native_prototype_paths() {
+                for (auto& node : scene_.nodes) {
+                    const auto source_path = node.path;
+                    node.path = stable_prototype_path(node.path);
+                    node.native_prototype_path = stable_prototype_path(
+                        node.native_prototype_path);
+                    for (const auto& mapping : native_prototype_paths_) {
+                        if (source_path == mapping.source_path) {
+                            node.name = mapping.stable_path.substr(1);
+                            break;
+                        }
+                    }
+                }
+                for (auto& mesh : scene_.meshes) {
+                    mesh.prim_path = stable_prototype_path(mesh.prim_path);
+                    mesh.material_path = stable_prototype_path(
+                        mesh.material_path);
+                }
+                for (auto& subset : scene_.mesh_subsets) {
+                    subset.prim_path = stable_prototype_path(subset.prim_path);
+                    subset.mesh_path = stable_prototype_path(subset.mesh_path);
+                    subset.material_path = stable_prototype_path(
+                        subset.material_path);
+                }
+                for (auto& instancer : scene_.point_instancers) {
+                    instancer.prim_path = stable_prototype_path(
+                        instancer.prim_path);
+                    for (auto& path : instancer.prototype_paths) {
+                        path = stable_prototype_path(path);
+                    }
+                }
+                for (auto& instance : scene_.native_instances) {
+                    instance.prim_path = stable_prototype_path(
+                        instance.prim_path);
+                    instance.prototype_path = stable_prototype_path(
+                        instance.prototype_path);
+                }
+                for (auto& shader : scene_.shader_nodes) {
+                    shader.prim_path = stable_prototype_path(shader.prim_path);
+                    for (auto& input : shader.inputs) {
+                        stabilize_connections(input.connections);
+                        for (auto& path : input.invalid_source_paths) {
+                            path = stable_prototype_path(path);
+                        }
+                    }
+                    for (auto& output : shader.outputs) {
+                        stabilize_shader_output(output);
+                    }
+                }
+                for (auto& material : scene_.materials) {
+                    material.prim_path = stable_prototype_path(
+                        material.prim_path);
+                    for (auto& output : material.outputs) {
+                        stabilize_shader_output(output);
+                    }
+                }
+                for (auto& camera : scene_.cameras) {
+                    camera.prim_path = stable_prototype_path(camera.prim_path);
+                }
+                for (auto& light : scene_.environment_lights) {
+                    light.prim_path = stable_prototype_path(light.prim_path);
+                }
+                for (auto& diagnostic : scene_.import_diagnostics) {
+                    diagnostic.subject = stable_prototype_path(
+                        diagnostic.subject);
                 }
             }
 
@@ -847,6 +1019,7 @@ namespace fjr::cooker {
             Scene scene_;
             std::unordered_map<std::string, std::uint32_t> node_indices_;
             std::unordered_map<std::string, std::uint32_t> material_indices_;
+            std::vector<PrototypePathMapping> native_prototype_paths_;
         };
 
     } // namespace

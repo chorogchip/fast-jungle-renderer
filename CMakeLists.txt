@@ -715,16 +715,6 @@ target_compile_definitions(FastJungleRenderer PRIVATE
     "FASTJUNGLE_DEFAULT_COOKED_DIR=\"${FASTJUNGLE_COOKED_DIR}\""
     "FASTJUNGLE_SHADER_OUTPUT_DIR=\"${FASTJUNGLE_COMPILED_SHADER_DIR}\""
 )
-if(FASTJUNGLE_BUILD_COOKER)
-    target_link_libraries(FastJungleRenderer PRIVATE
-        FastJungleUsdImporter
-    )
-    target_compile_definitions(FastJungleRenderer PRIVATE
-        FASTJUNGLE_HAS_USD_IMPORTER=1
-        "FASTJUNGLE_DEFAULT_SCENE_USD=\"${FASTJUNGLE_SCENE_USD}\""
-    )
-    fastjungle_deploy_openusd(FastJungleRenderer)
-endif()
 add_dependencies(FastJungleRenderer FastJungleShaders)
 set_target_properties(FastJungleRenderer PROPERTIES
     OUTPUT_NAME "FastJungle"

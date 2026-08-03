@@ -1,12 +1,14 @@
 #include "FastJungle/cooker/JungleUsdImporter.hpp"
 
 #include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/scene/JungleSceneFile.hpp"
 #include "FastJungle/scene/JungleSceneValidator.hpp"
 
 #include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -166,24 +168,55 @@ namespace {
 } // namespace
 
 int wmain(int argc, wchar_t* argv[]) {
-    if (argc > 2 ||
+    if (argc > 3 ||
         (argc == 2 &&
          (std::wstring_view{argv[1]} == L"--help" ||
           std::wstring_view{argv[1]} == L"-h"))) {
-        std::cout << "Usage: FastJungleCooker.exe [JungleRuins_Karma.usda]\n";
-        return argc > 2 ? 2 : 0;
+        std::cout
+            << "Usage: FastJungleCooker.exe "
+            << "[JungleRuins_Karma.usda] [JungleRuins.fjscene]\n";
+        return argc > 3 ? 2 : 0;
     }
 
     try {
-        const std::filesystem::path root_layer = argc == 2
+        const std::filesystem::path root_layer = argc >= 2
             ? std::filesystem::path{argv[1]}
             : std::filesystem::path{FASTJUNGLE_DEFAULT_SCENE_USD};
+        const std::filesystem::path cooked_scene = argc == 3
+            ? std::filesystem::path{argv[2]}
+            : std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
+                "JungleRuins.fjscene";
 
         // The importer owns the only UsdStage. It is destroyed before
         // this report touches the returned, runtime-neutral JungleScene.
         const auto scene = fjr::cooker::JungleUsdImporter::import_scene(
             root_layer);
-        return print_report(scene);
+        const auto validation_result = print_report(scene);
+        if (validation_result != 0) {
+            return validation_result;
+        }
+
+        const auto write_result =
+            fjr::scene::JungleSceneFile::write(cooked_scene, scene);
+        const auto reloaded =
+            fjr::scene::JungleSceneFile::read(cooked_scene);
+        if (reloaded != scene) {
+            throw std::runtime_error(
+                "The .fjscene round trip changed Jungle scene data.");
+        }
+
+        std::cout
+            << "\nCooked scene\n"
+            << "  output             : "
+            << cooked_scene.generic_string() << '\n'
+            << "  format version     : "
+            << fjr::scene::JungleSceneFile::FORMAT_VERSION << '\n'
+            << "  payload bytes      : "
+            << write_result.payload_size << '\n'
+            << "  payload checksum   : 0x"
+            << std::hex << write_result.payload_checksum << std::dec << '\n'
+            << "  round trip         : exact\n";
+        return 0;
     }
     catch (const std::exception& exception) {
         std::cerr << "FastJungleCooker: " << exception.what() << '\n';
