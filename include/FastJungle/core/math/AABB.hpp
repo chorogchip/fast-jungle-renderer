@@ -37,8 +37,13 @@ namespace fjr::math {
             : min{ min_point }, max{ max_point } {}
 
         void reset() noexcept { min = { INF, INF, INF }; max = { -INF, -INF, -INF }; }
-        DirectX::XMVECTOR get_min() const { return DirectX::XMLoadFloat3(&min); }
-        DirectX::XMVECTOR get_max() const { return DirectX::XMLoadFloat3(&max); }
+
+        [[nodiscard]]  DirectX::XMVECTOR get_min() const noexcept {
+            return DirectX::XMLoadFloat3(&min);
+        }
+        [[nodiscard]]  DirectX::XMVECTOR get_max() const noexcept {
+            return DirectX::XMLoadFloat3(&max);
+        }
 
         [[nodiscard]]
         constexpr bool is_valid() const noexcept {
@@ -49,7 +54,6 @@ namespace fjr::math {
         }
 
         constexpr void merge(float x, float y, float z) noexcept {
-
             min.x = std::min(min.x, x);
             min.y = std::min(min.y, y);
             min.z = std::min(min.z, z);
