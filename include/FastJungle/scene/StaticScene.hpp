@@ -314,7 +314,6 @@ namespace fjr::scene {
 		EnvironmentLight environment_light;
 		SceneInfo info;
 
-
 		static_assert(std::is_trivially_copyable_v<Vertex>);
 
 		static_assert(std::is_trivially_copyable_v<Sampler>);

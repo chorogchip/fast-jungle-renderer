@@ -14,7 +14,7 @@ namespace fjr::scene {
         StaticSceneSerializer::serialize(data, scene);
 
         FILE* file = nullptr;
-        _wfopen_s(*file, path.c_str(), L"wb");
+        _wfopen_s(&file, path.c_str(), L"wb");
 
         std::fwrite(data.data(), 1, data.size(), file);
         std::fclose(file);
