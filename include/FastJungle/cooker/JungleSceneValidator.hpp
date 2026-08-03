@@ -1,8 +1,8 @@
 #pragma once
 
-#include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 
-namespace fjr::scene {
+namespace fjr::cooker {
 
     class JungleSceneValidator {
     public:

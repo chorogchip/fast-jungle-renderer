@@ -15,7 +15,7 @@ namespace fjr {
 
     namespace {
 
-        using Scene = scene::JungleScene;
+        using Scene = cooker::JungleScene;
 
         constexpr UINT MAX_TEXTURE_DIMENSION = 512;
         constexpr UINT TEXTURES_PER_MATERIAL = 4;

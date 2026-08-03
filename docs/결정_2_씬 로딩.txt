@@ -1,0 +1,112 @@
+Intel Jungle Scene imported into project-owned data
+  source             : D:/project/fast-jungle-renderer/assets/scene/JungleRuins_1_0_1b/USD/JungleRuins_Karma.usda
+  stage              : Z-up, 0.01 meters/unit, time 0..4800
+  source layers      : 33
+  composed prims     : 3429
+  owned nodes        : 3854
+  meshes / subsets   : 142 / 85 (composed 121 / 37)
+  materials / shaders: 192 / 930
+  cameras / dome     : 1 / 1
+  native instances   : 741 (21 prototypes)
+  point instancers   : 778 (8674676 instances)
+  exact-origin points: 197
+  time samples       : 0 attributes / 0 samples
+  texture references : 559 (0 unresolved)
+
+Verified vegetation groups
+  Anthurium: 6 instancers, 138 instances
+  Grass A: 6 instancers, 280985 instances
+  Grass B: 5 instancers, 339865 instances
+  Pyramid Grass B: 5 instancers, 44000 instances
+  Pyramid Moss: 138 instancers, 2034610 instances
+  Queen Forest: 195 instancers, 613806 instances
+  River Forest: 195 instancers, 2407967 instances
+  River Sapling: 5 instancers, 45000 instances
+  River Seedling: 80 instancers, 2266462 instances
+  Shrub: 4 instancers, 11337 instances
+  Shrub Sorrel: 133 instancers, 630176 instances
+  Nettle: 6 instancers, 330 instances
+
+Validation: 0 errors, 0 warnings
+
+Cooked scene
+  output             : D:/project/fast-jungle-renderer/assets/cooked/JungleRuins.fjscene
+  format version     : 0
+  payload bytes      : 1751132066
+  payload checksum   : 0x5e6c63bd72d570b6
+  round trip         : exact
+
+
+
+
+[인스턴서 기준]
+
+Grass A (280K)
+Grass B (340K)
+Pyramid Grass B (44K)
+Queen forest (613K)
+River Sapling (45K)
+Shrub Sorrel (630K)
+Anthurium (138)
+Shrub (11K)
+Nettle (330)
+
+Pyramid moss (2M)
+River forest (2.4M)
+River Seeding (2.2M)
+
+[오브젝트 기준]
+
+Anthurium (홍학꽃)
+GrassA,
+GrassB,
+PyramidGrassB,
+PyramidMoss,
+QueenForest,
+RiverForest,
+RiverSapling,
+RiverSeedling,
+Shrub,
+ShrubSorrel,
+Nettle,
+Terrain,
+Pyramid,
+Banyan,
+River,
+Creek,
+Environment (light)
+Camera
+
+12 instancer
+5 object (terrain, pyramid, banyan, river, creek)
++Environment +Camera
+
+_______________________________
+
++ 일단 (terrain, pyramid, banyan, river, creek) 이 다섯 개를먼저 렌더링하자.
+
+피라미드를 먼저 그리고, 거기 river를 붙이고..
+
+
+일단 뭘 해야하지?
+
+-> 렌더러를 만들어서, 피라미드를 그리자!
+피라미드의 mateiral 구조를 파악해서 pso를 얼마나 쓸건지 정하자
+그럼 렌더러를 만들 수 있을 것이다
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -49,13 +49,13 @@ namespace fjr {
 
     class Renderer::MaterialResolver {
     public:
-        explicit MaterialResolver(const scene::JungleScene& scene);
+        explicit MaterialResolver(const cooker::JungleScene& scene);
 
         [[nodiscard]] MaterialDescription resolve(
             std::string_view material_path) const;
 
     private:
-        using Scene = scene::JungleScene;
+        using Scene = cooker::JungleScene;
 
         [[nodiscard]] const Scene::ShaderNode& find_shader(
             const std::string& path) const;

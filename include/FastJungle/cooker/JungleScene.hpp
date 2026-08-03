@@ -7,7 +7,7 @@
 #include <variant>
 #include <vector>
 
-namespace fjr::scene {
+namespace fjr::cooker {
 
     class JungleScene {
     public:

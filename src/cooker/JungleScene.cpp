@@ -1,11 +1,11 @@
-#include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 
 #include "FastJungle/core/util/Path.hpp"
 
 #include <array>
 #include <string_view>
 
-namespace fjr::scene {
+namespace fjr::cooker {
 
     JungleScene::ObjectKind JungleScene::classify_object(
         const std::string& prim_path) {

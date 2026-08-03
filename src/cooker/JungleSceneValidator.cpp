@@ -1,4 +1,4 @@
-#include "FastJungle/scene/JungleSceneValidator.hpp"
+#include "FastJungle/cooker/JungleSceneValidator.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <string_view>
 #include <unordered_set>
 
-namespace fjr::scene {
+namespace fjr::cooker {
 
     namespace {
 

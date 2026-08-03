@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -21,10 +21,10 @@ namespace fjr::scene {
         [[nodiscard]]
         static WriteResult write(
             const std::filesystem::path& path,
-            const JungleScene& scene);
+            const cooker::JungleScene& scene);
 
         [[nodiscard]]
-        static JungleScene read(
+        static cooker::JungleScene read(
             const std::filesystem::path& path);
     };
 

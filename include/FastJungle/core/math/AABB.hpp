@@ -63,7 +63,7 @@ namespace fjr::math {
             this->merge(point.x, point.y, point.z);
         }
 
-        constexpr void merge( const AABB& other) noexcept {
+        constexpr void merge(const AABB& other) noexcept {
             if (!other.is_valid()) return;
             this->merge(other.min);
             this->merge(other.max);

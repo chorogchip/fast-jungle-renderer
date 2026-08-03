@@ -19,7 +19,7 @@ namespace fjr::scene {
 
     namespace {
 
-        using Scene = JungleScene;
+        using Scene = cooker::JungleScene;
 
         constexpr std::array<char, 8> FILE_MAGIC{
             'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
@@ -930,7 +930,7 @@ namespace fjr::scene {
 
     JungleSceneFile::WriteResult JungleSceneFile::write(
         const std::filesystem::path& path,
-        const JungleScene& scene) {
+        const cooker::JungleScene& scene) {
 
         if (path.empty()) {
             throw std::runtime_error("The .fjscene output path is empty.");
@@ -973,7 +973,7 @@ namespace fjr::scene {
         }
     }
 
-    JungleScene JungleSceneFile::read(
+    cooker::JungleScene JungleSceneFile::read(
         const std::filesystem::path& path) {
 
         if (path.empty()) {

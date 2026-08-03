@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/CommandContext.hpp"
@@ -39,7 +39,7 @@ namespace fjr {
             void* native_window,
             std::uint32_t width,
             std::uint32_t height,
-            const scene::JungleScene& scene);
+            const cooker::JungleScene& scene);
 
         void resize(
             std::uint32_t width,
@@ -57,7 +57,7 @@ namespace fjr {
         class TextureLoader;
 
         void init_depth_buffer();
-        void build_scene_geometry(const scene::JungleScene& scene);
+        void build_scene_geometry(const cooker::JungleScene& scene);
         void update_camera();
 
         HWND window_ = nullptr;

@@ -49,7 +49,7 @@ namespace fjr::cooker {
 
     namespace {
 
-        using Scene = scene::JungleScene;
+        using Scene = cooker::JungleScene;
 
         std::filesystem::path executable_directory() {
             std::vector<wchar_t> buffer(1024);
@@ -1024,7 +1024,7 @@ namespace fjr::cooker {
 
     } // namespace
 
-    scene::JungleScene JungleUsdImporter::import_scene(
+    cooker::JungleScene JungleUsdImporter::import_scene(
         const std::filesystem::path& root_layer) {
 
         register_openusd_plugins();

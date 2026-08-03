@@ -1,8 +1,8 @@
 #include "FastJungle/cooker/JungleUsdImporter.hpp"
 
-#include "FastJungle/scene/JungleScene.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 #include "FastJungle/scene/JungleSceneFile.hpp"
-#include "FastJungle/scene/JungleSceneValidator.hpp"
+#include "FastJungle/cooker/JungleSceneValidator.hpp"
 
 #include <cstdint>
 #include <exception>
@@ -16,7 +16,7 @@
 
 namespace {
 
-    using Scene = fjr::scene::JungleScene;
+    using Scene = fjr::cooker::JungleScene;
 
     struct VegetationSummary {
         Scene::ObjectKind kind;
@@ -135,7 +135,7 @@ namespace {
                       << summary.instances << " instances\n";
         }
 
-        auto validation = fjr::scene::JungleSceneValidator::validate(scene);
+        auto validation = fjr::cooker::JungleSceneValidator::validate(scene);
         std::uint64_t warnings = 0;
         std::uint64_t errors = 0;
         const auto print_diagnostics = [&warnings, &errors](

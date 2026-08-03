@@ -24,7 +24,7 @@ namespace fjr {
 
     namespace {
 
-        using Scene = scene::JungleScene;
+        using Scene = cooker::JungleScene;
         using ObjectKind = Scene::ObjectKind;
 
         // Temporary renderer options. Change one kind and set
@@ -1045,7 +1045,7 @@ namespace fjr {
         void* native_window,
         std::uint32_t width,
         std::uint32_t height,
-        const scene::JungleScene& scene) {
+        const cooker::JungleScene& scene) {
 
         if (native_window == nullptr || width == 0 || height == 0) {
             throw std::invalid_argument("Invalid renderer window size.");
@@ -1270,7 +1270,7 @@ namespace fjr {
     }
 
     void Renderer::build_scene_geometry(
-        const scene::JungleScene& scene) {
+        const cooker::JungleScene& scene) {
 
         std::unordered_map<std::string, std::uint32_t> node_indices;
         node_indices.reserve(scene.nodes.size());
