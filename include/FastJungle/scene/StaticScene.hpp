@@ -272,34 +272,43 @@ namespace fjr::scene {
 			math::AABB world_bounds{};
 		};
 
-		// ascii null-terminated strings.
+		// strings is ascii null-terminated strings.
 		// Every name is a byte offset into strings.
 		// strings[0] is '\0'; offset 0 represents an empty name.
-		std::vector<char> strings;
 
-		std::vector<Vertex> vertices;
 
 		// indices[index_offset ...] are local to Submesh::vertex_offset.
 		// Final vertex index = Submesh::vertex_offset + indices[i].
-		std::vector<uint32_t> indices;
 
-		std::vector<Sampler> samplers;
-		std::vector<std::byte> texture_data;
-		std::vector<TextureMip> texture_mips;
-		std::vector<Texture> textures;
-		std::vector<TextureBinding> texture_bindings;
-		std::vector<Material> materials;
+		using Char = char;
+		using Uint32_t = uint32_t;
+		using Byte = std::byte;
 
-		std::vector<Submesh> submeshes;
-		std::vector<Mesh> meshes;
+#define SceneData_MACRO \
+    X(Char, strings) \
+    X(Vertex, vertices) \
+    X(Uint32_t, indices) \
+    \
+    X(Sampler, samplers) \
+    X(Byte, texture_data) \
+    X(TextureMip, texture_mips) \
+    X(Texture, textures) \
+    X(TextureBinding, texture_bindings) \
+    X(Material, materials) \
+    \
+    X(Submesh, submeshes) \
+    X(Mesh, meshes) \
+    X(PrototypePart, prototype_parts) \
+    X(Prototype, prototypes) \
+    \
+    X(PointInstance, point_instances) \
+    X(PointBatch, point_batches) \
+    X(MatrixInstance, matrix_instances) \
+    X(MatrixBatch, matrix_batches)
 
-		std::vector<PrototypePart> prototype_parts;
-		std::vector<Prototype> prototypes;
-
-		std::vector<PointInstance> point_instances;
-		std::vector<PointBatch> point_batches;
-		std::vector<MatrixInstance> matrix_instances;
-		std::vector<MatrixBatch> matrix_batches;
+#define X(type, name) std::vector<type> name;
+		SceneData_MACRO
+#undef X
 
 		Camera camera;
 		EnvironmentLight environment_light;
