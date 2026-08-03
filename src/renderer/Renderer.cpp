@@ -1000,21 +1000,6 @@ namespace fjr {
                     gallery_z));
         }
 
-        D3D12_RESOURCE_BARRIER transition(
-            ID3D12Resource* resource,
-            D3D12_RESOURCE_STATES before,
-            D3D12_RESOURCE_STATES after) {
-
-            D3D12_RESOURCE_BARRIER barrier{};
-            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            barrier.Transition.pResource = resource;
-            barrier.Transition.StateBefore = before;
-            barrier.Transition.StateAfter = after;
-            barrier.Transition.Subresource =
-                D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            return barrier;
-        }
-
     } // namespace
 
     struct Renderer::DrawBatch {
@@ -1029,8 +1014,6 @@ namespace fjr {
         std::uint32_t instance_count = 0;
     };
 
-    Renderer::Renderer() = default;
-    Renderer::~Renderer() = default;
 
     void Renderer::close() {
         if (command_queue_) {
@@ -1051,9 +1034,7 @@ namespace fjr {
             throw std::invalid_argument("Invalid renderer window size.");
         }
 
-        window_ = static_cast<HWND>(native_window);
-        width_ = static_cast<UINT>(width);
-        height_ = static_cast<UINT>(height);
+        HWND window = static_cast<HWND>(native_window);
 
         factory_ = dx::DeviceUtils::create_factory();
         device_ = dx::DeviceUtils::create_device(factory_.Get());
@@ -1063,9 +1044,9 @@ namespace fjr {
         swap_chain_.init(
             factory_.Get(),
             command_queue_.get_command_queue(),
-            window_,
-            width_,
-            height_,
+            window,
+            width,
+            height,
             FRAME_COUNT,
             true);
 
@@ -1090,7 +1071,7 @@ namespace fjr {
                 nullptr,
                 rtv_heap_.get_cpu_handle(i));
         }
-        init_depth_buffer();
+        init_depth_buffer(width, height);
 
         command_context_.init(
             device_.Get(),
@@ -1209,37 +1190,20 @@ namespace fjr {
         command_context_.reset();
         build_scene_geometry(scene);
         command_context_.close();
-        ID3D12CommandList* upload_lists[]{
-            command_context_.get_command_list()
-        };
-        command_queue_.execute(std::span<ID3D12CommandList* const>{
-            upload_lists,
-            1
-        });
-        const auto upload_fence = command_queue_.signal();
-        command_queue_.wait(upload_fence);
-        command_context_.set_fence_value(0);
-        texture_loader_->finish_uploads();
-        update_camera();
-        frame_index_ = swap_chain_.get_current_frame();
 
-        const auto title = std::wstring{L"Fast Jungle - "} +
-            std::to_wstring(rendered_kind_count_) + L"/" +
-            std::to_wstring(RENDERABLE_OBJECT_KINDS.size()) +
-            L" kinds - " +
-            std::to_wstring(resolved_material_count_) + L" materials, " +
-            std::to_wstring(texture_loader_->loaded_texture_count()) +
-            L" textures, " +
-            std::to_wstring(texture_loader_->fallback_binding_count()) +
-            L" fallback maps";
-        SetWindowTextW(window_, title.c_str());
+        command_queue_.execute(command_context_.get_command_list());
+        command_queue_.flush();
+        command_context_.set_fence_value(0);
+
+        texture_loader_->finish_uploads();
+        update_camera(width, height);
     }
 
-    void Renderer::init_depth_buffer() {
+    void Renderer::init_depth_buffer(uint32_t width, uint32_t height) {
         D3D12_RESOURCE_DESC description{};
         description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        description.Width = width_;
-        description.Height = height_;
+        description.Width = width;
+        description.Height = height;
         description.DepthOrArraySize = 1;
         description.MipLevels = 1;
         description.Format = DXGI_FORMAT_D32_FLOAT;
@@ -1424,7 +1388,7 @@ namespace fjr {
             batch->material_index = texture_loader_->add_material(
                 batch->material);
         }
-        resolved_material_count_ = static_cast<std::uint32_t>(
+        uint32_t resolved_material_count = static_cast<std::uint32_t>(
             resolved_materials.size());
         render_bounds_ = {
             gallery_bounds.minimum.x,
@@ -1434,15 +1398,15 @@ namespace fjr {
             gallery_bounds.maximum.y,
             gallery_bounds.maximum.z
         };
-        rendered_kind_count_ = static_cast<std::uint32_t>(objects.size());
+        uint32_t  rendered_kind_count = static_cast<std::uint32_t>(objects.size());
         if (RENDER_ALL_OBJECT_KINDS &&
-            rendered_kind_count_ != RENDERABLE_OBJECT_KINDS.size()) {
+            rendered_kind_count != RENDERABLE_OBJECT_KINDS.size()) {
             throw std::runtime_error(
                 "Not all renderable Jungle object kinds were imported.");
         }
     }
 
-    void Renderer::update_camera() {
+    void Renderer::update_camera(uint32_t width, uint32_t height) {
         const DirectX::XMFLOAT3 minimum{
             render_bounds_[0],
             render_bounds_[1],
@@ -1488,8 +1452,8 @@ namespace fjr {
             }
         }
 
-        const float aspect = static_cast<float>(width_) /
-            static_cast<float>(height_);
+        const float aspect = static_cast<float>(width) /
+            static_cast<float>(height);
         float view_width = view_bounds.maximum.x -
             view_bounds.minimum.x + 1.0f;
         float view_height = view_bounds.maximum.y -
@@ -1527,19 +1491,12 @@ namespace fjr {
         std::uint32_t width,
         std::uint32_t height) {
 
-        if (width == 0 || height == 0 ||
-            (width_ == width && height_ == height)) {
-            return;
-        }
-
         command_queue_.flush();
         command_context_.set_fence_value(0);
         depth_buffer_ = {};
-        swap_chain_.resize(
-            static_cast<UINT>(width),
-            static_cast<UINT>(height));
-        width_ = static_cast<UINT>(width);
-        height_ = static_cast<UINT>(height);
+
+        swap_chain_.resize(width, height);
+
         for (UINT i = 0; i < FRAME_COUNT; ++i) {
             Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
             throw_if_failed(swap_chain_->GetBuffer(
@@ -1551,24 +1508,19 @@ namespace fjr {
                 nullptr,
                 rtv_heap_.get_cpu_handle(i));
         }
-        init_depth_buffer();
-        update_camera();
-        frame_index_ = swap_chain_.get_current_frame();
+        init_depth_buffer(width, height);
+        update_camera(width, height);
     }
 
     void Renderer::render() {
-        if (command_context_.get_fence_value() != 0) {
-            command_queue_.wait(command_context_.get_fence_value());
-        }
+        command_queue_.wait(command_context_.get_fence_value());
         command_context_.reset(pipeline_state_.Get());
 
-        const auto to_render_target = transition(
-            swap_chain_.get_current_buffer(),
-            D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATE_RENDER_TARGET);
-        command_context_->ResourceBarrier(1, &to_render_target);
+        swap_chain_.get_current_buffer().transition(
+            command_context_.get_command_list(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-        const auto rtv = rtv_heap_.get_cpu_handle(frame_index_);
+        const UINT frame_index = swap_chain_.get_current_frame();
+        const auto rtv = rtv_heap_.get_cpu_handle(frame_index);
         const auto dsv = dsv_heap_.get_cpu_handle(0);
         constexpr float clear_color[] = {0.06f, 0.075f, 0.10f, 1.0f};
         command_context_->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
@@ -1584,38 +1536,19 @@ namespace fjr {
             0,
             0,
             nullptr);
-
-        const D3D12_VIEWPORT viewport{
-            0.0f,
-            0.0f,
-            static_cast<float>(width_),
-            static_cast<float>(height_),
-            0.0f,
-            1.0f
-        };
-        const D3D12_RECT scissor{
-            0,
-            0,
-            static_cast<LONG>(width_),
-            static_cast<LONG>(height_)
-        };
-        command_context_->RSSetViewports(1, &viewport);
-        command_context_->RSSetScissorRects(1, &scissor);
-        ID3D12DescriptorHeap* descriptor_heaps[]{
-            texture_loader_->resource_heap(),
-            texture_loader_->sampler_heap()
-        };
-        command_context_->SetDescriptorHeaps(
-            static_cast<UINT>(std::size(descriptor_heaps)),
-            descriptor_heaps);
+        
+        const UINT width = swap_chain_.get_width();
+        const UINT height = swap_chain_.get_height();
+        command_context_.RSSetViewPortScissorRect(width, height);
+        command_context_.SetDescriptorHeaps(
+            texture_loader_->resource_heap(), texture_loader_->sampler_heap());
         command_context_->SetGraphicsRootSignature(root_signature_.Get());
         command_context_->SetGraphicsRoot32BitConstants(
             0,
             static_cast<UINT>(view_projection_.size()),
             view_projection_.data(),
             0);
-        command_context_->IASetPrimitiveTopology(
-            D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        command_context_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         for (const auto& batch : draw_batches_) {
             command_context_->IASetVertexBuffers(
@@ -1645,24 +1578,14 @@ namespace fjr {
                 0);
         }
 
-        const auto to_present = transition(
-            swap_chain_.get_current_buffer(),
-            D3D12_RESOURCE_STATE_RENDER_TARGET,
-            D3D12_RESOURCE_STATE_PRESENT);
-        command_context_->ResourceBarrier(1, &to_present);
+        swap_chain_.get_current_buffer().transition(
+            command_context_.get(), D3D12_RESOURCE_STATE_PRESENT);
         command_context_.close();
 
-        ID3D12CommandList* command_lists[]{
-            command_context_.get_command_list()
-        };
-        command_queue_.execute(std::span<ID3D12CommandList* const>{
-            command_lists,
-            1
-        });
+        command_queue_.execute(command_context_.get());
         swap_chain_.present();
 
         command_context_.set_fence_value(command_queue_.signal());
-        frame_index_ = swap_chain_.get_current_frame();
     }
 
 } // namespace fjr

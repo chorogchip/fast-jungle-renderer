@@ -47,9 +47,13 @@ namespace fjr::dx {
         buffers_.resize(frame_count_);
 
         for (UINT i = 0; i < frame_count_; ++i) {
+            Microsoft::WRL::ComPtr<ID3D12Resource> buf;
             abort_failed(swap_chain_->GetBuffer(
-                i,
-                IID_PPV_ARGS(buffers_[i].ReleaseAndGetAddressOf())));
+                i, IID_PPV_ARGS(buf.GetAddressOf())));
+            buffers_[i].attach(
+                buf.Get(),
+                TextureType::texture2d,
+                D3D12_RESOURCE_STATE_PRESENT);
         }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();
@@ -65,13 +69,8 @@ namespace fjr::dx {
     }
 
     void SwapChain::resize(UINT width, UINT height) {
-        if (width == 0 || height == 0) {
-            return;
-        }
-
-        for (auto& buffer : buffers_) {
-            buffer.Reset();
-        }
+        if (width == 0 || height == 0) return;
+        for (auto& buffer : buffers_) buffer.reset();
 
         abort_failed(swap_chain_->ResizeBuffers(
             frame_count_,
@@ -84,9 +83,13 @@ namespace fjr::dx {
         height_ = height;
 
         for (UINT i = 0; i < frame_count_; ++i) {
+            Microsoft::WRL::ComPtr<ID3D12Resource> buf;
             abort_failed(swap_chain_->GetBuffer(
-                i,
-                IID_PPV_ARGS(buffers_[i].ReleaseAndGetAddressOf())));
+                i, IID_PPV_ARGS(buf.ReleaseAndGetAddressOf())));
+            buffers_[i].attach(
+                buf.Get(),
+                TextureType::texture2d,
+                D3D12_RESOURCE_STATE_PRESENT);
         }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();

@@ -11,8 +11,8 @@ namespace fjr::dx {
     public:
         Resource() = default;
 
-        Resource(const Resource&) = delete;
-        Resource& operator=(const Resource&) = delete;
+        Resource(const Resource&) = default;
+        Resource& operator=(const Resource&) = default;
 
         Resource(Resource&&) noexcept = default;
         Resource& operator=(Resource&&) noexcept = default;
@@ -24,6 +24,10 @@ namespace fjr::dx {
         [[nodiscard]]
         ID3D12Resource* get() const noexcept {
             return resource_.Get();
+        }
+
+        void reset() {
+            resource_.Reset();
         }
 
         [[nodiscard]]
@@ -46,7 +50,6 @@ namespace fjr::dx {
         }
 
         Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
-
         D3D12_RESOURCE_STATES state_ =
             D3D12_RESOURCE_STATE_COMMON;
     };

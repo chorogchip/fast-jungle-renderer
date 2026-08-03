@@ -23,7 +23,8 @@ namespace fjr::dx {
             ID3D12Device* device,
             D3D12_COMMAND_LIST_TYPE type);
 
-        void execute(std::span<ID3D12CommandList* const> command_lists);
+        void execute(ID3D12CommandList* command_list);
+        void execute(ID3D12CommandList* const* command_lists, UINT count);
 
         [[nodiscard]] UINT64 signal();
 

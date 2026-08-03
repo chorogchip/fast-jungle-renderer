@@ -106,7 +106,7 @@ namespace fjr::dx {
             IID_PPV_ARGS(
                 resource.ReleaseAndGetAddressOf())));
 
-        set_resource(
+        this->set_resource(
             std::move(resource),
             initial_state);
 
@@ -121,11 +121,19 @@ namespace fjr::dx {
         Microsoft::WRL::ComPtr<ID3D12Resource>
             resource_pointer = resource;
 
-        set_resource(
+        this->set_resource(
             std::move(resource_pointer),
             initial_state);
 
         type_ = type;
+    }
+
+    void Texture::release_and_getaddress() {
+
+    }
+
+    void Texture::reset() {
+        reso
     }
 
     D3D12_GPU_DESCRIPTOR_HANDLE

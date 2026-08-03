@@ -204,6 +204,8 @@ int WINAPI wWinMain(
             client_rectangle.bottom -
             client_rectangle.top);
 
+    SetWindowTextW(hwnd, L"Fast Jungle Renderer");
+
     try {
         const auto cooked_scene =
             std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /

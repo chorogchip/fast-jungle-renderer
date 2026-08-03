@@ -42,4 +42,56 @@ namespace fjr::dx {
         abort_failed(command_list_->Close());
     }
 
+
+
+
+    void CommandContext::RSSetViewPortScissorRect(UINT width, UINT height) {
+
+        const D3D12_VIEWPORT viewport{
+            0.0f,
+            0.0f,
+            static_cast<float>(width),
+            static_cast<float>(height),
+            0.0f,
+            1.0f
+        };
+        const D3D12_RECT scissor{
+            0,
+            0,
+            static_cast<LONG>(width),
+            static_cast<LONG>(height)
+        };
+        command_list_->RSSetViewports(1, &viewport);
+        command_list_->RSSetScissorRects(1, &scissor);
+    }
+
+    void CommandContext::SetDescriptorHeaps(
+        ID3D12DescriptorHeap* heap1) {
+
+
+        ID3D12DescriptorHeap* descriptor_heaps[]{
+            heap1 };
+        command_list_->SetDescriptorHeaps(1, descriptor_heaps);
+    }
+
+    void CommandContext::SetDescriptorHeaps(
+        ID3D12DescriptorHeap* heap1,
+        ID3D12DescriptorHeap* heap2) {
+
+
+        ID3D12DescriptorHeap* descriptor_heaps[]{
+            heap1, heap2 };
+        command_list_->SetDescriptorHeaps(2, descriptor_heaps);
+    }
+
+    void CommandContext::SetDescriptorHeaps(
+        ID3D12DescriptorHeap* heap1,
+        ID3D12DescriptorHeap* heap2,
+        ID3D12DescriptorHeap* heap3) {
+
+        ID3D12DescriptorHeap* descriptor_heaps[]{
+            heap1, heap2, heap3 };
+        command_list_->SetDescriptorHeaps(3, descriptor_heaps);
+    }
+
 } // namespace fjr::dx

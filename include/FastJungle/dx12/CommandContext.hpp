@@ -24,12 +24,16 @@ namespace fjr::dx {
 
         void close();
 
-        [[nodiscard]] ID3D12CommandAllocator* get_allocator() const noexcept {
-            return allocator_.Get();
+        [[nodiscard]] ID3D12GraphicsCommandList* get() const noexcept {
+            return command_list_.Get();
         }
 
         [[nodiscard]] ID3D12GraphicsCommandList* get_command_list() const noexcept {
             return command_list_.Get();
+        }
+
+        [[nodiscard]] ID3D12CommandAllocator* get_allocator() const noexcept {
+            return allocator_.Get();
         }
 
         [[nodiscard]] D3D12_COMMAND_LIST_TYPE get_type() const noexcept {
@@ -51,6 +55,20 @@ namespace fjr::dx {
         [[nodiscard]] explicit operator bool() const noexcept {
             return allocator_ != nullptr && command_list_ != nullptr;
         }
+
+        void RSSetViewPortScissorRect(UINT width, UINT height);
+
+        void SetDescriptorHeaps(
+            ID3D12DescriptorHeap* heap1);
+
+        void SetDescriptorHeaps(
+            ID3D12DescriptorHeap* heap1,
+            ID3D12DescriptorHeap* heap2);
+
+        void SetDescriptorHeaps(
+            ID3D12DescriptorHeap* heap1,
+            ID3D12DescriptorHeap* heap2,
+            ID3D12DescriptorHeap* heap3);
 
     private:
         Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator_;

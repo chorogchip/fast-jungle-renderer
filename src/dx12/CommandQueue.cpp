@@ -80,16 +80,14 @@ namespace fjr::dx {
         }
     }
 
-    void CommandQueue::execute(
-        std::span<ID3D12CommandList* const> command_lists) {
+    void CommandQueue::execute(ID3D12CommandList* command_list) {
+        ID3D12CommandList* lists[]{ command_list };
+        this->execute(lists, 1);
+    }
 
-        if (command_lists.empty()) {
-            return;
-        }
-
+    void CommandQueue::execute(ID3D12CommandList* const* command_lists, UINT count) {
         command_queue_->ExecuteCommandLists(
-            static_cast<UINT>(command_lists.size()),
-            command_lists.data());
+            count, command_lists);
     }
 
     UINT64 CommandQueue::signal() {

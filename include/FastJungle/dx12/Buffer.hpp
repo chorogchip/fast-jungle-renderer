@@ -14,8 +14,8 @@ namespace fjr::dx {
     public:
         Buffer() = default;
 
-        Buffer(const Buffer&) = delete;
-        Buffer& operator=(const Buffer&) = delete;
+        Buffer(const Buffer&) = default;
+        Buffer& operator=(const Buffer&) = default;
 
         Buffer(Buffer&&) noexcept = default;
         Buffer& operator=(Buffer&&) noexcept = default;

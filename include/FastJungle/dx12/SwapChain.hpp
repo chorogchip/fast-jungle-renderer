@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "FastJungle/dx12/Texture.hpp"
+
 namespace fjr::dx {
 
     class SwapChain {
@@ -35,12 +37,8 @@ namespace fjr::dx {
             return current_frame_;
         }
 
-        [[nodiscard]] ID3D12Resource* get_current_buffer() const noexcept {
-            if (buffers_.empty()) {
-                return nullptr;
-            }
-
-            return buffers_[current_frame_].Get();
+        [[nodiscard]] dx::Texture& get_current_buffer() noexcept {
+            return buffers_[current_frame_];
         }
 
         [[nodiscard]] UINT get_width() const noexcept {
@@ -73,7 +71,7 @@ namespace fjr::dx {
 
     private:
         Microsoft::WRL::ComPtr<IDXGISwapChain3> swap_chain_;
-        std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> buffers_;
+        std::vector<dx::Texture> buffers_;
 
         UINT width_ = 0;
         UINT height_ = 0;

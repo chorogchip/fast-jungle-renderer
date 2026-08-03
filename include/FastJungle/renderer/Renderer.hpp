@@ -26,13 +26,12 @@ namespace fjr {
 
     class Renderer {
     public:
-        Renderer();
-        ~Renderer();
+        Renderer() = default;
+        ~Renderer() = default;
 
         Renderer(const Renderer&) = delete;
-        Renderer& operator=(const Renderer&) = delete;
-
         Renderer(Renderer&&) = delete;
+        Renderer& operator=(const Renderer&) = delete;
         Renderer& operator=(Renderer&&) = delete;
 
         void init(
@@ -56,14 +55,9 @@ namespace fjr {
         class MaterialResolver;
         class TextureLoader;
 
-        void init_depth_buffer();
+        void init_depth_buffer(uint32_t width, uint32_t height);
         void build_scene_geometry(const cooker::JungleScene& scene);
-        void update_camera();
-
-        HWND window_ = nullptr;
-        UINT width_ = 0;
-        UINT height_ = 0;
-        UINT frame_index_ = 0;
+        void update_camera(uint32_t width, uint32_t height);
 
         Microsoft::WRL::ComPtr<IDXGIFactory4> factory_;
         Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -82,8 +76,6 @@ namespace fjr {
         std::vector<std::unique_ptr<DrawBatch>> draw_batches_;
         std::array<float, 16> view_projection_{};
         std::array<float, 6> render_bounds_{};
-        std::uint32_t rendered_kind_count_ = 0;
-        std::uint32_t resolved_material_count_ = 0;
     };
 
 } // namespace fjr

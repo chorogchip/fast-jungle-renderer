@@ -28,9 +28,8 @@ namespace fjr::dx {
     public:
         Texture() = default;
 
-        Texture(const Texture&) = delete;
-        Texture& operator=(const Texture&) = delete;
-
+        Texture(const Texture&) = default;
+        Texture& operator=(const Texture&) = default;
         Texture(Texture&&) noexcept = default;
         Texture& operator=(Texture&&) noexcept = default;
 
