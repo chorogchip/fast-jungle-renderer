@@ -1,5 +1,5 @@
 #include "FastJungle/renderer/Application.hpp"
-#include "FastJungle/scene/JungleSceneFile.hpp"
+#include "FastJungle/cooker/JungleSceneFile.hpp"
 
 #include <Windows.h>
 

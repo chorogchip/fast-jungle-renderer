@@ -12,48 +12,62 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "FASTJUNGLE_BUILD_RENDERER": "ON",
-        "FASTJUNGLE_BUILD_COOKER": "OFF"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
-      "name": "runtime-debug",
-      "displayName": "Runtime Debug",
+      "name": "renderer-debug",
+      "displayName": "Renderer Debug",
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FASTJUNGLE_BUILD": "renderer"
       }
     },
     {
-      "name": "runtime-release",
-      "displayName": "Runtime Release",
+      "name": "renderer-release",
+      "displayName": "Renderer Release",
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "FASTJUNGLE_BUILD": "renderer"
       }
     },
     {
-      "name": "full-debug",
-      "displayName": "Full Debug",
-      "inherits": "runtime-debug",
+      "name": "cooker-debug",
+      "displayName": "Cooker Debug",
+      "inherits": "base",
       "cacheVariables": {
-        "FASTJUNGLE_BUILD_COOKER": "ON"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FASTJUNGLE_BUILD": "cooker"
+      }
+    },
+    {
+      "name": "cooker-release",
+      "displayName": "Cooker Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "FASTJUNGLE_BUILD": "cooker"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "runtime-debug",
-      "configurePreset": "runtime-debug"
+      "name": "renderer-debug",
+      "configurePreset": "renderer-debug"
     },
     {
-      "name": "runtime-release",
-      "configurePreset": "runtime-release"
+      "name": "renderer-release",
+      "configurePreset": "renderer-release"
     },
     {
-      "name": "full-debug",
-      "configurePreset": "full-debug"
+      "name": "cooker-debug",
+      "configurePreset": "cooker-debug"
+    },
+    {
+      "name": "cooker-release",
+      "configurePreset": "cooker-release"
     }
   ]
 }

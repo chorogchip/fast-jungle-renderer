@@ -10,6 +10,6 @@ namespace fjr::cooker {
 	class StaticSceneBuilder {
 
 	public:
-		std::unique_ptr<scene::StaticScene> build(const JungleScene& src);
+		static std::unique_ptr<scene::StaticScene> build(const JungleScene& src);
 	};
 }

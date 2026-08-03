@@ -52,9 +52,11 @@ GPU renderer
 ```
 
 The cooker currently writes a lossless version 0 scene file, and the runtime
-renderer reads that file without linking OpenUSD. Run the `full-debug` cooker
-once to create `assets/cooked/JungleRuins.fjscene`; both runtime presets then
-use that file. The v0 file deliberately keeps the analyzed source data intact
+renderer reads that file without linking OpenUSD. Run either cooker preset
+once to create `assets/cooked/JungleRuins.fjscene`; both renderer presets then
+use that file. The first cooker build creates a shared Release OpenUSD install
+under `out/deps`, which both Debug and Release cooker builds reuse. The v0 file
+deliberately keeps the analyzed source data intact
 and does not yet apply instance compression or GPU-oriented packing.
 
 The offline cooker will handle:

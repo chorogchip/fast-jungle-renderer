@@ -1,4 +1,4 @@
-#include "FastJungle/scene/JungleSceneFile.hpp"
+#include "FastJungle/cooker/JungleSceneFile.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1036,3 +1036,28 @@ namespace fjr::scene {
     }
 
 } // namespace fjr::scene
+
+
+/*
+const auto write_result =
+    fjr::scene::JungleSceneFile::write(cooked_scene, scene);
+const auto reloaded =
+    fjr::scene::JungleSceneFile::read(cooked_scene);
+if (reloaded != scene) {
+    throw std::runtime_error(
+        "The .fjscene round trip changed Jungle scene data.");
+}
+
+std::cout
+    << "\nCooked scene\n"
+    << "  output             : "
+    << cooked_scene.generic_string() << '\n'
+    << "  format version     : "
+    << fjr::scene::JungleSceneFile::FORMAT_VERSION << '\n'
+    << "  payload bytes      : "
+    << write_result.payload_size << '\n'
+    << "  payload checksum   : 0x"
+    << std::hex << write_result.payload_checksum << std::dec << '\n'
+    << "  round trip         : exact\n";
+
+*/
