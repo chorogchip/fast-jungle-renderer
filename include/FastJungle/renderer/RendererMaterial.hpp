@@ -1,7 +1,5 @@
 #pragma once
 
-#include "FastJungle/renderer/Renderer.hpp"
-
 #include <array>
 #include <wincodec.h>
 #include <cstdint>
@@ -14,7 +12,7 @@
 
 namespace fjr {
 
-    struct Renderer::MaterialDescription {
+    struct MaterialDescription {
         enum Flag : std::uint32_t {
             BaseColorTexture = 1u << 0u,
             NormalTexture = 1u << 1u,
@@ -47,7 +45,7 @@ namespace fjr {
         TextureBinding opacity;
     };
 
-    class Renderer::MaterialResolver {
+    class MaterialResolver {
     public:
         explicit MaterialResolver(const cooker::JungleScene& scene);
 
@@ -72,7 +70,7 @@ namespace fjr {
         std::unordered_map<std::string, const Scene::ShaderNode*> shaders_;
     };
 
-    class Renderer::TextureLoader {
+    class TextureLoader {
     public:
         TextureLoader();
         ~TextureLoader();

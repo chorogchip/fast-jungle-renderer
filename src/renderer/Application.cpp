@@ -8,7 +8,7 @@ namespace fjr {
         void* native_window,
         std::uint32_t width,
         std::uint32_t height,
-        const scene::JungleScene& scene) {
+        const cooker::JungleScene& scene) {
 
         if (native_window == nullptr ||
             width == 0 ||

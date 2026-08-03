@@ -128,14 +128,6 @@ namespace fjr::dx {
         type_ = type;
     }
 
-    void Texture::release_and_getaddress() {
-
-    }
-
-    void Texture::reset() {
-        reso
-    }
-
     D3D12_GPU_DESCRIPTOR_HANDLE
         Texture::create_srv(
             ID3D12Device* device,

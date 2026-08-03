@@ -183,7 +183,7 @@ endfunction()
 # DirectXTex: offline DDS conversion
 # =============================================================================
 
-if(FASTJUNGLE_BUILD_COOKER)
+if(FASTJUNGLE_BUILD_RENDERER OR FASTJUNGLE_BUILD_COOKER)
     set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
     set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
     set(BUILD_DX11 OFF CACHE BOOL "" FORCE)
@@ -201,11 +201,10 @@ if(FASTJUNGLE_BUILD_COOKER)
     if(NOT TARGET DirectXTex)
         message(FATAL_ERROR "DirectXTex did not create the expected target.")
     endif()
-    set_target_properties(DirectXTex PROPERTIES FOLDER "External/DirectXTex")
 
-    if(FASTJUNGLE_ENABLE_OPENEXR)
-        find_package(OpenEXR CONFIG REQUIRED)
-    endif()
+    set_target_properties(DirectXTex PROPERTIES
+        FOLDER "External/DirectXTex"
+    )
 endif()
 
 # =============================================================================
@@ -493,6 +492,7 @@ target_link_libraries(FastJungleUsdImporter PUBLIC
     FastJungle::Core
     FastJungle::Scene
     FastJungle::OpenUSD
+    DirectXTex
 )
 target_include_directories(FastJungleUsdImporter PUBLIC
     "${FASTJUNGLE_INCLUDE_DIR}"
@@ -693,6 +693,7 @@ target_link_libraries(FastJungleRenderer PRIVATE
     FastJungle::ProjectOptions
     FastJungle::Core
     FastJungle::Scene
+    DirectXTex
     d3d12
     dxgi
     dxguid

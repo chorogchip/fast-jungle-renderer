@@ -12,6 +12,7 @@
 #include "FastJungle/dx12/Shader.hpp"
 #include "FastJungle/dx12/SwapChain.hpp"
 #include "FastJungle/dx12/Texture.hpp"
+#include "FastJungle/renderer/RendererMaterial.hpp"
 
 #include <Windows.h>
 #include <d3d12.h>

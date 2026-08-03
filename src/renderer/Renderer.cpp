@@ -1390,6 +1390,7 @@ namespace fjr {
         }
         uint32_t resolved_material_count = static_cast<std::uint32_t>(
             resolved_materials.size());
+        (void)resolved_material_count;
         render_bounds_ = {
             gallery_bounds.minimum.x,
             gallery_bounds.minimum.y,

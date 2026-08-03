@@ -1,4 +1,4 @@
-#include "RendererMaterial.hpp"
+#include "FastJungle/renderer/RendererMaterial.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -8,8 +8,13 @@
 #include <stdexcept>
 #include <utility>
 #include <variant>
-
 #include <objbase.h>
+#include <d3d12.h>
+#include <wrl.h>
+
+#include "FastJungle/dx12/Buffer.hpp"
+#include "FastJungle/dx12/Texture.hpp"
+#include "FastJungle/cooker/JungleScene.hpp"
 
 namespace fjr {
 
@@ -111,7 +116,7 @@ namespace fjr {
 
     } // namespace
 
-    Renderer::MaterialResolver::MaterialResolver(const Scene& scene)
+    MaterialResolver::MaterialResolver(const cooker::JungleScene& scene)
         : scene_(scene) {
 
         materials_.reserve(scene.materials.size());
@@ -124,7 +129,7 @@ namespace fjr {
         }
     }
 
-    const Scene::ShaderNode& Renderer::MaterialResolver::find_shader(
+    const Scene::ShaderNode& MaterialResolver::find_shader(
         const std::string& path) const {
 
         const auto shader = shaders_.find(path);
@@ -134,7 +139,7 @@ namespace fjr {
         return *shader->second;
     }
 
-    const Scene::ShaderInput* Renderer::MaterialResolver::find_input(
+    const Scene::ShaderInput* MaterialResolver::find_input(
         const Scene::ShaderNode& shader,
         std::string_view name) const noexcept {
 
@@ -145,8 +150,7 @@ namespace fjr {
         return input == shader.inputs.end() ? nullptr : &*input;
     }
 
-    Renderer::MaterialDescription::TextureBinding
-    Renderer::MaterialResolver::resolve_texture(
+    MaterialDescription::TextureBinding MaterialResolver::resolve_texture(
         const Scene::ShaderInput& input,
         bool default_srgb,
         std::string& uv_primvar) const {
@@ -222,7 +226,7 @@ namespace fjr {
         return result;
     }
 
-    Renderer::MaterialDescription Renderer::MaterialResolver::resolve(
+    MaterialDescription MaterialResolver::resolve(
         std::string_view material_path) const {
 
         const auto material = materials_.find(std::string{material_path});
@@ -342,27 +346,27 @@ namespace fjr {
         return result;
     }
 
-    struct Renderer::TextureLoader::DecodedImage {
+    struct TextureLoader::DecodedImage {
         UINT width = 0;
         UINT height = 0;
         std::vector<std::uint8_t> pixels;
     };
 
-    struct Renderer::TextureLoader::TextureRecord {
+    struct TextureLoader::TextureRecord {
         std::filesystem::path path;
         dx::Texture texture;
     };
 
-    Renderer::TextureLoader::TextureLoader() = default;
+    TextureLoader::TextureLoader() = default;
 
-    Renderer::TextureLoader::~TextureLoader() {
+    TextureLoader::~TextureLoader() {
         wic_factory_.Reset();
         if (uninitialize_com_) {
             CoUninitialize();
         }
     }
 
-    void Renderer::TextureLoader::init(
+    void TextureLoader::init(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* command_list,
         std::size_t material_capacity) {
@@ -424,7 +428,7 @@ namespace fjr {
         loaded_texture_count_ = 0;
     }
 
-    Renderer::TextureLoader::DecodedImage Renderer::TextureLoader::decode(
+    TextureLoader::DecodedImage TextureLoader::decode(
         const std::filesystem::path& path) const {
 
         Microsoft::WRL::ComPtr<IWICBitmapDecoder> decoder;
@@ -516,7 +520,7 @@ namespace fjr {
         return result;
     }
 
-    std::uint32_t Renderer::TextureLoader::create_texture(
+    std::uint32_t TextureLoader::create_texture(
         std::wstring cache_key,
         const std::filesystem::path& path,
         const DecodedImage& image) {
@@ -610,7 +614,7 @@ namespace fjr {
         return index;
     }
 
-    std::uint32_t Renderer::TextureLoader::find_or_load(
+    std::uint32_t TextureLoader::find_or_load(
         const MaterialDescription::TextureBinding& binding,
         std::uint32_t fallback_texture,
         MaterialDescription& material,
@@ -645,7 +649,7 @@ namespace fjr {
         return create_texture(key, binding.path, decode(binding.path));
     }
 
-    void Renderer::TextureLoader::create_srv(
+    void TextureLoader::create_srv(
         std::uint32_t texture_index,
         std::uint32_t descriptor_index,
         bool srgb) const {
@@ -667,7 +671,7 @@ namespace fjr {
             resource_heap_.get_cpu_handle(descriptor_index));
     }
 
-    void Renderer::TextureLoader::create_sampler(
+    void TextureLoader::create_sampler(
         const MaterialDescription::TextureBinding& binding,
         std::uint32_t descriptor_index) const {
 
@@ -684,7 +688,7 @@ namespace fjr {
             sampler_heap_.get_cpu_handle(descriptor_index));
     }
 
-    std::uint32_t Renderer::TextureLoader::add_material(
+    std::uint32_t TextureLoader::add_material(
         MaterialDescription& material) {
 
         if ((material_count_ + 1u) * TEXTURES_PER_MATERIAL >
@@ -727,29 +731,29 @@ namespace fjr {
         return material_count_++;
     }
 
-    void Renderer::TextureLoader::finish_uploads() {
+    void TextureLoader::finish_uploads() {
         upload_buffers_.clear();
         command_list_ = nullptr;
     }
 
-    ID3D12DescriptorHeap* Renderer::TextureLoader::resource_heap()
+    ID3D12DescriptorHeap* TextureLoader::resource_heap()
         const noexcept {
         return resource_heap_.get_descriptor_heap();
     }
 
-    ID3D12DescriptorHeap* Renderer::TextureLoader::sampler_heap()
+    ID3D12DescriptorHeap* TextureLoader::sampler_heap()
         const noexcept {
         return sampler_heap_.get_descriptor_heap();
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE Renderer::TextureLoader::material_handle(
+    D3D12_GPU_DESCRIPTOR_HANDLE TextureLoader::material_handle(
         std::uint32_t material_index) const noexcept {
 
         return resource_heap_.get_gpu_handle(
             material_index * TEXTURES_PER_MATERIAL);
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE Renderer::TextureLoader::sampler_handle(
+    D3D12_GPU_DESCRIPTOR_HANDLE TextureLoader::sampler_handle(
         std::uint32_t material_index) const noexcept {
 
         return sampler_heap_.get_gpu_handle(
