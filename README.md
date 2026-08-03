@@ -44,20 +44,26 @@ The current uncompressed instance representation uses approximately 430 MiB. Ins
 ```text
 USD scene
   ↓ OpenUSD
-In-memory source scene
-  ↓ FastJungleCooker
+Scene metadata + texture path manifest
+  ↓ release OpenUSD, then cook one texture at a time
 JungleRuins.fjscene
   ↓ JungleSceneFile runtime reader
 GPU renderer
 ```
 
-The cooker currently writes a lossless version 0 scene file, and the runtime
-renderer reads that file without linking OpenUSD. Run either cooker preset
+The cooker currently writes a version 1 scene file, and the runtime renderer
+reads that file without linking OpenUSD. Run either cooker preset
 once to create `assets/cooked/JungleRuins.fjscene`; both renderer presets then
 use that file. The first cooker build creates a shared Release OpenUSD install
-under `out/deps`, which both Debug and Release cooker builds reuse. The v0 file
-deliberately keeps the analyzed source data intact
-and does not yet apply instance compression or GPU-oriented packing.
+under `out/deps`, which both Debug and Release cooker builds reuse. The cooker
+releases the OpenUSD stage before decoding textures, generates mip chains and
+role-appropriate BC4, BC5, BC6H, or BC7 data one texture at a time, and writes
+that data through a temporary payload. It streams the final scene file without
+allocating a second file-sized memory buffer. The runtime reader also fills the
+final `StaticScene` vectors directly instead of staging the complete file, and
+its metadata path seeks over texture bytes while retaining their file range.
+The v1 file does not yet apply instance compression or GPU-oriented geometry
+packing.
 
 The offline cooker will handle:
 
@@ -66,7 +72,7 @@ The offline cooker will handle:
 * compact instance representation
 * scene chunking
 * GPU-oriented vertex and index layouts
-* texture conversion
+* texture resolution profiles and streaming layout
 * meshlet and LOD generation
 * compact runtime scene serialization
 

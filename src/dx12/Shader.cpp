@@ -1,6 +1,7 @@
 #include "FastJungle/dx12/Shader.hpp"
 
-#include <cstdlib>
+#include "FastJungle/core/util/Logger.hpp"
+
 #include <cstdint>
 #include <fstream>
 #include <limits>
@@ -17,14 +18,18 @@ namespace fjr::dx {
         };
 
         if (!file) {
-            std::abort();
+            log::Logger::g_logger
+                << "Failed to open shader: " << path
+                << log::abrt();
         }
 
         const std::streampos end_position =
             file.tellg();
 
         if (end_position <= 0) {
-            std::abort();
+            log::Logger::g_logger
+                << "Shader is empty: " << path
+                << log::abrt();
         }
 
         const auto size =
@@ -33,7 +38,9 @@ namespace fjr::dx {
 
         if (size >
             std::numeric_limits<std::size_t>::max()) {
-            std::abort();
+            log::Logger::g_logger
+                << "Shader is too large: " << path
+                << log::abrt();
         }
 
         bytecode_.resize(
@@ -50,7 +57,9 @@ namespace fjr::dx {
                 bytecode_.size()))) {
 
             bytecode_.clear();
-            std::abort();
+            log::Logger::g_logger
+                << "Failed to read shader: " << path
+                << log::abrt();
         }
     }
 

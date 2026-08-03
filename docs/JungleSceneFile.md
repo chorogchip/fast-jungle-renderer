@@ -1,10 +1,10 @@
-# Jungle scene file version 0
+# Jungle scene file version 1
 
 ## Purpose
 
 `JungleRuins.fjscene` is the boundary between the OpenUSD cooker and the
-runtime renderer. Version 0 is specific to the fixed Intel Jungle Ruins scene
-and serializes the complete project-owned `JungleScene`; it is not a general
+runtime renderer. Version 1 is specific to the fixed Intel Jungle Ruins scene
+and serializes the complete project-owned `StaticScene`; it is not a general
 asset container or the final GPU layout.
 
 The default paths are:
@@ -12,65 +12,73 @@ The default paths are:
 - source: `assets/scene/JungleRuins_1_0_1b/USD/JungleRuins_Karma.usda`
 - cooked output: `assets/cooked/JungleRuins.fjscene`
 
-`FastJungleCooker` imports and validates the USD scene, writes the file, reads
-it back, and requires exact equality with the imported scene. `FastJungle.exe`
-uses only the runtime-neutral reader and does not link or deploy OpenUSD.
+`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures,
+streams the file, and verifies every output byte without loading another full
+scene. `FastJungle.exe` uses only the runtime reader and does not link or deploy
+OpenUSD.
 
 ## Header
 
-All integers and IEEE floating-point values use little-endian byte order. The
-fixed 40-byte header is:
+All values use the native little-endian x64 representation. The fixed 32-byte
+header is:
 
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`0`) |
-| 12 | 4 | header size (`40`) |
-| 16 | 4 | endian marker (`0x01020304`) |
-| 20 | 4 | reserved, must be zero |
+| 8 | 4 | format version (`1`) |
+| 12 | 4 | header size (`32`) |
+| 16 | 4 | `StaticScene::Vertex` size |
+| 20 | 4 | `StaticScene::SceneInfo` size |
 | 24 | 8 | payload byte count |
-| 32 | 8 | FNV-1a 64-bit payload checksum |
 
-The reader rejects unknown versions, wrong byte order, reserved values,
-truncation, trailing payload bytes, invalid enum and Boolean values,
-unreasonable allocation counts, and checksum mismatches.
+The reader rejects unknown versions, ABI-size mismatches, truncation, trailing
+bytes, invalid enum values, and unsafe indices or ranges.
 
 ## Payload
 
-The payload follows the member order in `JungleScene.hpp`. Strings are stored
-as a 64-bit byte count followed by their UTF-8 bytes. Vectors start with a
-64-bit element count. Numeric arrays are stored contiguously; compound objects
-write their members explicitly. The fixed-layout `Float2`, `Float3`, `Float4`,
-and `Quaternion` value arrays are covered by compile-time size and trivial-copy
-checks before being stored contiguously.
+The payload follows `SceneData_MACRO` in `StaticScene.hpp`. Every vector starts
+with a native `size_t` element count and is followed by the contiguous bytes of
+its trivially copyable elements. The fixed camera, environment-light, and scene
+information records follow the vectors.
 
-The payload includes stage metadata and statistics, source layers, the prim
-hierarchy, meshes and all observed primvars, mesh subsets, point instancers and
-their separate attribute arrays, native instances and prototypes, shader
-graphs and asset references, materials, camera, dome light, and import
-diagnostics. Relationships remain indices or paths exactly as represented by
-`JungleScene`; instances are not expanded and object kinds are not merged.
+Texture pixels are stored in `texture_data`. `Texture::data_byte_offset` is
+relative to the beginning of that vector, while each
+`TextureMip::data_byte_offset_local` is relative to its owning texture. The
+texture records retain width, height, DXGI format, row pitch, slice pitch, and
+mip ranges required by the runtime.
 
-OpenUSD's used-layer iteration order and generated `/__Prototype_N` names are
-not authored scene facts and change between processes. The importer sorts
-source layers, gives the anonymous session layer a stable display identifier,
-and assigns native prototypes stable project paths according to the
-lexicographically first composed instance that uses each prototype. Authored
-instance paths and every instance-to-prototype relationship remain intact.
+The format is intentionally tied to the current Windows x64 ABI. A change to a
+serialized type, member order, or ABI size requires a format version change.
+
+## Bounded-memory cooker path
+
+Cooking uses two phases:
+
+1. OpenUSD builds meshes, instances, materials, bindings, and a deduplicated
+   list of resolved texture path strings. No texture pixels are decoded.
+2. After all OpenUSD objects are destroyed, textures are decoded sequentially.
+   The cooker generates a complete mip chain, compresses color, normal, scalar,
+   and HDR environment textures to BC7, BC5, BC4, and BC6H respectively, then
+   appends each result to a temporary payload file. All per-texture
+   `ScratchImage` storage is released before the next texture begins.
+
+The final writer copies that payload into the `texture_data` position in 4 MiB
+chunks. It writes the other vectors directly from `StaticScene`, so it never
+allocates a second buffer as large as the final file. The streaming test checks
+that external and in-memory texture payload writes produce identical files.
+
+The runtime full loader reads each serialized vector directly into its final
+`StaticScene` storage. The metadata loader records the texture payload offset
+and size, seeks over that range, and reads the remaining scene records without
+materializing texture bytes.
 
 ## Deliberate limits
 
-Version 0 is a correctness boundary before optimization:
-
-- It has no compression, chunk table, random access, memory mapping, texture
-  conversion, mesh packing, or culling data.
-- It preserves resolved source texture paths, so the copied source package is
-  still required for the current textured renderer.
-- The verified file is 1,751,144,586 bytes because all source attribute arrays
-  are retained. Runtime-oriented instance and texture cooking is later work.
-- A change to serialized `JungleScene` data requires a format version change;
-  the reader never guesses a newer layout.
-
-These limits keep the first boundary small and auditable while proving the
-complete USD-to-Cooker-to-file-to-runtime path without allowing USD APIs into
-renderer code.
+- Texture dimensions are preserved; there is not yet a configurable resolution
+  cap or platform-specific texture quality profile.
+- The file has no scene chunk table or memory mapping.
+- Runtime `StaticSceneReader::load` still materializes the complete
+  `StaticScene`, including texture bytes. Incremental renderer upload through
+  the exposed texture payload range remains separate future work.
+- Instance compression, GPU-oriented packing, meshlets, and LOD generation
+  remain future cooker stages.

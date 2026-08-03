@@ -4,14 +4,67 @@
 #include <Windows.h>
 #include <shellapi.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 namespace {
+
+    struct RendererLaunchOptions {
+        std::filesystem::path scene =
+            std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
+            "JungleRuins.fjscene";
+        fjr::RendererMain::RenderPath render_path =
+            fjr::RendererMain::RenderPath::FORWARD;
+        std::optional<std::uint32_t> smoke_test_frames;
+    };
+
+    RendererLaunchOptions get_renderer_launch_options() noexcept {
+        RendererLaunchOptions options;
+
+        std::error_code path_error;
+        if (!std::filesystem::exists(options.scene, path_error)) {
+            const auto bc_scene =
+                std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
+                "JungleRuins-release-bc.fjscene";
+            if (std::filesystem::exists(bc_scene, path_error)) {
+                options.scene = bc_scene;
+            }
+        }
+
+        int argc = 0;
+        wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv == nullptr) {
+            return options;
+        }
+
+        for (int index = 1; index < argc; ++index) {
+            const std::wstring_view argument{argv[index]};
+            if (argument == L"--scene" && index + 1 < argc) {
+                options.scene = argv[++index];
+            } else if (argument == L"--visibility-buffer") {
+                options.render_path =
+                    fjr::RendererMain::RenderPath::VISIBILITY_BUFFER;
+            } else if (argument == L"--forward") {
+                options.render_path =
+                    fjr::RendererMain::RenderPath::FORWARD;
+            } else if (
+                argument == L"--smoke-test-frames" &&
+                index + 1 < argc) {
+                options.smoke_test_frames =
+                    static_cast<std::uint32_t>(
+                        std::wcstoul(argv[++index], nullptr, 10));
+            }
+        }
+
+        LocalFree(argv);
+        return options;
+    }
 
     std::optional<int> run_scene_verification_mode() noexcept {
         int argc = 0;
@@ -57,6 +110,7 @@ namespace {
     struct Win32State {
         fjr::Application* application = nullptr;
         bool minimized = false;
+        std::optional<std::uint32_t> smoke_test_frames;
     };
 
     LRESULT CALLBACK window_proc(
@@ -145,6 +199,13 @@ namespace {
             WaitMessage();
         }
 
+        if (state->smoke_test_frames) {
+            if (*state->smoke_test_frames == 0) {
+                return false;
+            }
+            --*state->smoke_test_frames;
+        }
+
         return true;
     }
 
@@ -219,10 +280,14 @@ int WINAPI wWinMain(
     constexpr UINT initial_height = 720;
 
     fjr::Application application;
+    const RendererLaunchOptions launch_options =
+        get_renderer_launch_options();
+    application.set_render_path(launch_options.render_path);
 
     Win32State state{
         .application = nullptr,
-        .minimized = false
+        .minimized = false,
+        .smoke_test_frames = launch_options.smoke_test_frames,
     };
 
     HWND hwnd = create_window(
@@ -256,11 +321,8 @@ int WINAPI wWinMain(
     SetWindowTextW(hwnd, L"Fast Jungle Renderer");
 
     try {
-        const auto cooked_scene =
-            std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
-            "JungleRuins.fjscene";
         const auto scene =
-            fjr::scene::StaticSceneSaver::load(cooked_scene);
+            fjr::scene::StaticSceneSaver::load(launch_options.scene);
         application.init(
             hwnd,
             client_width,
@@ -268,11 +330,15 @@ int WINAPI wWinMain(
             *scene);
     }
     catch (const std::exception& exception) {
-        MessageBoxA(
-            nullptr,
-            exception.what(),
-            "Fast Jungle",
-            MB_OK | MB_ICONERROR);
+        if (launch_options.smoke_test_frames) {
+            OutputDebugStringA(exception.what());
+        } else {
+            MessageBoxA(
+                nullptr,
+                exception.what(),
+                "Fast Jungle",
+                MB_OK | MB_ICONERROR);
+        }
         DestroyWindow(hwnd);
         return 1;
     }

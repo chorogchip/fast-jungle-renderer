@@ -1,6 +1,6 @@
 #include "FastJungle/renderer/Application.hpp"
 
-#include <cstdlib>
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr {
 
@@ -13,7 +13,9 @@ namespace fjr {
         if (native_window == nullptr ||
             width == 0 ||
             height == 0) {
-            std::abort();
+            log::Logger::g_logger
+                << "Renderer application requires a valid window and size."
+                << log::abrt();
         }
 
         minimized_ = false;

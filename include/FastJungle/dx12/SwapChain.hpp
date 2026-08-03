@@ -41,6 +41,15 @@ namespace fjr::dx {
             return buffers_[current_frame_];
         }
 
+        [[nodiscard]] dx::Texture& get_buffer(UINT index) noexcept {
+            return buffers_[index];
+        }
+
+        [[nodiscard]] const dx::Texture& get_buffer(
+            UINT index) const noexcept {
+            return buffers_[index];
+        }
+
         [[nodiscard]] UINT get_width() const noexcept {
             return width_;
         }

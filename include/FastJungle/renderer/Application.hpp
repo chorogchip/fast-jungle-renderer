@@ -34,6 +34,11 @@ namespace fjr {
             std::uint32_t width,
             std::uint32_t height) noexcept;
 
+        void set_render_path(
+            RendererMain::RenderPath path) noexcept {
+            renderer_.set_render_path(path);
+        }
+
     private:
         bool minimized_ = false;
 

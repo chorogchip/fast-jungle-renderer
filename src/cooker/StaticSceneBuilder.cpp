@@ -2,12 +2,6 @@
 
 #include "FastJungle/scene/StaticScene.hpp"
 
-#include <DirectXTex.h>
-
-#if defined(FASTJUNGLE_HAS_OPENEXR)
-#include <DirectXTexEXR.h>
-#endif
-
 #include <pxr/base/plug/registry.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/quath.h>
@@ -41,7 +35,6 @@
 #include <pxr/usd/usdShade/shader.h>
 
 #include <Windows.h>
-#include <objbase.h>
 
 #include <algorithm>
 #include <bit>
@@ -232,51 +225,11 @@ namespace fjr::cooker {
             });
         }
 
-        class ComScope final {
-        public:
-            ComScope() {
-                const HRESULT result = CoInitializeEx(
-                    nullptr,
-                    COINIT_MULTITHREADED);
-                if (SUCCEEDED(result)) {
-                    uninitialize_ = true;
-                }
-                else if (result != RPC_E_CHANGED_MODE) {
-                    fail("CoInitializeEx failed.");
-                }
-            }
-
-            ~ComScope() {
-                if (uninitialize_) {
-                    CoUninitialize();
-                }
-            }
-
-            ComScope(const ComScope&) = delete;
-            ComScope& operator=(const ComScope&) = delete;
-
-        private:
-            bool uninitialize_ = false;
-        };
-
         [[nodiscard]] std::string path_leaf(std::string_view path) {
             const auto separator = path.find_last_of('/');
             return separator == std::string_view::npos
                 ? std::string{path}
                 : std::string{path.substr(separator + 1)};
-        }
-
-        [[nodiscard]] std::string lowercase_extension(
-            const std::filesystem::path& path) {
-
-            auto result = path.extension().string();
-            std::ranges::transform(
-                result,
-                result.begin(),
-                [](unsigned char value) {
-                    return static_cast<char>(std::tolower(value));
-                });
-            return result;
         }
 
         [[nodiscard]] std::string normalized_texture_key(
@@ -539,7 +492,7 @@ namespace fjr::cooker {
                 result_->texture_bindings.reserve(800);
             }
 
-            [[nodiscard]] std::unique_ptr<StaticScene> run() {
+            [[nodiscard]] StaticSceneBuild run() {
                 if (pxr::UsdGeomGetStageUpAxis(stage_) != pxr::UsdGeomTokens->z) {
                     fail("Intel Jungle root stage must be Z-up.");
                 }
@@ -559,7 +512,10 @@ namespace fjr::cooker {
                 result_->info.vertex_count_after_indexing =
                     result_->vertices.size();
 
-                return std::move(result_);
+                return {
+                    .scene = std::move(result_),
+                    .texture_paths = std::move(texture_paths_)
+                };
             }
 
         private:
@@ -1725,118 +1681,15 @@ namespace fjr::cooker {
                     return cached->second;
                 }
 
-                DirectX::TexMetadata metadata{};
-                DirectX::ScratchImage decoded;
-                load_texture(path, metadata, decoded);
-                if (metadata.dimension != DirectX::TEX_DIMENSION_TEXTURE2D ||
-                    metadata.arraySize != 1 ||
-                    metadata.depth != 1 ||
-                    metadata.mipLevels == 0) {
-                    fail("Texture is not a single 2D image: ", key);
-                }
-
                 StaticScene::Texture texture;
                 texture.name = add_string(path.filename().generic_string());
-                texture.width = checked_u32(metadata.width, "Texture width");
-                texture.height = checked_u32(metadata.height, "Texture height");
-                texture.dxgi_format = static_cast<std::uint32_t>(metadata.format);
-                texture.mip_offset = checked_u32(
-                    result_->texture_mips.size(),
-                    "Texture mip offset");
-                texture.mip_count = checked_u32(
-                    metadata.mipLevels,
-                    "Texture mip count");
-                texture.data_byte_offset = result_->texture_data.size();
-
-                for (std::size_t mip = 0; mip < metadata.mipLevels; ++mip) {
-                    const auto* image = decoded.GetImage(mip, 0, 0);
-                    if (image == nullptr || image->pixels == nullptr) {
-                        fail("Texture mip is missing: ", key);
-                    }
-
-                    StaticScene::TextureMip destination;
-                    destination.width = checked_u32(
-                        image->width,
-                        "Texture mip width");
-                    destination.height = checked_u32(
-                        image->height,
-                        "Texture mip height");
-                    destination.row_pitch = checked_u32(
-                        image->rowPitch,
-                        "Texture mip row pitch");
-                    destination.slice_pitch = checked_u32(
-                        image->slicePitch,
-                        "Texture mip slice pitch");
-                    destination.data_byte_offset_local =
-                        result_->texture_data.size() -
-                        texture.data_byte_offset;
-                    result_->texture_mips.push_back(destination);
-
-                    const auto* begin = reinterpret_cast<const std::byte*>(
-                        image->pixels);
-                    result_->texture_data.insert(
-                        result_->texture_data.end(),
-                        begin,
-                        begin + image->slicePitch);
-                }
-
-                texture.data_size =
-                    result_->texture_data.size() - texture.data_byte_offset;
                 const auto index = checked_u32(
                     result_->textures.size(),
                     "Texture index");
                 result_->textures.push_back(texture);
+                texture_paths_.push_back(path.generic_string());
                 texture_cache_.emplace(key, index);
                 return index;
-            }
-
-            static void load_texture(
-                const std::filesystem::path& path,
-                DirectX::TexMetadata& metadata,
-                DirectX::ScratchImage& image) {
-
-                const auto extension = lowercase_extension(path);
-                HRESULT result = E_FAIL;
-                if (extension == ".dds") {
-                    result = DirectX::LoadFromDDSFile(
-                        path.c_str(),
-                        DirectX::DDS_FLAGS_NONE,
-                        &metadata,
-                        image);
-                }
-                else if (extension == ".tga") {
-                    result = DirectX::LoadFromTGAFile(
-                        path.c_str(),
-                        &metadata,
-                        image);
-                }
-                else if (extension == ".hdr") {
-                    result = DirectX::LoadFromHDRFile(
-                        path.c_str(),
-                        &metadata,
-                        image);
-                }
-                else if (extension == ".exr") {
-#if defined(FASTJUNGLE_HAS_OPENEXR)
-                    result = DirectX::LoadFromEXRFile(
-                        path.c_str(),
-                        &metadata,
-                        image);
-#else
-                    fail("EXR texture support is disabled: ", path.generic_string());
-#endif
-                }
-                else {
-                    result = DirectX::LoadFromWICFile(
-                        path.c_str(),
-                        DirectX::WIC_FLAGS_NONE,
-                        &metadata,
-                        image);
-                }
-
-                if (FAILED(result)) {
-                    fail("Texture decode failed: ", path.generic_string());
-                }
             }
 
             [[nodiscard]] static SubmeshFlag make_submesh_flags(
@@ -1905,7 +1758,6 @@ namespace fjr::cooker {
             CoordinateConverter converter_;
             pxr::UsdGeomXformCache xform_cache_;
             std::unique_ptr<StaticScene> result_;
-            ComScope com_scope_{};
 
             std::vector<pxr::UsdPrim> point_instancers_;
             std::vector<pxr::SdfPath> point_target_paths_;
@@ -1915,6 +1767,7 @@ namespace fjr::cooker {
             std::unordered_map<std::string, std::uint32_t> prototype_cache_;
             std::unordered_map<std::string, MaterialRecord> material_cache_;
             std::unordered_map<std::string, std::uint32_t> texture_cache_;
+            std::vector<std::string> texture_paths_;
             std::unordered_map<SamplerKey, std::uint32_t, SamplerKeyHash>
                 sampler_cache_;
 
@@ -1925,7 +1778,7 @@ namespace fjr::cooker {
 
     } // namespace
 
-    std::unique_ptr<scene::StaticScene> StaticSceneBuilder::build(
+    StaticSceneBuild StaticSceneBuilder::build(
         const std::filesystem::path& root_layer) {
 
         register_openusd_plugins();

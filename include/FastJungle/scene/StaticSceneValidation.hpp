@@ -1,17 +1,29 @@
 #pragma once
 
+#include <cstdint>
+#include <string_view>
+
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::scene {
 
-    // Checks every index/range that the renderer dereferences. Throws
-    // std::runtime_error when the scene is not safe to consume.
-    void validate_static_scene(const StaticScene& scene);
+    class StaticSceneValidator final {
+    public:
+        StaticSceneValidator() = delete;
 
-    // Requires an exact in-memory round trip, including every vector and
-    // fixed scene record. The serializer deliberately preserves these bytes.
-    void require_static_scene_equal(
-        const StaticScene& expected,
-        const StaticScene& actual);
+        static void validate(const StaticScene& scene);
+
+        static void validate(
+            const StaticScene& scene,
+            std::uint64_t texture_payload_size);
+
+    private:
+        static void require_range(
+            std::uint64_t offset,
+            std::uint64_t count,
+            std::uint64_t size,
+            std::string_view subject,
+            std::uint64_t invalid_offset = StaticScene::INVALID_INDEX);
+    };
 
 } // namespace fjr::scene

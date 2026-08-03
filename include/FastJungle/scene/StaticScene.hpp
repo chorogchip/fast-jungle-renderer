@@ -285,13 +285,14 @@ namespace fjr::scene {
 		using Uint32_t = uint32_t;
 		using Byte = std::byte;
 
-#define SceneData_MACRO \
+#define SceneDataBeforeTexture_MACRO \
     X(Char, strings) \
     X(Vertex, vertices) \
     X(Uint32_t, indices) \
     \
-    X(Sampler, samplers) \
-    X(Byte, texture_data) \
+    X(Sampler, samplers)
+
+#define SceneDataAfterTexture_MACRO \
     X(TextureMip, texture_mips) \
     X(Texture, textures) \
     X(TextureBinding, texture_bindings) \
@@ -306,6 +307,11 @@ namespace fjr::scene {
     X(PointBatch, point_batches) \
     X(MatrixInstance, matrix_instances) \
     X(MatrixBatch, matrix_batches)
+
+#define SceneData_MACRO \
+    SceneDataBeforeTexture_MACRO \
+    X(Byte, texture_data) \
+    SceneDataAfterTexture_MACRO
 
 #define X(type, name) std::vector<type> name;
 		SceneData_MACRO

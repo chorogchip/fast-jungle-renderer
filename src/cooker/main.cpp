@@ -1,11 +1,12 @@
 
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #ifndef FASTJUNGLE_DEFAULT_SCENE_USD
 #define FASTJUNGLE_DEFAULT_SCENE_USD ""
@@ -16,8 +17,12 @@
 #endif
 
 #include "FastJungle/cooker/StaticSceneBuilder.hpp"
-#include "FastJungle/scene/StaticSceneSaver.hpp"
-#include "FastJungle/scene/StaticSceneValidation.hpp"
+#include "FastJungle/cooker/TextureCooker.hpp"
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/core/util/ProcessMemory.hpp"
+#include "FastJungle/core/util/TemporaryFile.hpp"
+#include "FastJungle/scene/StaticSceneReader.hpp"
+#include "FastJungle/scene/StaticSceneWriter.hpp"
 
 namespace {
 
@@ -28,6 +33,23 @@ namespace {
             << L"Usage: FastJungleCooker.exe [input.usd[a|c|z]] "
             << L"[output.fjscene]\n"
             << L"       FastJungleCooker.exe --verify-scene input.fjscene\n";
+    }
+
+    void print_memory_usage(std::wstring_view stage) {
+        constexpr double MEBIBYTE = 1024.0 * 1024.0;
+        const auto memory = fjr::util::ProcessMemory::query();
+        if (!memory) {
+            return;
+        }
+
+        std::wcout
+            << L"  memory after " << stage << L": private "
+            << memory->private_bytes / MEBIBYTE
+            << L" MiB, working set "
+            << memory->working_set_bytes / MEBIBYTE
+            << L" MiB, peak working set "
+            << memory->peak_working_set_bytes / MEBIBYTE
+            << L" MiB\n";
     }
 
     void print_scene_summary(const fjr::scene::StaticScene& scene) {
@@ -78,10 +100,16 @@ namespace {
             }
 
             const std::filesystem::path input_path{argv[2]};
-            const auto scene = fjr::scene::StaticSceneSaver::load(input_path);
+            const auto metadata =
+                fjr::scene::StaticSceneReader::load_metadata(input_path);
             std::wcout << L"StaticScene read and validated: "
                        << input_path << L'\n';
-            print_scene_summary(*scene);
+            print_scene_summary(*metadata.scene);
+            std::wcout
+                << L"  texture payload: "
+                << metadata.texture_payload.size /
+                    static_cast<double>(1024 * 1024)
+                << L" MiB\n";
             return EXIT_SUCCESS;
         }
 
@@ -100,13 +128,15 @@ namespace {
                 DEFAULT_SCENE_NAME;
 
         if (root_layer.empty()) {
-            throw std::runtime_error(
-                "No input USD layer was supplied and no default is configured.");
+            fjr::log::Logger::g_logger
+                << "No input USD layer was supplied and no default is configured.";
+            fjr::log::Logger::g_logger.abort();
         }
         if (!std::filesystem::is_regular_file(root_layer)) {
-            throw std::runtime_error(
-                "Input USD layer does not exist: " +
-                root_layer.generic_string());
+            fjr::log::Logger::g_logger
+                << "Input USD layer does not exist: "
+                << root_layer.generic_string();
+            fjr::log::Logger::g_logger.abort();
         }
 
         if (const auto parent = output_path.parent_path(); !parent.empty()) {
@@ -116,20 +146,44 @@ namespace {
         std::wcout
             << L"Building scene from " << root_layer << L"...\n"
             << std::flush;
-        const auto scene = fjr::cooker::StaticSceneBuilder::build(root_layer);
+        auto build = fjr::cooker::StaticSceneBuilder::build(root_layer);
+        auto scene = std::move(build.scene);
 
         std::wcout
-            << L"StaticScene built\n";
+            << L"StaticScene metadata built; OpenUSD stage released\n";
+        print_memory_usage(L"scene metadata");
         print_scene_summary(*scene);
         std::wcout << std::flush;
 
-        fjr::scene::StaticSceneSaver::save(output_path, *scene);
-        std::wcout << L"Saved " << output_path << L'\n';
+        auto texture_payload_path = output_path;
+        texture_payload_path += L".textures.tmp";
+        fjr::util::TemporaryFile texture_payload{
+            std::move(texture_payload_path)
+        };
 
-        const auto loaded = fjr::scene::StaticSceneSaver::load(output_path);
-        fjr::scene::require_static_scene_equal(*scene, *loaded);
         std::wcout
-            << L"Verified exact memory -> file -> memory round trip\n";
+            << L"Cooking textures sequentially...\n"
+            << std::flush;
+        const std::uint64_t texture_payload_size =
+            fjr::cooker::TextureCooker::cook(
+                *scene,
+                build.texture_paths,
+                texture_payload.path());
+        std::wcout
+            << L"Texture payload cooked: "
+            << texture_payload_size / static_cast<double>(1024 * 1024)
+            << L" MiB\n"
+            << std::flush;
+        print_memory_usage(L"texture cook");
+
+        fjr::scene::StaticSceneWriter::save(
+            output_path,
+            *scene,
+            texture_payload.path(),
+            texture_payload_size);
+        texture_payload.remove();
+        std::wcout << L"Saved " << output_path << L'\n';
+        print_memory_usage(L"scene save");
         return EXIT_SUCCESS;
     }
 
@@ -140,7 +194,8 @@ int wmain(int argc, wchar_t** argv) {
         return run_cooker(argc, argv);
     }
     catch (const std::exception& exception) {
-        std::cerr << "FastJungleCooker: " << exception.what() << '\n';
-        return EXIT_FAILURE;
+        fjr::log::Logger::g_logger
+            << "FastJungleCooker: " << exception.what();
+        fjr::log::Logger::g_logger.abort();
     }
 }

@@ -1,0 +1,126 @@
+#include <dxgiformat.h>
+
+#include <cstdint>
+#include <stdexcept>
+
+#include "FastJungle/cooker/TextureCompressionPolicy.hpp"
+
+namespace {
+
+    using Scene = fjr::scene::StaticScene;
+
+    [[nodiscard]] std::uint32_t add_binding(
+        Scene& scene,
+        std::uint32_t texture,
+        Scene::EnumTextureChannel channel,
+        Scene::EnumTextureBindingFlag flags) {
+
+        Scene::TextureBinding binding;
+        binding.texture = texture;
+        binding.sampler = 0;
+        binding.channel = channel;
+        binding.flags = flags;
+        scene.texture_bindings.push_back(binding);
+        return static_cast<std::uint32_t>(
+            scene.texture_bindings.size() - 1);
+    }
+
+    [[nodiscard]] Scene make_scene() {
+        Scene scene;
+        scene.textures.resize(6);
+
+        Scene::Material color;
+        color.texture_binding_base_color = add_binding(
+            scene,
+            0,
+            Scene::EnumTextureChannel::RGBA,
+            Scene::EnumTextureBindingFlag::SRGB);
+        color.texture_binding_opacity = add_binding(
+            scene,
+            0,
+            Scene::EnumTextureChannel::A,
+            Scene::EnumTextureBindingFlag::SRGB);
+        scene.materials.push_back(color);
+
+        Scene::Material normal;
+        normal.texture_binding_normal = add_binding(
+            scene,
+            1,
+            Scene::EnumTextureChannel::RGBA,
+            Scene::EnumTextureBindingFlag::LINEAR);
+        scene.materials.push_back(normal);
+
+        Scene::Material roughness_green;
+        roughness_green.texture_binding_roughness = add_binding(
+            scene,
+            2,
+            Scene::EnumTextureChannel::G,
+            Scene::EnumTextureBindingFlag::SRGB);
+        scene.materials.push_back(roughness_green);
+
+        Scene::Material opacity;
+        opacity.texture_binding_opacity = add_binding(
+            scene,
+            3,
+            Scene::EnumTextureChannel::R,
+            Scene::EnumTextureBindingFlag::SRGB);
+        scene.materials.push_back(opacity);
+
+        scene.environment_light.texture = 4;
+
+        Scene::Material mixed_red;
+        mixed_red.texture_binding_roughness = add_binding(
+            scene,
+            5,
+            Scene::EnumTextureChannel::R,
+            Scene::EnumTextureBindingFlag::LINEAR);
+        scene.materials.push_back(mixed_red);
+
+        Scene::Material mixed_green;
+        mixed_green.texture_binding_roughness = add_binding(
+            scene,
+            5,
+            Scene::EnumTextureChannel::G,
+            Scene::EnumTextureBindingFlag::LINEAR);
+        scene.materials.push_back(mixed_green);
+        return scene;
+    }
+
+} // namespace
+
+int main() {
+    auto scene = make_scene();
+    const auto plans =
+        fjr::cooker::TextureCompressionPolicy::resolve(scene);
+    if (plans.size() != scene.textures.size() ||
+        plans[0].dxgi_format != DXGI_FORMAT_BC7_UNORM ||
+        !plans[0].filter_as_srgb ||
+        plans[1].dxgi_format != DXGI_FORMAT_BC5_UNORM ||
+        plans[2].dxgi_format != DXGI_FORMAT_BC4_UNORM ||
+        plans[2].source_channel != Scene::EnumTextureChannel::G ||
+        !plans[2].isolate_source_channel ||
+        !plans[2].linearize_source_channel ||
+        plans[3].dxgi_format != DXGI_FORMAT_BC4_UNORM ||
+        plans[4].dxgi_format != DXGI_FORMAT_BC6H_UF16 ||
+        plans[5].dxgi_format != DXGI_FORMAT_BC7_UNORM ||
+        plans[5].isolate_source_channel) {
+        throw std::runtime_error(
+            "Texture compression policy selection failed.");
+    }
+
+    fjr::cooker::TextureCompressionPolicy::apply_binding_changes(
+        scene,
+        plans);
+    if (scene.texture_bindings[1].channel !=
+            Scene::EnumTextureChannel::A ||
+        scene.texture_bindings[3].channel !=
+            Scene::EnumTextureChannel::R ||
+        scene.texture_bindings[3].flags !=
+            Scene::EnumTextureBindingFlag::LINEAR ||
+        scene.texture_bindings[6].channel !=
+            Scene::EnumTextureChannel::G) {
+        throw std::runtime_error(
+            "Texture compression binding normalization failed.");
+    }
+    return 0;
+}

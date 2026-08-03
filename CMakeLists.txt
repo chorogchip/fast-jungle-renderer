@@ -63,6 +63,10 @@ option(FASTJUNGLE_ENABLE_IPO
     "Enable Release IPO/LTCG for FastJungle"
     ON
 )
+option(FASTJUNGLE_BUILD_TESTS
+    "Build FastJungle project tests"
+    OFF
+)
 
 set(FASTJUNGLE_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(FASTJUNGLE_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -165,14 +169,6 @@ list(SORT FASTJUNGLE_COMMON_SOURCES)
 list(SORT FASTJUNGLE_COOKER_SOURCES)
 list(SORT FASTJUNGLE_RENDERER_SOURCES)
 list(SORT FASTJUNGLE_DX12_SOURCES)
-
-# RendererMain is the StaticScene runtime. These are the superseded
-# JungleScene implementation files and refer to types removed by the
-# migration.
-list(REMOVE_ITEM FASTJUNGLE_RENDERER_SOURCES
-    "${FASTJUNGLE_SOURCE_DIR}/renderer/Renderer.cpp"
-    "${FASTJUNGLE_SOURCE_DIR}/renderer/RendererMaterial.cpp"
-)
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
@@ -356,7 +352,7 @@ else()
     set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
     set(BUILD_DX11 OFF CACHE BOOL "" FORCE)
     set(BUILD_DX12 OFF CACHE BOOL "" FORCE)
-    set(BC_USE_OPENMP OFF CACHE BOOL "" FORCE)
+    set(BC_USE_OPENMP ON CACHE BOOL "" FORCE)
 
     if(FASTJUNGLE_ENABLE_OPENEXR)
         set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -704,6 +700,73 @@ endif()
         PDB_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
+endif()
+
+if(FASTJUNGLE_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(FastJungleSceneStreamingTest
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/scene/StaticSceneStreamingTest.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/core/util/BinaryStream.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/core/util/DateTime.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/core/util/File.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/core/util/TemporaryFile.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileFormat.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamReader.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamWriter.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
+    )
+    fastjungle_apply_options(FastJungleSceneStreamingTest)
+    target_include_directories(FastJungleSceneStreamingTest PRIVATE
+        "${FASTJUNGLE_INCLUDE_DIR}"
+    )
+
+    add_test(
+        NAME FastJungle.SceneStreaming
+        COMMAND FastJungleSceneStreamingTest
+    )
+
+    if(FASTJUNGLE_BUILD STREQUAL "cooker")
+        add_executable(FastJungleTextureCompressionPolicyTest
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/TextureCompressionPolicyTest.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCompressionPolicy.cpp"
+        )
+        fastjungle_apply_options(FastJungleTextureCompressionPolicyTest)
+        target_include_directories(
+            FastJungleTextureCompressionPolicyTest PRIVATE
+            "${FASTJUNGLE_INCLUDE_DIR}"
+        )
+
+        add_test(
+            NAME FastJungle.TextureCompressionPolicy
+            COMMAND FastJungleTextureCompressionPolicyTest
+        )
+
+        add_executable(FastJungleTextureCookerTest
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/TextureCookerTest.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCompressionPolicy.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCooker.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureImageProcessor.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/core/util/DateTime.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
+        )
+        fastjungle_apply_options(FastJungleTextureCookerTest)
+        target_include_directories(FastJungleTextureCookerTest PRIVATE
+            "${FASTJUNGLE_INCLUDE_DIR}"
+        )
+        target_link_libraries(FastJungleTextureCookerTest PRIVATE
+            DirectXTex
+            windowscodecs
+            ole32
+        )
+
+        add_test(
+            NAME FastJungle.TextureCooker
+            COMMAND FastJungleTextureCookerTest
+        )
+    endif()
 endif()
 
 message(STATUS "FastJungle target        : ${FASTJUNGLE_BUILD}")
