@@ -1,12 +1,11 @@
 #include "FastJungle/scene/StaticSceneReader.hpp"
 
-#include "FastJungle/core/util/BinaryStream.hpp"
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
-#include "StaticSceneFileHeader.hpp"
+#include "StaticSceneFileIO.hpp"
 
 namespace fjr::scene {
 
@@ -27,7 +26,7 @@ namespace fjr::scene {
         }
 
         void read_before_texture(
-            util::BinaryReader& reader,
+            static_scene_file_io::Reader& reader,
             StaticScene& scene) {
 
 #define X(type, name) reader.read(scene.name);
@@ -36,7 +35,7 @@ namespace fjr::scene {
         }
 
         void read_after_texture(
-            util::BinaryReader& reader,
+            static_scene_file_io::Reader& reader,
             StaticScene& scene) {
 
 #define X(type, name) reader.read(scene.name);
@@ -54,9 +53,13 @@ namespace fjr::scene {
         const std::filesystem::path& path) {
 
         auto source = util::File::open_read(path);
-        util::BinaryReader reader{source, util::File::size(path), path};
+        static_scene_file_io::Reader reader{
+            source,
+            util::File::size(path),
+            path
+        };
 
-        static_scene_file_header::read(reader);
+        static_scene_file_io::read_header(reader);
 
         auto scene = allocate_scene(path);
         read_before_texture(reader, *scene);
@@ -71,9 +74,13 @@ namespace fjr::scene {
         const std::filesystem::path& path) {
 
         auto source = util::File::open_read(path);
-        util::BinaryReader reader{source, util::File::size(path), path};
+        static_scene_file_io::Reader reader{
+            source,
+            util::File::size(path),
+            path
+        };
 
-        static_scene_file_header::read(reader);
+        static_scene_file_io::read_header(reader);
 
         StaticSceneMetadata result;
         result.scene = allocate_scene(path);

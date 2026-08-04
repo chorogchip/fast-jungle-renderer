@@ -1,12 +1,11 @@
 #include "FastJungle/scene/StaticSceneWriter.hpp"
 
-#include "FastJungle/core/util/BinaryStream.hpp"
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/core/util/TemporaryFile.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
-#include "StaticSceneFileHeader.hpp"
+#include "StaticSceneFileIO.hpp"
 
 #include <istream>
 #include <limits>
@@ -48,7 +47,7 @@ namespace fjr::scene {
             const StaticScene& scene,
             std::uint64_t texture_payload_size) {
 
-            std::uint64_t total = static_scene_file_header::size();
+            std::uint64_t total = static_scene_file_io::header_size();
 
 #define X(type, name) \
             add_vector_size( \
@@ -72,7 +71,7 @@ namespace fjr::scene {
         }
 
         void write_scene(
-            util::BinaryWriter& writer,
+            static_scene_file_io::Writer& writer,
             const StaticScene& scene,
             std::istream* texture_payload,
             const std::filesystem::path& texture_payload_path,
@@ -81,9 +80,9 @@ namespace fjr::scene {
             const std::uint64_t size = calculate_file_size(
                 scene,
                 texture_payload_size);
-            static_scene_file_header::write(
+            static_scene_file_io::write_header(
                 writer,
-                size - static_scene_file_header::size());
+                size - static_scene_file_io::header_size());
 
 #define X(type, name) writer.write(scene.name);
             SceneDataBeforeTexture_MACRO
@@ -134,7 +133,10 @@ namespace fjr::scene {
             temporary_path += L".tmp";
             util::TemporaryFile temporary{temporary_path};
             auto output = util::File::open_write(temporary.path());
-            util::BinaryWriter writer{output, temporary.path()};
+            static_scene_file_io::Writer writer{
+                output,
+                temporary.path()
+            };
 
             write_scene(
                 writer,

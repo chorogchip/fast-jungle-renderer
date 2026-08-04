@@ -7,11 +7,11 @@
 #include <string_view>
 #include <vector>
 
-namespace fjr::util {
+namespace fjr::scene::static_scene_file_io {
 
-    class BinaryReader final {
+    class Reader final {
     public:
-        BinaryReader(
+        Reader(
             std::istream& source,
             std::uint64_t size,
             std::filesystem::path path);
@@ -60,9 +60,9 @@ namespace fjr::util {
         std::filesystem::path path_;
     };
 
-    class BinaryWriter final {
+    class Writer final {
     public:
-        BinaryWriter(
+        Writer(
             std::ostream& destination,
             std::filesystem::path path);
 
@@ -98,4 +98,13 @@ namespace fjr::util {
         std::uint64_t offset_ = 0;
     };
 
-} // namespace fjr::util
+    [[nodiscard]]
+    std::uint64_t header_size() noexcept;
+
+    void read_header(Reader& reader);
+
+    void write_header(
+        Writer& writer,
+        std::uint64_t payload_size);
+
+} // namespace fjr::scene::static_scene_file_io
