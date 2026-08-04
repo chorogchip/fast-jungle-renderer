@@ -6,13 +6,15 @@ namespace fjr::dx {
 
     void CommandContext::init(
         ID3D12Device* device,
-        D3D12_COMMAND_LIST_TYPE type) {
+        D3D12_COMMAND_LIST_TYPE type,
+        UINT32 frame_index) {
 
         allocator_.Reset();
         command_list_.Reset();
 
         type_ = type;
         fence_value_ = 0;
+        frame_index_ = frame_index;
 
         abort_failed(device->CreateCommandAllocator(
             type_,

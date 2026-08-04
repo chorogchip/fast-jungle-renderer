@@ -1,7 +1,6 @@
 #pragma once
 
-#include "FastJungle/dx12/DescriptorAllocator.hpp"
-#include "FastJungle/dx12/DescriptorHeap.hpp"
+#include "FastJungle/dx12/View.hpp"
 #include "FastJungle/dx12/Resource.hpp"
 
 #include <d3d12.h>
@@ -45,48 +44,36 @@ namespace fjr::dx {
             TextureType type,
             D3D12_RESOURCE_STATES initial_state);
 
-        [[nodiscard]]
-        D3D12_GPU_DESCRIPTOR_HANDLE create_srv(
+        void create_srv(
             ID3D12Device* device,
-            const DescriptorHeap& heap,
-            const DescriptorAllocation& allocation,
-            const TextureViewRange& range = {},
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN,
-            UINT descriptor_offset = 0) const;
+            D3D12_CPU_DESCRIPTOR_HANDLE location,
+            const TextureViewRange& range,
+            DXGI_FORMAT format) const;
 
-        [[nodiscard]]
-        D3D12_GPU_DESCRIPTOR_HANDLE create_uav(
+        void create_uav(
             ID3D12Device* device,
-            const DescriptorHeap& heap,
-            const DescriptorAllocation& allocation,
-            UINT mip_slice = 0,
-            UINT first_slice = 0,
-            UINT slice_count = 0,
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN,
-            UINT descriptor_offset = 0) const;
+            D3D12_CPU_DESCRIPTOR_HANDLE location,
+            UINT mip_slice,
+            UINT first_slice,
+            UINT slice_count,
+            DXGI_FORMAT format) const;
 
-        [[nodiscard]]
-        D3D12_CPU_DESCRIPTOR_HANDLE create_rtv(
+        void create_rtv(
             ID3D12Device* device,
-            const DescriptorHeap& heap,
-            const DescriptorAllocation& allocation,
-            UINT mip_slice = 0,
-            UINT first_slice = 0,
-            UINT slice_count = 0,
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN,
-            UINT descriptor_offset = 0) const;
+            D3D12_CPU_DESCRIPTOR_HANDLE location,
+            UINT mip_slice,
+            UINT first_slice,
+            UINT slice_count,
+            DXGI_FORMAT format) const;
 
-        [[nodiscard]]
-        D3D12_CPU_DESCRIPTOR_HANDLE create_dsv(
+        void create_dsv(
             ID3D12Device* device,
-            const DescriptorHeap& heap,
-            const DescriptorAllocation& allocation,
-            UINT mip_slice = 0,
-            UINT first_slice = 0,
-            UINT slice_count = 0,
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN,
-            D3D12_DSV_FLAGS flags = D3D12_DSV_FLAG_NONE,
-            UINT descriptor_offset = 0) const;
+            D3D12_CPU_DESCRIPTOR_HANDLE location,
+            UINT mip_slice,
+            UINT first_slice,
+            UINT slice_count,
+            DXGI_FORMAT format,
+            D3D12_DSV_FLAGS flags) const;
 
     private:
         TextureType type_ = TextureType::texture2d;

@@ -19,6 +19,7 @@ namespace fjr {
         }
 
         minimized_ = false;
+
         renderer_.init(
             native_window,
             width,

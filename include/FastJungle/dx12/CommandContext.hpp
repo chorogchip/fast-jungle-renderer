@@ -17,7 +17,8 @@ namespace fjr::dx {
 
         void init(
             ID3D12Device* device,
-            D3D12_COMMAND_LIST_TYPE type);
+            D3D12_COMMAND_LIST_TYPE type,
+            UINT32 frame_index);
 
         void reset(
             ID3D12PipelineState* initial_pipeline_state = nullptr);
@@ -42,6 +43,10 @@ namespace fjr::dx {
 
         [[nodiscard]] UINT64 get_fence_value() const noexcept {
             return fence_value_;
+        }
+
+        [[nodiscard]] UINT32 get_frame_index() const noexcept {
+            return frame_index_;
         }
 
         void set_fence_value(UINT64 fence_value) noexcept {
@@ -76,6 +81,7 @@ namespace fjr::dx {
 
         D3D12_COMMAND_LIST_TYPE type_ = D3D12_COMMAND_LIST_TYPE_DIRECT;
         UINT64 fence_value_ = 0;
+        UINT32 frame_index_ = 0;
     };
 
 } // namespace fjr::dx

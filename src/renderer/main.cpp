@@ -1,5 +1,5 @@
 #include "FastJungle/renderer/Application.hpp"
-#include "FastJungle/scene/StaticSceneSaver.hpp"
+#include "FastJungle/scene/StaticSceneReader.hpp"
 
 #include <Windows.h>
 #include <shellapi.h>
@@ -91,7 +91,8 @@ namespace {
         LocalFree(argv);
 
         try {
-            const auto scene = fjr::scene::StaticSceneSaver::load(path);
+            const auto scene = fjr::scene::StaticSceneReader::load(path);
+            
             const std::string message =
                 "FastJungle renderer read and validated StaticScene: " +
                 path.generic_string() + "\n";
@@ -321,8 +322,8 @@ int WINAPI wWinMain(
     SetWindowTextW(hwnd, L"Fast Jungle Renderer");
 
     try {
-        const auto scene =
-            fjr::scene::StaticSceneSaver::load(launch_options.scene);
+
+        const auto scene = fjr::scene::StaticSceneReader::load(launch_options.scene);
         application.init(
             hwnd,
             client_width,

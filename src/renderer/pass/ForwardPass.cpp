@@ -14,70 +14,21 @@ namespace fjr::render {
     namespace {
 
         enum class RootParameter : std::uint32_t {
-            CAMERA,
-            DRAW_TRANSFORM,
-            DRAW_CONSTANTS,
-            INSTANCES,
-            MATERIALS,
-            TEXTURE_BINDINGS,
-            TEXTURES,
-            SAMPLERS,
+            CONSTANT_DRAW,
+            ROOT_CBUF_CAMERA,
+            ROOT_CBUF_TRANSFORMS,
+            ROOT_SRV_INSTANCES,
+            ROOT_SRV_MATERIAL,
+            ROOT_SRV_TEXTURE_BINDING,
+            TABLE_TEXTURES,
+            TABLE_SAMPLERS,
             COUNT,
         };
+    }
 
-        [[nodiscard]]
-        constexpr UINT root_index(RootParameter parameter) noexcept {
-            return static_cast<UINT>(parameter);
-        }
+    void ForwardPass::init(ID3D12Device* device) {
 
-        [[nodiscard]]
-        std::uint32_t pipeline_index(
-            scene::StaticScene::EnumSubmeshFlag flags) noexcept {
-
-            const auto value = static_cast<std::uint32_t>(flags);
-            const auto double_sided = static_cast<std::uint32_t>(
-                scene::StaticScene::EnumSubmeshFlag::DOUBLE_SIDED);
-            const auto alpha_blended = static_cast<std::uint32_t>(
-                scene::StaticScene::EnumSubmeshFlag::ALPHA_BLENDED);
-
-            return
-                ((value & double_sided) != 0 ? 1u : 0u) |
-                ((value & alpha_blended) != 0 ? 2u : 0u);
-        }
-
-        void set_viewport(
-            ID3D12GraphicsCommandList* command_list,
-            std::uint32_t width,
-            std::uint32_t height) {
-
-            const D3D12_VIEWPORT viewport{
-                0.0f,
-                0.0f,
-                static_cast<float>(width),
-                static_cast<float>(height),
-                0.0f,
-                1.0f,
-            };
-            const D3D12_RECT scissor{
-                0,
-                0,
-                static_cast<LONG>(width),
-                static_cast<LONG>(height),
-            };
-            command_list->RSSetViewports(1, &viewport);
-            command_list->RSSetScissorRects(1, &scissor);
-        }
-
-    } // namespace
-
-    void ForwardPass::init(
-        ID3D12Device* device,
-        DXGI_FORMAT color_format,
-        DXGI_FORMAT depth_format,
-        std::uint32_t texture_descriptor_count,
-        std::uint32_t sampler_descriptor_count) {
-
-        dx::RootSignatureBuilder root_builder;
+        dx::RootSignatureBuilder root_builder{};
         root_builder.init(RootParameter::COUNT);
         root_builder.set_flags(
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -85,44 +36,54 @@ namespace fjr::render {
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
 
-        root_builder.set_root_cbv(RootParameter::CAMERA)
-            .reg(0).vis_all().add();
-        root_builder.set_root_cbv(RootParameter::DRAW_TRANSFORM)
-            .reg(1).vis_vertex().add();
-        root_builder.set_constants(RootParameter::DRAW_CONSTANTS)
+
+        root_builder.set_constants(RootParameter::CONSTANT_DRAW)
             .reg(2)
-            .count(static_cast<UINT>(
-                sizeof(SceneResources::DrawConstants) /
-                sizeof(std::uint32_t)))
+            .count(Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT)
             .vis_all().add();
-        root_builder.set_root_srv(RootParameter::INSTANCES)
-            .reg(0).vis_vertex().add();
-        root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(1).vis_pixel().add();
-        root_builder.set_root_srv(RootParameter::TEXTURE_BINDINGS)
-            .reg(2).vis_pixel().add();
-        root_builder.set_resource_table(RootParameter::TEXTURES)
+
+        root_builder.set_root_cbv(RootParameter::ROOT_CBUF_CAMERA)
+            .reg(0)
+            .vis_all().add();
+
+        root_builder.set_root_cbv(RootParameter::ROOT_CBUF_TRANSFORMS)
+            .reg(1)
+            .vis_vertex().add();
+
+        root_builder.set_root_srv(RootParameter::ROOT_SRV_INSTANCES)
+            .reg(0)
+            .vis_vertex().add();
+
+        root_builder.set_root_srv(RootParameter::ROOT_SRV_MATERIAL)
+            .reg(1)
+            .vis_pixel().add();
+
+        root_builder.set_root_srv(RootParameter::ROOT_SRV_TEXTURE_BINDING)
+            .reg(2)
+            .vis_pixel().add();
+
+        root_builder.set_resource_table(RootParameter::TABLE_TEXTURES)
             .srv()
             .reg(3)
-            .count(texture_descriptor_count)
+            .count(5)  // just fix this..
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_pixel()
             .add();
-        root_builder.set_sampler_table(RootParameter::SAMPLERS)
+
+        root_builder.set_sampler_table(RootParameter::TABLE_SAMPLERS)
             .sampler()
             .reg(0)
-            .count(sampler_descriptor_count)
+            .count(5)  // temp
             .add_range()
             .vis_pixel()
             .add();
 
         root_signature_ = root_builder.build(device);
 
-        const std::filesystem::path shader_directory{
-            FASTJUNGLE_SHADER_OUTPUT_DIR};
-        dx::Shader vertex_shader;
-        dx::Shader pixel_shader;
+        const std::filesystem::path shader_directory{ FASTJUNGLE_SHADER_OUTPUT_DIR };
+        dx::Shader vertex_shader{};
+        dx::Shader pixel_shader{};
         vertex_shader.load(shader_directory / "Forward.vs.dxil");
         pixel_shader.load(shader_directory / "Forward.ps.dxil");
 
@@ -159,20 +120,17 @@ namespace fjr::render {
             static_cast<UINT>(std::size(input_elements)),
         };
         base.NumRenderTargets = 1;
-        base.RTVFormats[0] = color_format;
-        base.DSVFormat = depth_format;
+        base.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        base.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-        for (std::uint32_t index = 0;
-            index < PIPELINE_STATE_COUNT;
-            ++index) {
+        for (std::uint32_t index = 0; index < PIPELINE_STATE_COUNT; ++index) {
             auto description = base;
 
             const bool double_sided = (index & 1u) != 0;
             const bool alpha_blended = (index & 2u) != 0;
 
-            description.RasterizerState.CullMode = double_sided
-                ? D3D12_CULL_MODE_NONE
-                : D3D12_CULL_MODE_BACK;
+            description.RasterizerState.CullMode =
+                double_sided ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
 
             if (alpha_blended) {
                 auto& blend = description.BlendState.RenderTarget[0];
@@ -194,62 +152,57 @@ namespace fjr::render {
     }
 
     void ForwardPass::record(
-        ID3D12GraphicsCommandList* command_list,
-        const ForwardPassView& view) const {
+        dx::CommandContext& context,
+        std::span<const Draw::DrawDataCpu> draws) {
 
-        command_list->OMSetRenderTargets(
-            1,
-            &view.render_target,
-            FALSE,
-            &view.depth_stencil);
+        context->OMSetRenderTargets(
+            1, &views.desc_rtv, FALSE, &views.desc_dsv);
+        const float clear_color[]{ 0.015f, 0.025f, 0.04f, 1.0f };
+        context->ClearRenderTargetView(
+            views.desc_rtv, clear_color, 0, nullptr);
+        context->ClearDepthStencilView(
+            views.desc_dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f,
+            0, 0, nullptr);
+        context.RSSetViewPortScissorRect(views.width, views.height);
 
-        const float clear_color[]{0.015f, 0.025f, 0.04f, 1.0f};
-        command_list->ClearRenderTargetView(
-            view.render_target,
-            clear_color,
-            0,
-            nullptr);
-        command_list->ClearDepthStencilView(
-            view.depth_stencil,
-            D3D12_CLEAR_FLAG_DEPTH,
-            1.0f,
-            0,
-            0,
-            nullptr);
 
-        set_viewport(command_list, view.width, view.height);
+        context->SetGraphicsRootSignature(root_signature_.Get());
 
-        command_list->SetGraphicsRootSignature(root_signature_.Get());
-        command_list->SetGraphicsRootDescriptorTable(
-            root_index(RootParameter::TEXTURES),
-            view.textures);
-        command_list->SetGraphicsRootDescriptorTable(
-            root_index(RootParameter::SAMPLERS),
-            view.samplers);
-        command_list->SetGraphicsRootShaderResourceView(
-            root_index(RootParameter::MATERIALS),
-            view.materials);
-        command_list->SetGraphicsRootShaderResourceView(
-            root_index(RootParameter::TEXTURE_BINDINGS),
-            view.texture_bindings);
-        command_list->SetGraphicsRootConstantBufferView(
-            root_index(RootParameter::CAMERA),
-            view.camera_constants);
+        context->SetGraphicsRootConstantBufferView(
+            static_cast<UINT>(RootParameter::ROOT_CBUF_CAMERA),
+            views.cbuf_camera);
+        context->SetGraphicsRootShaderResourceView(
+        static_cast<UINT>(RootParameter::ROOT_SRV_MATERIAL),
+            views.desc_materials);
+        context->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::ROOT_SRV_TEXTURE_BINDING),
+            views.desc_texture_bindings);
+        context->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::TABLE_TEXTURES),
+            views.descs_textures.get_gpu());
+        context->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::TABLE_SAMPLERS),
+            views.descs_samplers.get_gpu());
 
-        command_list->IASetPrimitiveTopology(
+
+        context->IASetPrimitiveTopology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        command_list->IASetVertexBuffers(0, 1, &view.vertices);
-        command_list->IASetIndexBuffer(&view.indices);
+        context->IASetVertexBuffers(0, 1, &views.view_vertices);
+        context->IASetIndexBuffer(&views.view_indices);
+
 
         ID3D12PipelineState* current_pipeline = nullptr;
-        for (const auto& draw : view.draws) {
-            auto* selected_pipeline =
-                pipeline_states_[pipeline_index(draw.flags)].Get();
+        for (const auto& draw : draws) {
+
+            // TODO select by draws.flags
+            auto* selected_pipeline = pipeline_states_[0].Get();
+
             if (selected_pipeline != current_pipeline) {
-                command_list->SetPipelineState(selected_pipeline);
+                context->SetPipelineState(selected_pipeline);
                 current_pipeline = selected_pipeline;
             }
 
+            /* temp: render my matrix
             const bool point = draw.instance_kind ==
                 SceneResources::InstanceKind::POINT;
             const auto transform_constants = point
@@ -258,29 +211,28 @@ namespace fjr::render {
             const auto instances = point
                 ? view.point_instances
                 : view.matrix_instances;
+            */
 
-            command_list->SetGraphicsRootConstantBufferView(
-                root_index(RootParameter::DRAW_TRANSFORM),
-                transform_constants +
-                    static_cast<UINT64>(
-                        draw.transform_constant_index) *
-                    SceneResources::CONSTANT_BUFFER_ALIGNMENT);
-            command_list->SetGraphicsRoot32BitConstants(
-                root_index(RootParameter::DRAW_CONSTANTS),
-                static_cast<UINT>(
-                    sizeof(draw.constants) /
-                    sizeof(std::uint32_t)),
-                &draw.constants,
-                0);
-            command_list->SetGraphicsRootShaderResourceView(
-                root_index(RootParameter::INSTANCES),
-                instances);
+            context->SetGraphicsRoot32BitConstants(
+                static_cast<UINT>(RootParameter::CONSTANT_DRAW),
+                Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
+                &draw.constants, 0);
 
-            command_list->DrawIndexedInstanced(
-                draw.index_count,
-                draw.instance_count,
-                draw.first_index,
-                draw.base_vertex,
+            // this code is not good..
+            context->SetGraphicsRootConstantBufferView(
+                static_cast<UINT>(RootParameter::ROOT_CBUF_TRANSFORMS),
+                views.cbuf_transform_matrix.at(
+                    draw.offset_cbuf_transform));
+
+            context->SetGraphicsRootShaderResourceView(
+                static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
+                views.desc_instnaces_matrix);
+
+            context->DrawIndexedInstanced(
+                draw.count_index,
+                draw.count_instance,
+                draw.offset_index,
+                draw.offset_vertex,
                 0);
         }
     }

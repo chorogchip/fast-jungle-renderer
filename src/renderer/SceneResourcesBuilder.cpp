@@ -1,8 +1,5 @@
 #include "FastJungle/renderer/SceneResourcesBuilder.hpp"
 
-#include "FastJungle/dx12/DescriptorAllocator.hpp"
-#include "FastJungle/dx12/WindowsUtils.hpp"
-
 #include <algorithm>
 #include <cfloat>
 #include <cstddef>
@@ -11,6 +8,8 @@
 #include <span>
 #include <vector>
 
+#include "FastJungle/dx12/DescriptorAllocator.hpp"
+#include "FastJungle/dx12/WindowsUtils.hpp"
 namespace fjr::render {
 
     namespace {
@@ -396,7 +395,7 @@ namespace fjr::render {
                 device->CreateShaderResourceView(
                     nullptr,
                     &description,
-                    resources.heap_srv.get_cpu_handle(allocation, 0));
+                    resources.heap_srv.get_cpu_handle(allocation, 0).get_handle());
                 return;
             }
 
@@ -594,9 +593,7 @@ namespace fjr::render {
     } // namespace
 
     std::unique_ptr<SceneResources> SceneResourcesBuilder::build(
-        ID3D12Device* device,
-        ID3D12GraphicsCommandList* command_list,
-        std::uint32_t frame_count,
+        BuildContexts& context,
         const scene::StaticScene& scene) {
 
         auto resources = std::make_unique<SceneResources>();
@@ -638,81 +635,92 @@ namespace fjr::render {
         upload_static_buffer(
             resources->buf_vertices,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const scene::StaticScene::Vertex>{scene.vertices},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
         upload_static_buffer(
             resources->buf_indices,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const std::uint32_t>{scene.indices},
             D3D12_RESOURCE_STATE_INDEX_BUFFER);
         upload_static_buffer(
             resources->buf_instances_point,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const scene::StaticScene::PointInstance>{
                 scene.point_instances},
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_instances_matrix,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const scene::StaticScene::MatrixInstance>{
                 scene.matrix_instances},
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_materials,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const SceneResources::Material>{
                 resources->material_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_texture_bindings,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const SceneResources::TextureBinding>{
                 resources->texture_binding_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_draw_data,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const SceneResources::DrawData>{
                 resources->draw_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_cbuffer_point,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const SceneResources::PointDrawConstants>{
                 resources->point_draw_constants},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
         upload_static_buffer(
             resources->buf_cbuffer_matrix,
             resources->upload_buffers,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             std::span<const SceneResources::MatrixDrawConstants>{
                 resources->matrix_draw_constants},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
-        create_camera_buffer(*resources, device, frame_count);
+        resources->view_cbuf_transform_matrix = dx::CBbufArrayView(
+            resources->buf_cbuffer_matrix->GetGPUVirtualAddress(),
+            sizeof(SceneResources::MatrixDrawConstants),
+            resources->matrix_draw_constants.size()
+        );
+        resources->view_cbuf_transform_point = dx::CBbufArrayView(
+            resources->buf_cbuffer_point->GetGPUVirtualAddress(),
+            sizeof(SceneResources::PointDrawConstants),
+            resources->point_draw_constants.size()
+        );
+
+        create_camera_buffer(*resources, context.device, 2);
         create_texture_resources(
             *resources,
-            device,
-            command_list,
+            context.device,
+            context.contexts[0].get(),
             scene);
-        create_sampler_resources(*resources, device, scene);
+        create_sampler_resources(*resources, context.device, scene);
 
         if (resources->buf_vertices) {
             resources->view_vertices.BufferLocation =

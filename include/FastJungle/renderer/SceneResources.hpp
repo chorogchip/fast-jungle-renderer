@@ -15,6 +15,8 @@ namespace fjr::render {
 
     class SceneResources {
     public:
+        static constexpr inline uint32_t INVALID_INDEX = UINT32_MAX;
+
         static constexpr std::uint32_t CONSTANT_BUFFER_ALIGNMENT =
             D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
@@ -76,6 +78,8 @@ namespace fjr::render {
             std::uint32_t material_id = scene::StaticScene::INVALID_INDEX;
             std::uint32_t instance_kind = 0;
         };
+        static constexpr inline UINT DRAW_CONSTANT_COUNT =
+            sizeof(SceneResources::DrawConstants) / sizeof(std::uint32_t);
 
         struct TextureBinding {
             std::uint32_t texture_id = scene::StaticScene::INVALID_INDEX;
@@ -143,8 +147,8 @@ namespace fjr::render {
 
         // Point instances retain the compact position/orientation/scale
         // representation. Matrix instances retain one matrix per instance.
-        dx::Buffer buf_instances_point;
         dx::Buffer buf_instances_matrix;
+        dx::Buffer buf_instances_point;
 
         dx::Buffer buf_materials;
         dx::Buffer buf_texture_bindings;
@@ -153,8 +157,11 @@ namespace fjr::render {
         // Camera records are frame-local. Point/matrix records are immutable
         // scene data indexed by DrawItem::transform_constant_index.
         dx::Buffer buf_cbuffer_camera;
-        dx::Buffer buf_cbuffer_point;
         dx::Buffer buf_cbuffer_matrix;
+        dx::Buffer buf_cbuffer_point;
+
+        dx::CBbufArrayView view_cbuf_transform_matrix;
+        dx::CBbufArrayView view_cbuf_transform_point;
 
         // Temporary upload resources stay alive until the initialization
         // command list has completed on the GPU.
@@ -192,24 +199,16 @@ namespace fjr::render {
         SceneResources::CONSTANT_BUFFER_ALIGNMENT);
     static_assert(sizeof(SceneResources::MatrixDrawConstants) ==
         SceneResources::CONSTANT_BUFFER_ALIGNMENT);
-    static_assert(sizeof(SceneResources::DrawConstants) ==
-        3 * sizeof(std::uint32_t));
+    static_assert(sizeof(SceneResources::DrawConstants) == 3 * sizeof(std::uint32_t));
     static_assert(sizeof(SceneResources::TextureBinding) == 16);
     static_assert(sizeof(SceneResources::Material) == 80);
     static_assert(sizeof(SceneResources::DrawData) == 32);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::CameraConstants>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::PointDrawConstants>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::MatrixDrawConstants>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::DrawConstants>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::TextureBinding>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::Material>);
-    static_assert(std::is_trivially_copyable_v<
-        SceneResources::DrawData>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::CameraConstants>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::PointDrawConstants>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::MatrixDrawConstants>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::DrawConstants>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::TextureBinding>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::Material>);
+    static_assert(std::is_trivially_copyable_v<SceneResources::DrawData>);
 
 } // namespace fjr::render

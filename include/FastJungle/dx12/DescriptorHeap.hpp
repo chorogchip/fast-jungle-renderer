@@ -3,19 +3,60 @@
 #include <wrl.h>
 #include <d3d12.h>
 
-#include "FastJungle/dx12/DescriptorAllocator.hpp"
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/dx12/View.hpp"
 
 namespace fjr::dx {
 
     class DescriptorHeap {
+
     public:
+
+        class DescArena {
+
+        public:
+            DescArena(const DescArena&) = delete;
+            DescArena& operator=(const DescArena&) = delete;
+            DescArena(DescArena&&) = default;
+            DescArena& operator=(DescArena&&) = default;
+
+            DescAlloc alloc(UINT count = 1) {
+                log::Logger::g_logger << log::asrt(size_ + count <= capacity_);
+
+                const UINT index = offset_ + size_;
+
+                size_ += count;
+                return DescAlloc{
+                    heap_->get_cpu_handle(index),
+                    heap_->get_gpu_handle(index),
+                    count
+                };
+            }
+
+            DescArena alloc_arena(UINT capacity) {
+                log::Logger::g_logger << log::asrt(size_ + capacity <= capacity_);
+
+                DescArena ret{};
+                ret.offset_ = offset_ + size_;
+                ret.capacity_ = capacity;
+                ret.size_ = 0;
+                ret.heap_ = heap_;
+
+                size_ += capacity;
+                return ret;
+            }
+
+        private:
+            DescArena() = default;
+            friend class DescriptorHeap;
+
+            UINT offset_;
+            UINT capacity_;
+            UINT size_;
+            DescriptorHeap* heap_;
+        };
+
         DescriptorHeap() = default;
-
-        DescriptorHeap(const DescriptorHeap&) = delete;
-        DescriptorHeap& operator=(const DescriptorHeap&) = delete;
-
-        DescriptorHeap(DescriptorHeap&&) noexcept = default;
-        DescriptorHeap& operator=(DescriptorHeap&&) noexcept = default;
 
         void init(
             ID3D12Device* device,
@@ -23,100 +64,54 @@ namespace fjr::dx {
             UINT capacity,
             bool shader_visible);
 
-        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE
-            get_cpu_handle(UINT index) const noexcept {
+        void reset();
+
+        DescArena alloc_arena(UINT capacity) {
+            log::Logger::g_logger << log::asrt(size_ + capacity <= capacity_);
+
+            DescArena ret{};
+            ret.offset_ = size_;
+            ret.capacity_ = capacity;
+            ret.size_ = 0;
+            ret.heap_ = this;
+
+            size_ += capacity;
+            return ret;
+        }
+
+        DescArena default_arena() {
+            DescArena ret{};
+            ret.offset_ = 0;
+            ret.capacity_ = capacity_;
+            ret.size_ = 0;
+            ret.heap_ = this;
+            return ret;
+        }
+
+        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_handle(UINT index) const noexcept {
             auto handle = cpu_start_;
-            handle.ptr +=
-                static_cast<SIZE_T>(index) * descriptor_size_;
+            handle.ptr += static_cast<SIZE_T>(index) * descriptor_size_;
             return handle;
         }
 
-        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE
-            get_gpu_handle(UINT index) const noexcept {
+        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_handle(UINT index) const noexcept {
             auto handle = gpu_start_;
-            handle.ptr +=
-                static_cast<UINT64>(index) * descriptor_size_;
+            handle.ptr += static_cast<UINT64>(index) * descriptor_size_;
             return handle;
         }
 
-        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_handle(
-                const DescriptorAllocation& allocation,
-                UINT offset) const noexcept {
-
-            if (offset >= allocation.get_count()) {
-                return {};
-            }
-
-            return get_cpu_handle(
-                allocation.get_index() + offset);
-        }
-
-        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_handle(
-                const DescriptorAllocation& allocation,
-                UINT offset) const noexcept {
-
-            if (offset >= allocation.get_count()) {
-                return {};
-            }
-
-            return get_gpu_handle(
-                allocation.get_index() + offset);
-        }
-
-        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE
-            get_cpu_start() const noexcept {
-            return cpu_start_;
-        }
-
-        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE
-            get_gpu_start() const noexcept {
-            return gpu_start_;
-        }
-
-        [[nodiscard]] ID3D12DescriptorHeap*
-            get_descriptor_heap() const noexcept {
+        [[nodiscard]] ID3D12DescriptorHeap* get() const noexcept {
             return descriptor_heap_.Get();
-        }
-
-        [[nodiscard]] D3D12_DESCRIPTOR_HEAP_TYPE
-            get_type() const noexcept {
-            return type_;
-        }
-
-        [[nodiscard]] UINT get_descriptor_size() const noexcept {
-            return descriptor_size_;
-        }
-
-        [[nodiscard]] UINT get_capacity() const noexcept {
-            return capacity_;
-        }
-
-        [[nodiscard]] bool get_shader_visible() const noexcept {
-            return shader_visible_;
-        }
-
-        [[nodiscard]] ID3D12DescriptorHeap*
-            operator->() const noexcept {
-            return descriptor_heap_.Get();
-        }
-
-        [[nodiscard]] explicit operator bool() const noexcept {
-            return descriptor_heap_ != nullptr;
         }
 
     private:
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descriptor_heap_;
-
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_start_{};
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_start_{};
-
-        D3D12_DESCRIPTOR_HEAP_TYPE type_ =
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
         UINT descriptor_size_ = 0;
-        UINT capacity_ = 0;
 
-        bool shader_visible_ = false;
+        UINT capacity_ = 0;
+        UINT size_ = 0;
     };
 
 } // namespace fjr::dx
