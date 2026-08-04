@@ -11,7 +11,7 @@ namespace fjr::render {
 			if (draw.instance_kind != SceneResources::InstanceKind::MATRIX)
 				continue;
 			if (draw.flags != scene::StaticScene::EnumSubmeshFlag::DEFAULT)
-				continue;
+				;// continue;
 
 			Draw::DrawDataCpu draw_new{};
 			draw_new.constants.offset_instance = draw.constants.instance_offset;
