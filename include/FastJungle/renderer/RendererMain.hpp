@@ -54,7 +54,7 @@ namespace fjr::render {
         std::array<dx::CommandContext, FRAME_COUNT> command_contexts_;
 
         dx::SwapChain swap_chain_;
-        std::array<dx::DescAlloc, FRAME_COUNT> desc_rtv_;
+        dx::DescAlloc desc_rtv_;
 
         dx::Texture buffer_depth_;
         dx::DescAlloc desc_dsv_;

@@ -11,51 +11,6 @@ namespace fjr::dx {
     class DescriptorHeap {
 
     public:
-
-        class DescArena {
-
-        public:
-            DescArena(const DescArena&) = delete;
-            DescArena& operator=(const DescArena&) = delete;
-            DescArena(DescArena&&) = default;
-            DescArena& operator=(DescArena&&) = default;
-
-            DescAlloc alloc(UINT count = 1) {
-                log::Logger::g_logger << log::asrt(size_ + count <= capacity_);
-
-                const UINT index = offset_ + size_;
-
-                size_ += count;
-                return DescAlloc{
-                    heap_->get_cpu_handle(index),
-                    heap_->get_gpu_handle(index),
-                    count
-                };
-            }
-
-            DescArena alloc_arena(UINT capacity) {
-                log::Logger::g_logger << log::asrt(size_ + capacity <= capacity_);
-
-                DescArena ret{};
-                ret.offset_ = offset_ + size_;
-                ret.capacity_ = capacity;
-                ret.size_ = 0;
-                ret.heap_ = heap_;
-
-                size_ += capacity;
-                return ret;
-            }
-
-        private:
-            DescArena() = default;
-            friend class DescriptorHeap;
-
-            UINT offset_;
-            UINT capacity_;
-            UINT size_;
-            DescriptorHeap* heap_;
-        };
-
         DescriptorHeap() = default;
 
         void init(
@@ -66,26 +21,18 @@ namespace fjr::dx {
 
         void reset();
 
-        DescArena alloc_arena(UINT capacity) {
-            log::Logger::g_logger << log::asrt(size_ + capacity <= capacity_);
+        DescAlloc alloc(UINT count = 1) {
+            log::Logger::g_logger << log::asrt(size_ + count <= capacity_);
 
-            DescArena ret{};
-            ret.offset_ = size_;
-            ret.capacity_ = capacity;
-            ret.size_ = 0;
-            ret.heap_ = this;
+            const UINT index = size_;
+            size_ += count;
 
-            size_ += capacity;
-            return ret;
-        }
-
-        DescArena default_arena() {
-            DescArena ret{};
-            ret.offset_ = 0;
-            ret.capacity_ = capacity_;
-            ret.size_ = 0;
-            ret.heap_ = this;
-            return ret;
+            return DescAlloc{
+                get_cpu_handle(index),
+                get_gpu_handle(index),
+                count,
+                descriptor_size_
+            };
         }
 
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_handle(UINT index) const noexcept {
