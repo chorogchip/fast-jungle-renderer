@@ -36,9 +36,12 @@ namespace fjr::render {
             factory_.Get(), command_queue_.get_command_queue(),
             hwnd, width, height, FRAME_COUNT, false);
 
-        dx::HeapManager::g_heap_manager.init(
+        auto& descriptor_heaps = dx::HeapManager::g_heap_manager;
+        descriptor_heaps.init(
             device_.Get(),
             1024, 128, 1, FRAME_COUNT);
+        desc_rtv_ = descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
+        desc_dsv_ = descriptor_heaps.heap_dsv.alloc();
 
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
             command_contexts_[i].init(
@@ -71,6 +74,11 @@ namespace fjr::render {
             camera_.frame_bounds(scene.info.world_bounds);
         }
 
+        forward_pass_.init(
+            device_.Get(),
+            scene_resources_->texture_descriptors.get_count(),
+            scene_resources_->sampler_descriptors.get_count());
+
         this->resize(width, height);
     }
 
@@ -82,23 +90,17 @@ namespace fjr::render {
         swap_chain_.resize(width, height);
         camera_.set_viewport(width, height);
 
-        auto& heap = dx::HeapManager::g_heap_manager;
-
         // Render Target
 
         D3D12_RENDER_TARGET_VIEW_DESC desc_rtv{};
         desc_rtv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         desc_rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-        auto arena = heap.heap_rtv.default_arena();
-
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
-            desc_rtv_[i] = arena.alloc();
-
             device_->CreateRenderTargetView(
                 swap_chain_.get_buffer(i).get(),
                 &desc_rtv,
-                desc_rtv_[i].get_cpu());
+                desc_rtv_.get_cpu(i));
         }
 
         // Depth Stencil
@@ -134,16 +136,10 @@ namespace fjr::render {
         view.Format = DEPTH_FORMAT;
         view.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-        desc_dsv_ = heap.heap_dsv.default_arena().alloc();
-
         device_->CreateDepthStencilView(
             buffer_depth_.get(),
             &view,
             desc_dsv_.get_cpu());
-
-        forward_pass_.init(device_.Get(),
-            scene_resources_->texture_descriptors.get_count(),
-            scene_resources_->sampler_descriptors.get_count());
         forward_pass_.views.view_vertices = scene_resources_->view_vertices;
         forward_pass_.views.view_indices = scene_resources_->view_indices;
         forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
@@ -192,7 +188,7 @@ namespace fjr::render {
             dx::HeapManager::g_heap_manager.heap_srv_cbv_uav.get()
         );
 
-        forward_pass_.views.desc_rtv = desc_rtv_[frame].get_cpu();
+        forward_pass_.views.desc_rtv = desc_rtv_.get_cpu(frame);
         forward_pass_.views.cbuf_camera = frame_data_[frame].get_camera_buffer();
         forward_pass_.record(context, scene_viewer_.get_draw_data());
 

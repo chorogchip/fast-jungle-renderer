@@ -318,28 +318,9 @@ namespace fjr::render {
                 1u,
                 static_cast<UINT>(scene.textures.size()) * 2u);
 
-            auto arena = dx::HeapManager::g_heap_manager.heap_srv_cbv_uav
-                .alloc_arena(texture_descriptor_count);
-            bool first_descriptor = true;
-            
-            const auto allocate_texture_descriptor =
-                [&]() -> D3D12_CPU_DESCRIPTOR_HANDLE {
-
-                const dx::DescAlloc allocation = arena.alloc();
-
-                if (first_descriptor) {
-                    resources.texture_descriptors = dx::DescAlloc{
-                        allocation.get_cpu(),
-                        allocation.get_gpu(),
-                        texture_descriptor_count
-                    };
-
-                    first_descriptor = false;
-                }
-
-                return allocation.get_cpu();
-                };
-
+            resources.texture_descriptors =
+                dx::HeapManager::g_heap_manager.heap_srv_cbv_uav
+                    .alloc(texture_descriptor_count);
 
             if (scene.textures.empty()) {
                 D3D12_SHADER_RESOURCE_VIEW_DESC description{};
@@ -352,7 +333,7 @@ namespace fjr::render {
                 device->CreateShaderResourceView(
                     nullptr,
                     &description,
-                    allocate_texture_descriptor());
+                    resources.texture_descriptors.get_cpu());
                 return;
             }
 
@@ -481,12 +462,14 @@ namespace fjr::render {
 
                 (void)texture.create_srv(
                     device,
-                    allocate_texture_descriptor(),
+                    resources.texture_descriptors.get_cpu(
+                        static_cast<UINT>(texture_index) * 2u),
                     dx::TextureViewRange{ 0, 1, 0, 1 },
                     dx::FormatUtils::to_linear(source_format));
                 (void)texture.create_srv(
                     device,
-                    allocate_texture_descriptor(),
+                    resources.texture_descriptors.get_cpu(
+                        static_cast<UINT>(texture_index) * 2u + 1u),
                     dx::TextureViewRange{0, 1, 0, 1},
                     dx::FormatUtils::to_srgb(source_format));
             }
@@ -501,27 +484,9 @@ namespace fjr::render {
                 1u,
                 static_cast<UINT>(scene.samplers.size()));
             
-            auto arena = dx::HeapManager::g_heap_manager.heap_sampler
-                .alloc_arena(sampler_count);
-            bool first_descriptor = true;
-
-            const auto allocate_sampler =
-                [&]() -> D3D12_CPU_DESCRIPTOR_HANDLE {
-
-                const dx::DescAlloc allocation = arena.alloc();
-
-                if (first_descriptor) {
-                    resources.sampler_descriptors = dx::DescAlloc{
-                        allocation.get_cpu(),
-                        allocation.get_gpu(),
-                        sampler_count
-                    };
-
-                    first_descriptor = false;
-                }
-
-                return allocation.get_cpu();
-                };
+            resources.sampler_descriptors =
+                dx::HeapManager::g_heap_manager.heap_sampler
+                    .alloc(sampler_count);
 
             for (UINT sampler_index = 0;
                 sampler_index < sampler_count;
@@ -555,7 +520,9 @@ namespace fjr::render {
                         16u);
                 }
 
-                device->CreateSampler(&description, allocate_sampler());
+                device->CreateSampler(
+                    &description,
+                    resources.sampler_descriptors.get_cpu(sampler_index));
             }
         }
 
