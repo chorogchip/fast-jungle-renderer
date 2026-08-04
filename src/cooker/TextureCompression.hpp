@@ -1,13 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <span>
 #include <vector>
 
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::cooker {
-
     struct TextureCompressionPlan final {
         std::uint32_t dxgi_format = 0;
         scene::StaticScene::EnumTextureChannel source_channel =
@@ -17,17 +15,11 @@ namespace fjr::cooker {
         bool filter_as_srgb = false;
     };
 
-    class TextureCompressionPolicy final {
-    public:
-        TextureCompressionPolicy() = delete;
+    [[nodiscard]] std::vector<TextureCompressionPlan>
+    resolve_texture_compression(const scene::StaticScene& scene);
 
-        [[nodiscard]]
-        static std::vector<TextureCompressionPlan> resolve(
-            const scene::StaticScene& scene);
-
-        static void apply_binding_changes(
-            scene::StaticScene& scene,
-            std::span<const TextureCompressionPlan> plans);
-    };
+    [[nodiscard]] scene::StaticScene::TextureBinding normalize_texture_binding(
+        scene::StaticScene::TextureBinding binding,
+        const TextureCompressionPlan& plan) noexcept;
 
 } // namespace fjr::cooker

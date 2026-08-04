@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-#include "FastJungle/cooker/TextureCompressionPolicy.hpp"
+#include "../../src/cooker/TextureCompression.hpp"
 
 namespace {
 
@@ -91,7 +91,7 @@ namespace {
 int main() {
     auto scene = make_scene();
     const auto plans =
-        fjr::cooker::TextureCompressionPolicy::resolve(scene);
+        fjr::cooker::resolve_texture_compression(scene);
     if (plans.size() != scene.textures.size() ||
         plans[0].dxgi_format != DXGI_FORMAT_BC7_UNORM ||
         !plans[0].filter_as_srgb ||
@@ -108,9 +108,9 @@ int main() {
             "Texture compression policy selection failed.");
     }
 
-    fjr::cooker::TextureCompressionPolicy::apply_binding_changes(
-        scene,
-        plans);
+    for (auto& binding : scene.texture_bindings)
+        binding = fjr::cooker::normalize_texture_binding(
+            binding, plans[binding.texture]);
     if (scene.texture_bindings[1].channel !=
             Scene::EnumTextureChannel::A ||
         scene.texture_bindings[3].channel !=
