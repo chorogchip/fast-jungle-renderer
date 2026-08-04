@@ -4,7 +4,6 @@
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
 #include "FastJungle/scene/StaticSceneWriter.hpp"
-#include "FastJungle/scene/StaticTextureFileFormat.hpp"
 
 #include <array>
 #include <cstddef>
@@ -216,7 +215,7 @@ int main(int argc, char** argv) {
         metadata.texture_payload.path ==
             fjr::scene::StaticSceneReader::texture_path(streamed_path) &&
         metadata.texture_payload.file_offset ==
-            fjr::scene::StaticTextureFileFormat::header_size() &&
+            read_file(metadata.texture_payload.path).size() - payload.size() &&
         metadata.texture_payload.size == payload.size(),
         "Texture payload range changed.");
     require_equal(scene, *metadata.scene);

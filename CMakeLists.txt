@@ -712,16 +712,14 @@ if(FASTJUNGLE_BUILD_TESTS)
 
     add_executable(FastJungleSceneStreamingTest
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/scene/StaticSceneStreamingTest.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/core/util/BinaryStream.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/DateTime.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/File.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/TemporaryFile.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileHeader.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileIO.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamReader.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamWriter.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticTextureFileFormat.cpp"
     )
     fastjungle_apply_options(FastJungleSceneStreamingTest)
     target_include_directories(FastJungleSceneStreamingTest PRIVATE

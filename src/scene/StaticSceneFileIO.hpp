@@ -7,11 +7,11 @@
 #include <string_view>
 #include <vector>
 
-namespace fjr::util {
+namespace fjr::scene::static_scene_file_io {
 
-    class BinaryReader final {
+    class Reader final {
     public:
-        BinaryReader(
+        Reader(
             std::istream& source,
             std::uint64_t size,
             std::filesystem::path path);
@@ -38,6 +38,10 @@ namespace fjr::util {
             read_bytes(value.data(), count * sizeof(T));
         }
 
+        void read_raw(void* destination, std::size_t size) {
+            read_bytes(destination, size);
+        }
+
         void skip(std::uint64_t size);
         void require_end();
 
@@ -60,9 +64,9 @@ namespace fjr::util {
         std::filesystem::path path_;
     };
 
-    class BinaryWriter final {
+    class Writer final {
     public:
-        BinaryWriter(
+        Writer(
             std::ostream& destination,
             std::filesystem::path path);
 
@@ -76,6 +80,10 @@ namespace fjr::util {
             const std::size_t count = value.size();
             write(count);
             write_bytes(value.data(), count * sizeof(T));
+        }
+
+        void write_raw(const void* source, std::size_t size) {
+            write_bytes(source, size);
         }
 
         void copy(
@@ -98,4 +106,25 @@ namespace fjr::util {
         std::uint64_t offset_ = 0;
     };
 
-} // namespace fjr::util
+    [[nodiscard]]
+    std::uint64_t header_size() noexcept;
+
+    [[nodiscard]]
+    std::uint64_t read_header(Reader& reader);
+
+    void write_header(
+        Writer& writer,
+        std::uint64_t payload_size,
+        std::uint64_t texture_payload_size);
+
+    [[nodiscard]]
+    std::uint64_t texture_header_size() noexcept;
+
+    [[nodiscard]]
+    std::uint64_t read_texture_header(Reader& reader);
+
+    void write_texture_header(
+        Writer& writer,
+        std::uint64_t payload_size);
+
+} // namespace fjr::scene::static_scene_file_io

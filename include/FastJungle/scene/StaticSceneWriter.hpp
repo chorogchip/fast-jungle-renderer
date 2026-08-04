@@ -20,6 +20,10 @@ namespace fjr::scene {
             const StaticScene& scene,
             const std::filesystem::path& texture_payload_path,
             std::uint64_t texture_payload_size);
+
+        [[nodiscard]]
+        static std::filesystem::path texture_path(
+            const std::filesystem::path& scene_path);
     };
 
 } // namespace fjr::scene
