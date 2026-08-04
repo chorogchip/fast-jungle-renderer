@@ -16,7 +16,7 @@ namespace fjr::render {
 	public:
 		struct BuildContexts {
 			ID3D12Device* device;
-			ID3D12CommandList* context;
+			ID3D12GraphicsCommandList* context;
 		};
 
 		static std::unique_ptr<SceneResources> build(

@@ -39,7 +39,7 @@ namespace fjr::render {
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
             command_contexts_[i].init(
                 device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, i);
-            frame_data_[i].init(device_.Get());
+            frame_data_[i].init(device_.Get(), camera_);
         }
 
         // build scene
@@ -156,14 +156,14 @@ namespace fjr::render {
         forward_pass_.views.descs_samplers;  // TODO
 
         for (std::uint32_t i = 0; i < FRAME_COUNT; ++i)
-            frame_data_[i].upload_camera_data(camera_);
+            frame_data_[i].upload_camera_data();
     }
 
     void RendererMain::render() {
 
         const int frame = swap_chain_.get_frame_count();
 
-        frame_data_[frame].upload_camera_data(camera_);
+        frame_data_[frame].upload_camera_data();
 
         auto& context = command_contexts_[frame];
         command_queue_.wait(context.get_fence_value());

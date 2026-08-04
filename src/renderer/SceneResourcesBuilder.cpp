@@ -8,67 +8,14 @@
 #include <span>
 #include <vector>
 
-#include "FastJungle/dx12/DescriptorAllocator.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
+#include "FastJungle/dx12/FormatUtils.hpp"
+#include "FastJungle/dx12/HeapManager.hpp"
+
 namespace fjr::render {
 
     namespace {
 
-        DXGI_FORMAT resource_format(DXGI_FORMAT format) noexcept {
-            switch (format) {
-            case DXGI_FORMAT_R8G8B8A8_UNORM:
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-                return DXGI_FORMAT_R8G8B8A8_TYPELESS;
-            case DXGI_FORMAT_BC1_UNORM:
-            case DXGI_FORMAT_BC1_UNORM_SRGB:
-                return DXGI_FORMAT_BC1_TYPELESS;
-            case DXGI_FORMAT_BC2_UNORM:
-            case DXGI_FORMAT_BC2_UNORM_SRGB:
-                return DXGI_FORMAT_BC2_TYPELESS;
-            case DXGI_FORMAT_BC3_UNORM:
-            case DXGI_FORMAT_BC3_UNORM_SRGB:
-                return DXGI_FORMAT_BC3_TYPELESS;
-            case DXGI_FORMAT_BC7_UNORM:
-            case DXGI_FORMAT_BC7_UNORM_SRGB:
-                return DXGI_FORMAT_BC7_TYPELESS;
-            default:
-                return format;
-            }
-        }
-
-        DXGI_FORMAT linear_view_format(DXGI_FORMAT format) noexcept {
-            switch (format) {
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-                return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case DXGI_FORMAT_BC1_UNORM_SRGB:
-                return DXGI_FORMAT_BC1_UNORM;
-            case DXGI_FORMAT_BC2_UNORM_SRGB:
-                return DXGI_FORMAT_BC2_UNORM;
-            case DXGI_FORMAT_BC3_UNORM_SRGB:
-                return DXGI_FORMAT_BC3_UNORM;
-            case DXGI_FORMAT_BC7_UNORM_SRGB:
-                return DXGI_FORMAT_BC7_UNORM;
-            default:
-                return format;
-            }
-        }
-
-        DXGI_FORMAT srgb_view_format(DXGI_FORMAT format) noexcept {
-            switch (format) {
-            case DXGI_FORMAT_R8G8B8A8_UNORM:
-                return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-            case DXGI_FORMAT_BC1_UNORM:
-                return DXGI_FORMAT_BC1_UNORM_SRGB;
-            case DXGI_FORMAT_BC2_UNORM:
-                return DXGI_FORMAT_BC2_UNORM_SRGB;
-            case DXGI_FORMAT_BC3_UNORM:
-                return DXGI_FORMAT_BC3_UNORM_SRGB;
-            case DXGI_FORMAT_BC7_UNORM:
-                return DXGI_FORMAT_BC7_UNORM_SRGB;
-            default:
-                return format;
-            }
-        }
 
         template<typename T>
         void upload_static_buffer(
@@ -371,20 +318,10 @@ namespace fjr::render {
                 1u,
                 static_cast<UINT>(scene.textures.size()) * 2u);
 
-            resources.heap_srv.init(
-                device,
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                texture_descriptor_count,
-                true);
-
-            dx::DescriptorAllocator descriptor_allocator;
-            descriptor_allocator.init(texture_descriptor_count);
-            auto descriptor_region =
-                descriptor_allocator.allocate_region(
-                    texture_descriptor_count);
+            auto arena = dx::HeapManager::g_heap_manager.heap_srv_cbv_uav
+                .alloc_arena(texture_descriptor_count);
 
             if (scene.textures.empty()) {
-                const auto allocation = descriptor_region.allocate();
                 D3D12_SHADER_RESOURCE_VIEW_DESC description{};
                 description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 description.ViewDimension =
@@ -395,7 +332,7 @@ namespace fjr::render {
                 device->CreateShaderResourceView(
                     nullptr,
                     &description,
-                    resources.heap_srv.get_cpu_handle(allocation, 0).get_handle());
+                    arena.alloc().get_cpu());
                 return;
             }
 
@@ -416,7 +353,7 @@ namespace fjr::render {
                 description.DepthOrArraySize = 1;
                 description.MipLevels = static_cast<UINT16>(
                     source_texture.mip_count);
-                description.Format = resource_format(source_format);
+                description.Format = dx::FormatUtils::to_bc(source_format);
                 description.SampleDesc.Count = 1;
                 description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
                 description.Flags = D3D12_RESOURCE_FLAG_NONE;
@@ -520,21 +457,16 @@ namespace fjr::render {
                     command_list,
                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-                const auto allocation = descriptor_region.allocate(2);
                 (void)texture.create_srv(
                     device,
-                    resources.heap_srv,
-                    allocation,
+                    arena.alloc().get_cpu(),
                     {},
-                    linear_view_format(source_format),
-                    0);
+                    dx::FormatUtils::to_linear(source_format));
                 (void)texture.create_srv(
                     device,
-                    resources.heap_srv,
-                    allocation,
+                    arena.alloc().get_cpu(),
                     {},
-                    srgb_view_format(source_format),
-                    1);
+                    dx::FormatUtils::to_srgb(source_format));
             }
         }
 
@@ -546,11 +478,10 @@ namespace fjr::render {
             const UINT sampler_count = std::max(
                 1u,
                 static_cast<UINT>(scene.samplers.size()));
-            resources.heap_samplers.init(
-                device,
-                D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-                sampler_count,
-                true);
+            
+
+            auto arena = dx::HeapManager::g_heap_manager.heap_sampler
+                .alloc_arena(sampler_count);
 
             for (UINT sampler_index = 0;
                 sampler_index < sampler_count;
@@ -584,9 +515,7 @@ namespace fjr::render {
                         16u);
                 }
 
-                device->CreateSampler(
-                    &description,
-                    resources.heap_samplers.get_cpu_handle(sampler_index));
+                device->CreateSampler(&description, arena.alloc().get_cpu());
             }
         }
 
@@ -636,21 +565,21 @@ namespace fjr::render {
             resources->buf_vertices,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const scene::StaticScene::Vertex>{scene.vertices},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
         upload_static_buffer(
             resources->buf_indices,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const std::uint32_t>{scene.indices},
             D3D12_RESOURCE_STATE_INDEX_BUFFER);
         upload_static_buffer(
             resources->buf_instances_point,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const scene::StaticScene::PointInstance>{
                 scene.point_instances},
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -658,7 +587,7 @@ namespace fjr::render {
             resources->buf_instances_matrix,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const scene::StaticScene::MatrixInstance>{
                 scene.matrix_instances},
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -666,7 +595,7 @@ namespace fjr::render {
             resources->buf_materials,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const SceneResources::Material>{
                 resources->material_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -674,7 +603,7 @@ namespace fjr::render {
             resources->buf_texture_bindings,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const SceneResources::TextureBinding>{
                 resources->texture_binding_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -682,7 +611,7 @@ namespace fjr::render {
             resources->buf_draw_data,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const SceneResources::DrawData>{
                 resources->draw_data},
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -690,7 +619,7 @@ namespace fjr::render {
             resources->buf_cbuffer_point,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const SceneResources::PointDrawConstants>{
                 resources->point_draw_constants},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
@@ -698,7 +627,7 @@ namespace fjr::render {
             resources->buf_cbuffer_matrix,
             resources->upload_buffers,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             std::span<const SceneResources::MatrixDrawConstants>{
                 resources->matrix_draw_constants},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
@@ -718,7 +647,7 @@ namespace fjr::render {
         create_texture_resources(
             *resources,
             context.device,
-            context.contexts[0].get(),
+            context.context,
             scene);
         create_sampler_resources(*resources, context.device, scene);
 

@@ -188,9 +188,6 @@ namespace fjr::render {
         scene::StaticScene::SceneInfo scene_info;
 
         std::uint32_t default_material_id = 0;
-
-        dx::DescriptorHeap heap_samplers;
-        dx::DescriptorHeap heap_srv;
     };
 
     static_assert(sizeof(SceneResources::CameraConstants) ==
