@@ -4,10 +4,51 @@
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 
-#include "FastJungle/scene/StaticSceneFileFormat.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
+#include "StaticSceneFileHeader.hpp"
+
 namespace fjr::scene {
+
+    namespace {
+
+        [[nodiscard]]
+        std::unique_ptr<StaticScene> allocate_scene(
+            const std::filesystem::path& path) {
+
+            try {
+                return std::make_unique<StaticScene>();
+            }
+            catch (...) {
+                log::Logger::g_logger
+                    << "Failed to allocate StaticScene: " << path << '\n';
+                log::Logger::g_logger.abort();
+            }
+        }
+
+        void read_before_texture(
+            util::BinaryReader& reader,
+            StaticScene& scene) {
+
+#define X(type, name) reader.read(scene.name);
+            SceneDataBeforeTexture_MACRO
+#undef X
+        }
+
+        void read_after_texture(
+            util::BinaryReader& reader,
+            StaticScene& scene) {
+
+#define X(type, name) reader.read(scene.name);
+            SceneDataAfterTexture_MACRO
+#undef X
+
+            reader.read(scene.camera);
+            reader.read(scene.environment_light);
+            reader.read(scene.info);
+        }
+
+    } // namespace
 
     std::unique_ptr<StaticScene> StaticSceneReader::load(
         const std::filesystem::path& path) {
@@ -15,25 +56,12 @@ namespace fjr::scene {
         auto source = util::File::open_read(path);
         util::BinaryReader reader{source, util::File::size(path), path};
 
-        StaticSceneFileFormat::read_header(reader);
+        static_scene_file_header::read(reader);
 
-        std::unique_ptr<StaticScene> scene;
-        try {
-            scene = std::make_unique<StaticScene>();
-        }
-        catch (...) {
-            log::Logger::g_logger
-                << "Failed to allocate StaticScene: " << path << '\n';
-            log::Logger::g_logger.abort();
-        }
-
-#define X(type, name) reader.read(scene->name);
-        SceneData_MACRO
-#undef X
-
-        reader.read(scene->camera);
-        reader.read(scene->environment_light);
-        reader.read(scene->info);
+        auto scene = allocate_scene(path);
+        read_before_texture(reader, *scene);
+        reader.read(scene->texture_data);
+        read_after_texture(reader, *scene);
         reader.require_end();
         StaticSceneValidator::validate(*scene);
         return scene;
@@ -45,22 +73,11 @@ namespace fjr::scene {
         auto source = util::File::open_read(path);
         util::BinaryReader reader{source, util::File::size(path), path};
 
-        StaticSceneFileFormat::read_header(reader);
+        static_scene_file_header::read(reader);
 
         StaticSceneMetadata result;
-        try {
-            result.scene = std::make_unique<StaticScene>();
-        }
-        catch (...) {
-            log::Logger::g_logger
-                << "Failed to allocate StaticScene metadata: "
-                << path << '\n';
-            log::Logger::g_logger.abort();
-        }
-
-#define X(type, name) reader.read(result.scene->name);
-        SceneDataBeforeTexture_MACRO
-#undef X
+        result.scene = allocate_scene(path);
+        read_before_texture(reader, *result.scene);
 
         std::size_t texture_payload_size = 0;
         reader.read(texture_payload_size);
@@ -70,13 +87,7 @@ namespace fjr::scene {
         };
         reader.skip(texture_payload_size);
 
-#define X(type, name) reader.read(result.scene->name);
-        SceneDataAfterTexture_MACRO
-#undef X
-
-        reader.read(result.scene->camera);
-        reader.read(result.scene->environment_light);
-        reader.read(result.scene->info);
+        read_after_texture(reader, *result.scene);
         reader.require_end();
         StaticSceneValidator::validate(
             *result.scene,

@@ -20,21 +20,6 @@ namespace fjr::scene {
             const StaticScene& scene,
             const std::filesystem::path& texture_payload_path,
             std::uint64_t texture_payload_size);
-
-        [[nodiscard]]
-        static std::uint64_t calculate_size(
-            const StaticScene& scene,
-            std::uint64_t texture_payload_size);
-
-    private:
-        static void add(
-            std::uint64_t& total,
-            std::uint64_t size);
-
-        static void add_vector(
-            std::uint64_t& total,
-            std::uint64_t count,
-            std::uint64_t element_size);
     };
 
 } // namespace fjr::scene

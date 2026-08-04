@@ -12,9 +12,9 @@ The default paths are:
 - source: `assets/scene/JungleRuins_1_0_1b/USD/JungleRuins_Karma.usda`
 - cooked output: `assets/cooked/JungleRuins.fjscene`
 
-`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures,
-streams the file, and verifies every output byte without loading another full
-scene. `FastJungle.exe` uses only the runtime reader and does not link or deploy
+`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures, and
+streams the file without allocating another file-sized buffer.
+`FastJungle.exe` uses only the runtime reader and does not link or deploy
 OpenUSD.
 
 ## Header
@@ -31,8 +31,8 @@ header is:
 | 20 | 4 | `StaticScene::SceneInfo` size |
 | 24 | 8 | payload byte count |
 
-The reader rejects unknown versions, ABI-size mismatches, truncation, trailing
-bytes, invalid enum values, and unsafe indices or ranges.
+The reader rejects unknown versions, ABI-size mismatches, length mismatches,
+truncation, and trailing bytes.
 
 ## Payload
 
