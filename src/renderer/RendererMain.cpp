@@ -2,15 +2,10 @@
 
 #include "FastJungle/dx12/WindowsUtils.hpp"
 #include "FastJungle/dx12/HeapManager.hpp"
+#include "FastJungle/renderer/SceneDerivedData.hpp"
 #include "FastJungle/renderer/SceneResourcesBuilder.hpp"
-#include "FastJungle/scene/StaticSceneValidation.hpp"
 
-#include <cmath>
-#include <chrono>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <thread>
 
 namespace fjr::render {
 
@@ -22,20 +17,21 @@ namespace fjr::render {
         void* window,
         std::uint32_t width,
         std::uint32_t height,
-        const scene::StaticScene& scene) {
+        const scene::StaticScene& scene,
+        std::optional<SceneResources::Component> component) {
 
         // basic resource
 
         const HWND hwnd = static_cast<HWND>(window);
 
-        factory_ = dx::DeviceUtils::create_factory();
-        device_ = dx::DeviceUtils::create_device(factory_.Get());
+        const auto factory = dx::DeviceUtils::create_factory();
+        device_ = dx::DeviceUtils::create_device(factory.Get());
 
         command_queue_.init(
             device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT);
 
         swap_chain_.init(
-            factory_.Get(), command_queue_.get_command_queue(),
+            factory.Get(), command_queue_.get_command_queue(),
             hwnd, width, height, FRAME_COUNT, false);
 
         auto& descriptor_heaps = dx::HeapManager::g_heap_manager;
@@ -53,7 +49,7 @@ namespace fjr::render {
 
         // build scene
 
-        scene_derived_data_ = SceneDerivedData::build(scene);
+        const auto derived_data = SceneDerivedData::build(scene);
 
         dx::CommandContext upload_context;
         upload_context.init(
@@ -72,19 +68,43 @@ namespace fjr::render {
         scene_viewer_.init(
             scene,
             *scene_resources_,
-            scene_derived_data_);
+            derived_data,
+            component);
 
         // camera
         camera_.set_scene_camera(scene.camera);
         camera_.set_viewport(width, height);
-        if (!camera_.has_valid_lens() || !camera_.has_valid_transform()) {
-            camera_.frame_bounds(scene_derived_data_.world_bounds);
+        if (component) {
+            camera_.frame_bounds(scene_viewer_.get_world_bounds());
+        }
+        else if (!camera_.has_valid_lens() ||
+                 !camera_.has_valid_transform()) {
+            camera_.frame_bounds(derived_data.world_bounds);
         }
 
         forward_pass_.init(
             device_.Get(),
             scene_resources_->texture_descriptors.get_count(),
             scene_resources_->sampler_descriptors.get_count());
+
+        forward_pass_.views.view_vertices = scene_resources_->view_vertices;
+        forward_pass_.views.view_indices = scene_resources_->view_indices;
+        forward_pass_.views.cbuf_transform_matrix =
+            scene_resources_->view_cbuf_transform_matrix;
+        forward_pass_.views.cbuf_transform_point =
+            scene_resources_->view_cbuf_transform_point;
+        forward_pass_.views.desc_instnaces_matrix =
+            scene_resources_->buf_instances_matrix->GetGPUVirtualAddress();
+        forward_pass_.views.desc_instances_point =
+            scene_resources_->buf_instances_point->GetGPUVirtualAddress();
+        forward_pass_.views.desc_materials =
+            scene_resources_->buf_materials->GetGPUVirtualAddress();
+        forward_pass_.views.desc_texture_bindings =
+            scene_resources_->buf_texture_bindings->GetGPUVirtualAddress();
+        forward_pass_.views.descs_textures =
+            scene_resources_->texture_descriptors;
+        forward_pass_.views.descs_samplers =
+            scene_resources_->sampler_descriptors;
 
         this->resize(width, height);
     }
@@ -100,15 +120,14 @@ namespace fjr::render {
 
         // Render Target
 
-        D3D12_RENDER_TARGET_VIEW_DESC desc_rtv{};
-        desc_rtv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        desc_rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
-            device_->CreateRenderTargetView(
-                swap_chain_.get_buffer(i).get(),
-                &desc_rtv,
-                desc_rtv_.get_cpu(i));
+            swap_chain_.get_buffer(i).create_rtv(
+                device_.Get(),
+                desc_rtv_.get_cpu(i),
+                0,
+                0,
+                1,
+                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
         }
 
         // Depth Stencil
@@ -140,43 +159,18 @@ namespace fjr::render {
             D3D12_RESOURCE_STATE_DEPTH_WRITE,
             &clear_value);
 
-        D3D12_DEPTH_STENCIL_VIEW_DESC view{};
-        view.Format = DEPTH_FORMAT;
-        view.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        buffer_depth_.create_dsv(
+            device_.Get(),
+            desc_dsv_.get_cpu(),
+            0,
+            0,
+            1,
+            DEPTH_FORMAT,
+            D3D12_DSV_FLAG_NONE);
 
-        device_->CreateDepthStencilView(
-            buffer_depth_.get(),
-            &view,
-            desc_dsv_.get_cpu());
-        forward_pass_.views.view_vertices = scene_resources_->view_vertices;
-        forward_pass_.views.view_indices = scene_resources_->view_indices;
         forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
-
-        forward_pass_.views.cbuf_transform_matrix =
-            scene_resources_->view_cbuf_transform_matrix;
-        forward_pass_.views.cbuf_transform_point =
-            scene_resources_->view_cbuf_transform_point;
-
-        forward_pass_.views.desc_instnaces_matrix = 
-            scene_resources_->buf_instances_matrix->GetGPUVirtualAddress();
-        forward_pass_.views.desc_instances_point =
-            scene_resources_->buf_instances_point->GetGPUVirtualAddress();
-
-        forward_pass_.views.desc_materials =
-            scene_resources_->buf_materials->GetGPUVirtualAddress();
-        forward_pass_.views.desc_texture_bindings =
-            scene_resources_->buf_texture_bindings->GetGPUVirtualAddress();
-
-        forward_pass_.views.descs_textures =
-            scene_resources_->texture_descriptors;
-        forward_pass_.views.descs_samplers = 
-            scene_resources_->sampler_descriptors;
-
         forward_pass_.views.width = width;
         forward_pass_.views.height = height;
-
-        for (std::uint32_t i = 0; i < FRAME_COUNT; ++i)
-            frame_data_[i].upload_camera_data(camera_, scene_resources_->environment_light);
     }
 
     void RendererMain::render() {
@@ -185,34 +179,7 @@ namespace fjr::render {
 
 
         auto& context = command_contexts_[frame];
-        const UINT64 frame_fence = context.get_fence_value();
-        bool quit_requested = false;
-        while (frame_fence != 0 &&
-               command_queue_.get_completed_value() < frame_fence) {
-            MSG message{};
-            while (PeekMessageW(
-                &message,
-                nullptr,
-                0,
-                0,
-                PM_REMOVE)) {
-                if (message.message == WM_QUIT) {
-                    PostQuitMessage(static_cast<int>(message.wParam));
-                    quit_requested = true;
-                    break;
-                }
-
-                TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
-
-            if (quit_requested) {
-                command_queue_.wait(frame_fence);
-                break;
-            }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        command_queue_.wait(context.get_fence_value());
         frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
         context.reset();
 

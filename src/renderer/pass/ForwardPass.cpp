@@ -5,7 +5,6 @@
 #include "FastJungle/dx12/Shader.hpp"
 #include "FastJungle/renderer/SceneResources.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -14,8 +13,6 @@
 namespace fjr::render {
 
     namespace {
-
-        constexpr std::uint32_t MAX_POINT_INSTANCES_PER_DRAW = 1'024;
 
         enum class RootParameter : std::uint32_t {
             CONSTANT_DRAW,
@@ -222,46 +219,25 @@ namespace fjr::render {
 
             context->SetGraphicsRootConstantBufferView(
                 static_cast<UINT>(RootParameter::ROOT_CBUF_TRANSFORMS),
-                transform_constants.at(
+                transform_constants.get_address(
                     draw.offset_cbuf_transform));
 
             context->SetGraphicsRootShaderResourceView(
                 static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
                 instances);
 
-            const std::uint32_t instances_per_draw = point_instanced
-                ? MAX_POINT_INSTANCES_PER_DRAW
-                : draw.count_instance;
-            for (std::uint32_t first_instance = 0;
-                first_instance < draw.count_instance;
-                first_instance += instances_per_draw) {
+            context->SetGraphicsRoot32BitConstants(
+                static_cast<UINT>(RootParameter::CONSTANT_DRAW),
+                Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
+                &draw.constants, 0);
 
-                auto constants = draw.constants;
-                constants.offset_instance += first_instance;
-                const std::uint32_t instance_count = std::min(
-                    instances_per_draw,
-                    draw.count_instance - first_instance);
-
-                context->SetGraphicsRoot32BitConstants(
-                    static_cast<UINT>(RootParameter::CONSTANT_DRAW),
-                    Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
-                    &constants, 0);
-
-                context->DrawIndexedInstanced(
-                    draw.count_index,
-                    instance_count,
-                    draw.offset_index,
-                    draw.offset_vertex,
-                    0);
-            }
+            context->DrawIndexedInstanced(
+                draw.count_index,
+                draw.count_instance,
+                draw.offset_index,
+                draw.offset_vertex,
+                0);
         }
-    }
-
-    void ForwardPass::reset() noexcept {
-        for (auto& pipeline : pipeline_states_) {
-            pipeline.Reset();
-        }
-        root_signature_.Reset();
     }
 
 } // namespace fjr::render

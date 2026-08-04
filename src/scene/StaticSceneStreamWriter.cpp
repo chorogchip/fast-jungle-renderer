@@ -5,7 +5,7 @@
 #include "FastJungle/core/util/TemporaryFile.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
-#include "StaticSceneFileIO.hpp"
+#include "FastJungle/scene/StaticSceneFileIO.hpp"
 
 #include <istream>
 #include <limits>
@@ -57,6 +57,7 @@ namespace fjr::scene {
             add_size(total, sizeof(StaticScene::Camera));
             add_size(total, sizeof(StaticScene::EnvironmentLight));
             add_size(total, sizeof(StaticScene::SceneInfo));
+            add_size(total, sizeof(StaticScene::Components));
             return total;
         }
 
@@ -127,6 +128,7 @@ namespace fjr::scene {
             SceneData_MACRO
 #undef X
 
+            writer.write(scene.components);
             writer.write(scene.camera);
             writer.write(scene.environment_light);
             writer.write(scene.info);

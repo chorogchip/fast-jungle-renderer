@@ -4,7 +4,7 @@
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
-#include "StaticSceneFileIO.hpp"
+#include "FastJungle/scene/StaticSceneFileIO.hpp"
 
 #include <limits>
 #include <utility>
@@ -89,6 +89,7 @@ namespace fjr::scene {
         SceneData_MACRO
 #undef X
 
+        reader.read(result.scene->components);
         reader.read(result.scene->camera);
         reader.read(result.scene->environment_light);
         reader.read(result.scene->info);

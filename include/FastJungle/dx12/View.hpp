@@ -45,23 +45,23 @@ namespace fjr::dx {
         UINT descriptor_size_ = 0;
     };
 
-    class CBbufArrayView {
-
+    class CBufferArrayView {
     public:
-        CBbufArrayView() = default;
-        CBbufArrayView(D3D12_GPU_VIRTUAL_ADDRESS base, UINT stride, UINT size)
-            :base_{ base }, stride_{ stride }, size_{ size } {}
-        CBbufArrayView(const CBbufArrayView&) = default;
-        CBbufArrayView& operator=(const CBbufArrayView&) = default;
+        CBufferArrayView() = default;
 
-        D3D12_GPU_VIRTUAL_ADDRESS at(UINT index) const {
+        CBufferArrayView(
+            D3D12_GPU_VIRTUAL_ADDRESS base,
+            UINT64 stride) noexcept
+            : base_{ base }, stride_{ stride } {}
+
+        [[nodiscard]]
+        D3D12_GPU_VIRTUAL_ADDRESS get_address(UINT index) const noexcept {
             return base_ + static_cast<UINT64>(index) * stride_;
         }
 
     private:
-        D3D12_GPU_VIRTUAL_ADDRESS base_;
-        UINT stride_;
-        UINT size_;
+        D3D12_GPU_VIRTUAL_ADDRESS base_ = 0;
+        UINT64 stride_ = 0;
     };
 
-}
+} // namespace fjr::dx

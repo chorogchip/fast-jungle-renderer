@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/CommandQueue.hpp"
@@ -12,7 +13,6 @@
 #include "FastJungle/dx12/Texture.hpp"
 #include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/renderer/FrameData.hpp"
-#include "FastJungle/renderer/SceneDerivedData.hpp"
 #include "FastJungle/renderer/SceneResources.hpp"
 #include "FastJungle/renderer/SceneViewer.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
@@ -36,7 +36,8 @@ namespace fjr::render {
             void* window,
             std::uint32_t width,
             std::uint32_t height,
-            const scene::StaticScene& scene);
+            const scene::StaticScene& scene,
+            std::optional<SceneResources::Component> component = std::nullopt);
 
         void resize(
             std::uint32_t width,
@@ -47,7 +48,6 @@ namespace fjr::render {
     private:
         static constexpr std::uint32_t FRAME_COUNT = 2;
 
-        Microsoft::WRL::ComPtr<IDXGIFactory4> factory_;
         Microsoft::WRL::ComPtr<ID3D12Device> device_;
 
         dx::CommandQueue command_queue_;
@@ -65,7 +65,6 @@ namespace fjr::render {
         std::array<FrameData, FRAME_COUNT> frame_data_;
 
         std::unique_ptr<SceneResources> scene_resources_;
-        SceneDerivedData scene_derived_data_;
         SceneViewer scene_viewer_;
     };
 

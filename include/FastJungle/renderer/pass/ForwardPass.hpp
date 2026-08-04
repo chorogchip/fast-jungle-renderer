@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <span>
 
-#include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/CommandContext.hpp"
+#include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/View.hpp"
 #include "FastJungle/renderer/structs/Draw.hpp"
 
@@ -28,8 +28,8 @@ namespace fjr::render {
 
             // root const buffer
             D3D12_GPU_VIRTUAL_ADDRESS cbuf_camera{};
-            dx::CBbufArrayView cbuf_transform_matrix{};
-            dx::CBbufArrayView cbuf_transform_point{};
+            dx::CBufferArrayView cbuf_transform_matrix{};
+            dx::CBufferArrayView cbuf_transform_point{};
 
             // root srv
             D3D12_GPU_VIRTUAL_ADDRESS desc_instnaces_matrix{};
@@ -57,8 +57,6 @@ namespace fjr::render {
         void record(
             dx::CommandContext& context,
             std::span<const Draw::DrawDataCpu> draws);
-
-        void reset() noexcept;
 
     private:
         static constexpr std::uint32_t PIPELINE_STATE_COUNT = 4;

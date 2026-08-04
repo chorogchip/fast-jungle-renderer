@@ -68,50 +68,6 @@ namespace fjr::render {
             destination.transition(command_list, final_state);
         }
 
-        void create_camera_buffer(
-            SceneResources& resources,
-            ID3D12Device* device,
-            std::uint32_t frame_count) {
-
-            const UINT64 byte_size =
-                static_cast<UINT64>(
-                    sizeof(SceneResources::CameraConstants)) *
-                frame_count;
-
-            resources.buf_cbuffer_camera.init(
-                device,
-                byte_size,
-                D3D12_HEAP_TYPE_UPLOAD,
-                D3D12_RESOURCE_FLAG_NONE,
-                D3D12_RESOURCE_STATE_GENERIC_READ);
-
-            void* mapped = nullptr;
-            const D3D12_RANGE read_range{0, 0};
-            dx::abort_failed(resources.buf_cbuffer_camera->Map(
-                0,
-                &read_range,
-                &mapped));
-
-            const SceneResources::CameraConstants initial{};
-            for (std::uint32_t frame = 0;
-                frame < frame_count;
-                ++frame) {
-                std::memcpy(
-                    static_cast<std::byte*>(mapped) +
-                        static_cast<std::size_t>(frame) * sizeof(initial),
-                    &initial,
-                    sizeof(initial));
-            }
-
-            const D3D12_RANGE written_range{
-                0,
-                static_cast<SIZE_T>(byte_size),
-            };
-            resources.buf_cbuffer_camera->Unmap(
-                0,
-                &written_range);
-        }
-
         void append_material_data(
             SceneResources& resources,
             const scene::StaticScene& scene) {
@@ -144,6 +100,12 @@ namespace fjr::render {
                     source.metallic,
                     source.opacity,
                     source.opacity_threshold,
+                    source.ior,
+                };
+                material.optical = {
+                    source.specular,
+                    source.clearcoat,
+                    source.clearcoat_roughness,
                     0.0f,
                 };
                 material.texture_bindings_0 = {
@@ -154,6 +116,8 @@ namespace fjr::render {
                 };
                 material.texture_bindings_1.x =
                     source.texture_binding_emissive;
+                material.texture_bindings_1.y =
+                    source.texture_binding_metallic;
                 resources.material_data.push_back(material);
             }
 
@@ -163,16 +127,18 @@ namespace fjr::render {
             resources.material_data.emplace_back();
         }
 
-        bool append_part_draws(
+        bool append_mesh_draws(
             SceneResources& resources,
             const scene::StaticScene& scene,
-            const scene::StaticScene::PrototypePart& part,
+            std::uint32_t mesh_index,
+            SceneResources::Component component,
             SceneResources::InstanceKind instance_kind,
             std::uint32_t instance_offset,
             std::uint32_t instance_count,
-            std::uint32_t transform_constant_index) {
+            std::uint32_t transform_constant_index,
+            std::uint32_t bounds_index) {
 
-            const auto& mesh = scene.meshes[part.mesh];
+            const auto& mesh = scene.meshes[mesh_index];
             bool appended = false;
 
             for (std::uint32_t local_submesh = 0;
@@ -188,6 +154,7 @@ namespace fjr::render {
 
                 SceneResources::DrawItem draw;
                 draw.instance_kind = instance_kind;
+                draw.component = component;
                 draw.index_count = submesh.index_count;
                 draw.first_index = submesh.index_offset;
                 draw.base_vertex = static_cast<std::int32_t>(
@@ -202,6 +169,7 @@ namespace fjr::render {
                     static_cast<std::uint32_t>(instance_kind);
                 draw.transform_constant_index =
                     transform_constant_index;
+                draw.bounds_index = bounds_index;
                 draw.flags = submesh.flags;
 
                 resources.draw_items.push_back(draw);
@@ -211,101 +179,165 @@ namespace fjr::render {
             return appended;
         }
 
-        void append_point_draws(
+        void append_point_range(
             SceneResources& resources,
-            const scene::StaticScene& scene) {
+            const scene::StaticScene& scene,
+            scene::StaticScene::IndexRange range,
+            SceneResources::Component component) {
 
-            for (const auto& batch : scene.point_batches) {
+            for (std::uint32_t local_batch = 0;
+                 local_batch < range.count;
+                 ++local_batch) {
+                const auto batch_index = range.offset + local_batch;
+                const auto& batch = scene.point_batches[batch_index];
                 if (batch.instance_count == 0) {
                     continue;
                 }
 
-                const auto& prototype =
-                    scene.prototypes[batch.prototype];
+                const auto& definition =
+                    scene.instanced_mesh_definitions[batch.definition];
+                const auto constant_index = static_cast<std::uint32_t>(
+                    resources.point_draw_constants.size());
 
-                for (std::uint32_t local_part = 0;
-                    local_part < prototype.part_count;
-                    ++local_part) {
-                    const auto& part = scene.prototype_parts[
-                        static_cast<std::size_t>(prototype.part_offset) +
-                        local_part];
+                const bool appended = append_mesh_draws(
+                    resources,
+                    scene,
+                    definition.mesh,
+                    component,
+                    SceneResources::InstanceKind::POINT,
+                    batch.instance_offset,
+                    batch.instance_count,
+                    constant_index,
+                    batch_index);
 
-                    const auto constant_index =
-                        static_cast<std::uint32_t>(
-                            resources.point_draw_constants.size());
-
-                    const bool appended = append_part_draws(
-                        resources,
-                        scene,
-                        part,
-                        SceneResources::InstanceKind::POINT,
-                        batch.instance_offset,
-                        batch.instance_count,
-                        constant_index);
-
-                    if (appended) {
-                        SceneResources::PointDrawConstants constants;
-                        constants.part_local_transform =
-                            part.local_transform;
-                        constants.batch_local_to_world =
-                            batch.local_to_world;
-                        resources.point_draw_constants.push_back(constants);
-                    }
+                if (appended) {
+                    SceneResources::PointDrawConstants constants;
+                    constants.part_local_transform =
+                        definition.local_transform;
+                    constants.batch_local_to_world =
+                        batch.local_to_world;
+                    resources.point_draw_constants.push_back(constants);
                 }
             }
         }
 
-        void append_matrix_draws(
+        void append_point_draws(
             SceneResources& resources,
             const scene::StaticScene& scene) {
 
-            std::vector<std::uint32_t> part_constant_indices(
-                scene.prototype_parts.size(),
-                scene::StaticScene::INVALID_INDEX);
+            const auto& components = scene.components;
+            append_point_range(resources, scene,
+                components.anthurium.point_batches,
+                SceneResources::Component::ANTHURIUM);
+            append_point_range(resources, scene,
+                components.nettle.point_batches,
+                SceneResources::Component::NETTLE);
+            append_point_range(resources, scene,
+                components.shrub_sorrel.point_batches,
+                SceneResources::Component::SHRUB_SORREL);
+            append_point_range(resources, scene,
+                components.shrub.point_batches,
+                SceneResources::Component::SHRUB);
+            append_point_range(resources, scene,
+                components.grass_b.point_batches,
+                SceneResources::Component::GRASS_B);
+            append_point_range(resources, scene,
+                components.grass_a.point_batches,
+                SceneResources::Component::GRASS_A);
+            append_point_range(resources, scene,
+                components.pyramid_grass_b.point_batches,
+                SceneResources::Component::PYRAMID_GRASS_B);
+            append_point_range(resources, scene,
+                components.pyramid_moss.point_batches,
+                SceneResources::Component::PYRAMID_MOSS);
+            append_point_range(resources, scene,
+                components.queen_forest.point_batches,
+                SceneResources::Component::QUEEN_FOREST);
+            append_point_range(resources, scene,
+                components.river_forest.point_batches,
+                SceneResources::Component::RIVER_FOREST);
+            append_point_range(resources, scene,
+                components.river_sapling.point_batches,
+                SceneResources::Component::RIVER_SAPLING);
+            append_point_range(resources, scene,
+                components.river_seedling.point_batches,
+                SceneResources::Component::RIVER_SEEDLING);
+        }
 
-            for (const auto& batch : scene.matrix_batches) {
-                if (batch.instance_count == 0) {
-                    continue;
-                }
+        void append_static_instance(
+            SceneResources& resources,
+            const scene::StaticScene& scene,
+            std::uint32_t instance_index,
+            SceneResources::Component component) {
 
-                const auto& prototype =
-                    scene.prototypes[batch.prototype];
+            const auto& instance =
+                scene.static_mesh_instances[instance_index];
+            append_mesh_draws(
+                resources,
+                scene,
+                instance.mesh,
+                component,
+                SceneResources::InstanceKind::MATRIX,
+                instance_index,
+                1,
+                0,
+                instance_index);
+        }
 
-                for (std::uint32_t local_part = 0;
-                    local_part < prototype.part_count;
-                    ++local_part) {
-                    const auto part_index =
-                        static_cast<std::size_t>(prototype.part_offset) +
-                        local_part;
-                    const auto& part = scene.prototype_parts[part_index];
+        void append_static_range(
+            SceneResources& resources,
+            const scene::StaticScene& scene,
+            scene::StaticScene::IndexRange range,
+            SceneResources::Component component) {
 
-                    auto constant_index =
-                        part_constant_indices[part_index];
-                    const bool needs_constant =
-                        constant_index == scene::StaticScene::INVALID_INDEX;
-                    if (needs_constant) {
-                        constant_index = static_cast<std::uint32_t>(
-                            resources.matrix_draw_constants.size());
-                    }
-
-                    const bool appended = append_part_draws(
-                        resources,
-                        scene,
-                        part,
-                        SceneResources::InstanceKind::MATRIX,
-                        batch.instance_offset,
-                        batch.instance_count,
-                        constant_index);
-
-                    if (appended && needs_constant) {
-                        SceneResources::MatrixDrawConstants constants;
-                        constants.part_local_transform =
-                            part.local_transform;
-                        resources.matrix_draw_constants.push_back(constants);
-                        part_constant_indices[part_index] = constant_index;
-                    }
-                }
+            for (std::uint32_t local_instance = 0;
+                 local_instance < range.count;
+                 ++local_instance) {
+                append_static_instance(
+                    resources,
+                    scene,
+                    range.offset + local_instance,
+                    component);
             }
+        }
+
+        void append_static_draws(
+            SceneResources& resources,
+            const scene::StaticScene& scene) {
+
+            resources.matrix_instance_data.reserve(
+                scene.static_mesh_instances.size());
+            for (const auto& source : scene.static_mesh_instances) {
+                SceneResources::MatrixInstance destination;
+                destination.transform = source.world_transform;
+                resources.matrix_instance_data.push_back(destination);
+            }
+
+            if (!scene.static_mesh_instances.empty()) {
+                // All static instance matrices are complete world transforms,
+                // so every static draw shares the identity draw transform.
+                resources.matrix_draw_constants.emplace_back();
+            }
+
+            const auto& components = scene.components;
+            append_static_instance(resources, scene,
+                components.pyramid.instance,
+                SceneResources::Component::PYRAMID);
+            append_static_instance(resources, scene,
+                components.river.instance,
+                SceneResources::Component::RIVER);
+            append_static_instance(resources, scene,
+                components.creek.instance,
+                SceneResources::Component::CREEK);
+            append_static_instance(resources, scene,
+                components.banyan.instance,
+                SceneResources::Component::BANYAN);
+            append_static_range(resources, scene,
+                components.terrain.extended,
+                SceneResources::Component::TERRAIN);
+            append_static_range(resources, scene,
+                components.terrain.cinematic,
+                SceneResources::Component::TERRAIN);
         }
 
         void create_texture_resources(
@@ -535,11 +567,10 @@ namespace fjr::render {
         auto resources = std::make_unique<SceneResources>();
 
         resources->environment_light = scene.environment_light;
-        resources->scene_info = scene.info;
 
         append_material_data(*resources, scene);
         append_point_draws(*resources, scene);
-        append_matrix_draws(*resources, scene);
+        append_static_draws(*resources, scene);
 
         const auto alpha_blended = static_cast<std::uint32_t>(
             scene::StaticScene::EnumSubmeshFlag::ALPHA_BLENDED);
@@ -595,8 +626,8 @@ namespace fjr::render {
             resources->upload_buffers,
             context.device,
             context.context,
-            std::span<const scene::StaticScene::MatrixInstance>{
-                scene.matrix_instances},
+            std::span<const SceneResources::MatrixInstance>{
+                resources->matrix_instance_data},
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         upload_static_buffer(
             resources->buf_materials,
@@ -639,18 +670,13 @@ namespace fjr::render {
                 resources->matrix_draw_constants},
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
-        resources->view_cbuf_transform_matrix = dx::CBbufArrayView(
+        resources->view_cbuf_transform_matrix = dx::CBufferArrayView(
             resources->buf_cbuffer_matrix->GetGPUVirtualAddress(),
-            sizeof(SceneResources::MatrixDrawConstants),
-            resources->matrix_draw_constants.size()
-        );
-        resources->view_cbuf_transform_point = dx::CBbufArrayView(
+            sizeof(SceneResources::MatrixDrawConstants));
+        resources->view_cbuf_transform_point = dx::CBufferArrayView(
             resources->buf_cbuffer_point->GetGPUVirtualAddress(),
-            sizeof(SceneResources::PointDrawConstants),
-            resources->point_draw_constants.size()
-        );
+            sizeof(SceneResources::PointDrawConstants));
 
-        create_camera_buffer(*resources, context.device, 2);
         create_texture_resources(
             *resources,
             context.device,

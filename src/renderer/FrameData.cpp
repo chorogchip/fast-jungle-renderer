@@ -1,41 +1,44 @@
 #include "FastJungle/renderer/FrameData.hpp"
 
+#include "FastJungle/renderer/Camera.hpp"
+
 #include <cmath>
 
 namespace fjr::render {
 
-	void FrameData::init(ID3D12Device* device) {
-		buffer_.init(device, this->camera_constants_);
-	}
+    void FrameData::init(ID3D12Device* device) {
+        camera_buffer_.init(device);
+    }
 
-	D3D12_GPU_VIRTUAL_ADDRESS FrameData::get_camera_buffer() const noexcept {
-		return buffer_->GetGPUVirtualAddress();
-	}
+    D3D12_GPU_VIRTUAL_ADDRESS FrameData::get_camera_buffer() const noexcept {
+        return camera_buffer_.get_address();
+    }
 
-	void FrameData::upload_camera_data(
+    void FrameData::upload_camera_data(
 
         const Camera& camera,
         const scene::StaticScene::EnvironmentLight& environment) {
 
-        camera_constants_.view_projection =
+        auto& camera_constants = camera_buffer_.data();
+
+        camera_constants.view_projection =
             camera.get_view_projection();
 
-        camera_constants_.world_position =
+        camera_constants.world_position =
             camera.get_world_position();
 
-        camera_constants_.environment_world_transform =
+        camera_constants.environment_world_transform =
             environment.world_transform;
 
-        camera_constants_.environment_color =
+        camera_constants.environment_color =
             environment.color;
 
-        camera_constants_.environment_intensity =
+        camera_constants.environment_intensity =
             environment.intensity *
             std::exp2(environment.exposure);
 
-        camera_constants_.environment_texture_id =
+        camera_constants.environment_texture_id =
             environment.texture;
+    }
 
-		buffer_.copy();
-	}
-}
+} // namespace fjr::render
