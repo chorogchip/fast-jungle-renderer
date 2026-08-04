@@ -1,84 +1,100 @@
-# Jungle scene file version 1
+# Jungle scene file version 2
 
 ## Purpose
 
-`JungleRuins.fjscene` is the boundary between the OpenUSD cooker and the
-runtime renderer. Version 1 is specific to the fixed Intel Jungle Ruins scene
-and serializes the complete project-owned `StaticScene`; it is not a general
-asset container or the final GPU layout.
+The cooked runtime scene is split into two files:
 
-The default paths are:
+- `assets/cooked/JungleRuins.fjscene`: geometry, materials, instances, camera,
+  light, and flat source provenance;
+- `assets/cooked/JungleRuins.fjtex`: texture pixel payload.
 
-- source: `assets/scene/JungleRuins_1_0_1b/USD/JungleRuins_Karma.usda`
-- cooked output: `assets/cooked/JungleRuins.fjscene`
+The renderer does not link OpenUSD. A scene and texture file are one validated
+pair and must be deployed together with the same basename.
 
-`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures,
-streams the file, and verifies every output byte without loading another full
-scene. `FastJungle.exe` uses only the runtime reader and does not link or deploy
-OpenUSD.
+## Static scene header
 
-## Header
-
-All values use the native little-endian x64 representation. The fixed 32-byte
-header is:
+All values use the native little-endian x64 representation. The fixed 40-byte
+`.fjscene` header is:
 
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`1`) |
-| 12 | 4 | header size (`32`) |
+| 8 | 4 | format version (`2`) |
+| 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
-| 24 | 8 | payload byte count |
+| 24 | 8 | static payload byte count |
+| 32 | 8 | expected texture payload byte count |
 
-The reader rejects unknown versions, ABI-size mismatches, truncation, trailing
-bytes, invalid enum values, and unsafe indices or ranges.
+The payload serializes every vector in `SceneData_MACRO`, followed by the
+camera, environment light, and scene information records. Every vector starts
+with a native `size_t` element count and then stores its trivially copyable
+elements contiguously.
 
-## Payload
+## Texture header
 
-The payload follows `SceneData_MACRO` in `StaticScene.hpp`. Every vector starts
-with a native `size_t` element count and is followed by the contiguous bytes of
-its trivially copyable elements. The fixed camera, environment-light, and scene
-information records follow the vectors.
+The fixed 24-byte `.fjtex` header is:
 
-Texture pixels are stored in `texture_data`. `Texture::data_byte_offset` is
-relative to the beginning of that vector, while each
-`TextureMip::data_byte_offset_local` is relative to its owning texture. The
-texture records retain width, height, DXGI format, row pitch, slice pitch, and
-mip ranges required by the runtime.
+| Offset | Size | Value |
+| ---: | ---: | --- |
+| 0 | 8 | `FJTEX\0\0\0` magic |
+| 8 | 4 | format version (`1`) |
+| 12 | 4 | header size (`24`) |
+| 16 | 8 | texture payload byte count |
 
-The format is intentionally tied to the current Windows x64 ABI. A change to a
-serialized type, member order, or ABI size requires a format version change.
+`Texture::data_byte_offset` is relative to the first byte after this header.
+Each `TextureMip::data_byte_offset_local` is relative to its owning texture.
+The reader requires the `.fjscene` expected texture size, `.fjtex` declared
+size, and physical file size to agree.
+
+## Preserved flat source structure
+
+The cooker records the root USDA and all authored root sublayers as
+`SourceLayer` records. Each layer belongs to a flat `SourceGroup` derived from
+its authored path, such as `Pyramid`, `Terrain`, `River`, `Grass_A`, or
+`Grass_B`. Every `PointBatch` and `MatrixBatch` stores its source layer,
+authored prim path, prototype, instance range, and authored transform data.
+
+Referenced asset children inherit the closest authored root-sublayer owner.
+The format does not copy the composed USD node hierarchy, and the cooker does
+not merge independently authored matrix objects merely because they share a
+prototype. All 778 PointInstancer batches and all 8,674,676 point instances are
+retained.
+
+## Renderer-owned derived data
+
+AABBs are deliberately absent from the cooked contract. At load time the
+renderer derives bounds in this order:
+
+1. submesh bounds from vertex positions;
+2. mesh bounds from submeshes;
+3. prototype bounds from mesh parts and local transforms;
+4. point and matrix batch bounds from instances;
+5. the complete scene bound from all batches.
+
+VFC consumes these renderer-owned batch bounds. Future spatial structures can
+therefore be rebuilt from preserved static data without changing or reducing
+the source-oriented cooked representation.
 
 ## Bounded-memory cooker path
 
-Cooking uses two phases:
+OpenUSD first builds static scene data and a deduplicated texture path list.
+After the stage is released, the cooker decodes and compresses one texture at a
+time into a temporary payload. The writer creates and atomically replaces
+`.fjtex` first, then creates and replaces `.fjscene` last. A failed cook cannot
+publish a new scene header that points at an incomplete new texture file.
 
-1. OpenUSD builds meshes, instances, materials, bindings, and a deduplicated
-   list of resolved texture path strings. No texture pixels are decoded.
-2. After all OpenUSD objects are destroyed, textures are decoded sequentially.
-   The cooker generates a complete mip chain, compresses color, normal, scalar,
-   and HDR environment textures to BC7, BC5, BC4, and BC6H respectively, then
-   appends each result to a temporary payload file. All per-texture
-   `ScratchImage` storage is released before the next texture begins.
-
-The final writer copies that payload into the `texture_data` position in 4 MiB
-chunks. It writes the other vectors directly from `StaticScene`, so it never
-allocates a second buffer as large as the final file. The streaming test checks
-that external and in-memory texture payload writes produce identical files.
-
-The runtime full loader reads each serialized vector directly into its final
-`StaticScene` storage. The metadata loader records the texture payload offset
-and size, seeks over that range, and reads the remaining scene records without
-materializing texture bytes.
+`StaticSceneReader::load_metadata` reads and validates static data without
+materializing texture pixels. `StaticSceneReader::load` additionally reads the
+companion payload into `texture_data` for the current renderer upload path.
 
 ## Deliberate limits
 
-- Texture dimensions are preserved; there is not yet a configurable resolution
-  cap or platform-specific texture quality profile.
-- The file has no scene chunk table or memory mapping.
-- Runtime `StaticSceneReader::load` still materializes the complete
-  `StaticScene`, including texture bytes. Incremental renderer upload through
-  the exposed texture payload range remains separate future work.
+- Texture dimensions are preserved; there is not yet a configurable
+  resolution cap or platform quality profile.
+- The files have no chunk table or memory mapping.
+- The full runtime loader still materializes texture bytes before GPU upload.
 - Instance compression, GPU-oriented packing, meshlets, and LOD generation
-  remain future cooker stages.
+  remain future work.
+- The format is tied to the current Windows x64 ABI. Serialized type or member
+  layout changes require another scene format version.

@@ -7,12 +7,10 @@ namespace fjr::render {
 	struct Draw {
         static constexpr inline uint32_t INVALID_INDEX = UINT32_MAX;
 
-        enum class EnumDrawCpuFlag {
+        enum class EnumDrawCpuFlag : uint32_t {
             DEFAULT = 0,
-            ALPHA_TESTED = 1,
-            ALPHA_BLENDED = 2,
-            DOUBLE_SIDED = 4,
-            POINT_INSTNACED = 8,
+            DOUBLE_SIDED = 1u << 0,
+            ALPHA_BLENDED = 1u << 1,
         };
 
         struct DrawDataCpu {

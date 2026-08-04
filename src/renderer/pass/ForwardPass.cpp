@@ -3,7 +3,9 @@
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
+#include "FastJungle/renderer/SceneResources.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -12,6 +14,8 @@
 namespace fjr::render {
 
     namespace {
+
+        constexpr std::uint32_t MAX_POINT_INSTANCES_PER_DRAW = 1'024;
 
         enum class RootParameter : std::uint32_t {
             CONSTANT_DRAW,
@@ -196,45 +200,60 @@ namespace fjr::render {
         ID3D12PipelineState* current_pipeline = nullptr;
         for (const auto& draw : draws) {
 
-            // TODO select by draws.flags
-            auto* selected_pipeline = pipeline_states_[0].Get();
+            const auto pipeline_index = static_cast<std::uint32_t>(
+                draw.flags);
+            auto* selected_pipeline = pipeline_states_[pipeline_index].Get();
 
             if (selected_pipeline != current_pipeline) {
                 context->SetPipelineState(selected_pipeline);
                 current_pipeline = selected_pipeline;
             }
 
-            /* temp: render my matrix
-            const bool point = draw.instance_kind ==
-                SceneResources::InstanceKind::POINT;
-            const auto transform_constants = point
-                ? view.point_transform_constants
-                : view.matrix_transform_constants;
-            const auto instances = point
-                ? view.point_instances
-                : view.matrix_instances;
-            */
-
-            context->SetGraphicsRoot32BitConstants(
-                static_cast<UINT>(RootParameter::CONSTANT_DRAW),
-                Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
-                &draw.constants, 0);
+            const bool point_instanced =
+                draw.constants.instnace_kind ==
+                static_cast<std::uint32_t>(
+                    SceneResources::InstanceKind::POINT);
+            const auto& transform_constants = point_instanced
+                ? views.cbuf_transform_point
+                : views.cbuf_transform_matrix;
+            const auto instances = point_instanced
+                ? views.desc_instances_point
+                : views.desc_instnaces_matrix;
 
             context->SetGraphicsRootConstantBufferView(
                 static_cast<UINT>(RootParameter::ROOT_CBUF_TRANSFORMS),
-                views.cbuf_transform_matrix.at(
+                transform_constants.at(
                     draw.offset_cbuf_transform));
 
             context->SetGraphicsRootShaderResourceView(
                 static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
-                views.desc_instnaces_matrix);
+                instances);
 
-            context->DrawIndexedInstanced(
-                draw.count_index,
-                draw.count_instance,
-                draw.offset_index,
-                draw.offset_vertex,
-                0);
+            const std::uint32_t instances_per_draw = point_instanced
+                ? MAX_POINT_INSTANCES_PER_DRAW
+                : draw.count_instance;
+            for (std::uint32_t first_instance = 0;
+                first_instance < draw.count_instance;
+                first_instance += instances_per_draw) {
+
+                auto constants = draw.constants;
+                constants.offset_instance += first_instance;
+                const std::uint32_t instance_count = std::min(
+                    instances_per_draw,
+                    draw.count_instance - first_instance);
+
+                context->SetGraphicsRoot32BitConstants(
+                    static_cast<UINT>(RootParameter::CONSTANT_DRAW),
+                    Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
+                    &constants, 0);
+
+                context->DrawIndexedInstanced(
+                    draw.count_index,
+                    instance_count,
+                    draw.offset_index,
+                    draw.offset_vertex,
+                    0);
+            }
         }
     }
 

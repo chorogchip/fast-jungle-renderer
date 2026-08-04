@@ -22,9 +22,12 @@ namespace fjr::scene {
             std::uint64_t texture_payload_size);
 
         [[nodiscard]]
+        static std::filesystem::path texture_path(
+            const std::filesystem::path& scene_path);
+
+        [[nodiscard]]
         static std::uint64_t calculate_size(
-            const StaticScene& scene,
-            std::uint64_t texture_payload_size);
+            const StaticScene& scene);
 
     private:
         static void add(

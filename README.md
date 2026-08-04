@@ -46,23 +46,27 @@ USD scene
   ↓ OpenUSD
 Scene metadata + texture path manifest
   ↓ release OpenUSD, then cook one texture at a time
-JungleRuins.fjscene
+JungleRuins.fjscene + JungleRuins.fjtex
   ↓ JungleSceneFile runtime reader
 GPU renderer
 ```
 
-The cooker currently writes a version 1 scene file, and the runtime renderer
-reads that file without linking OpenUSD. Run either cooker preset
-once to create `assets/cooked/JungleRuins.fjscene`; both renderer presets then
-use that file. The first cooker build creates a shared Release OpenUSD install
+The cooker writes a version 2 `JungleRuins.fjscene` containing geometry,
+materials, instances, and flat source provenance, plus a companion
+`JungleRuins.fjtex` containing texture pixels. The runtime renderer reads both
+without linking OpenUSD. Run the Release cooker preset once to create both
+files under `assets/cooked`; both renderer presets then use them. The first
+cooker build creates a shared Release OpenUSD install
 under `out/deps`, which both Debug and Release cooker builds reuse. The cooker
 releases the OpenUSD stage before decoding textures, generates mip chains and
 role-appropriate BC4, BC5, BC6H, or BC7 data one texture at a time, and writes
-that data through a temporary payload. It streams the final scene file without
-allocating a second file-sized memory buffer. The runtime reader also fills the
-final `StaticScene` vectors directly instead of staging the complete file, and
-its metadata path seeks over texture bytes while retaining their file range.
-The v1 file does not yet apply instance compression or GPU-oriented geometry
+that data through a temporary payload. The final writer streams it into the
+companion texture file without allocating a second file-sized memory buffer.
+The scene records preserve the root USDA sublayer and group that owns every
+point or matrix batch, along with its authored prim path. Spatial bounds are
+not cooked as authoritative data: the renderer derives submesh, mesh,
+prototype, batch, and scene bounds from the preserved static data before VFC.
+The v2 files do not yet apply instance compression or GPU-oriented geometry
 packing.
 
 The offline cooker will handle:

@@ -12,6 +12,7 @@
 #include "FastJungle/dx12/Texture.hpp"
 #include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/renderer/FrameData.hpp"
+#include "FastJungle/renderer/SceneDerivedData.hpp"
 #include "FastJungle/renderer/SceneResources.hpp"
 #include "FastJungle/renderer/SceneViewer.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
@@ -64,6 +65,7 @@ namespace fjr::render {
         std::array<FrameData, FRAME_COUNT> frame_data_;
 
         std::unique_ptr<SceneResources> scene_resources_;
+        SceneDerivedData scene_derived_data_;
         SceneViewer scene_viewer_;
     };
 

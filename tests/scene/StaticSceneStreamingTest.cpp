@@ -4,6 +4,7 @@
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
 #include "FastJungle/scene/StaticSceneWriter.hpp"
+#include "FastJungle/scene/StaticTextureFileFormat.hpp"
 
 #include <array>
 #include <cstddef>
@@ -89,6 +90,10 @@ namespace {
 #define X(type, name) require_equal(expected.name, actual.name, #name);
         SceneData_MACRO
 #undef X
+        require_equal(
+            expected.texture_data,
+            actual.texture_data,
+            "texture_data");
 
         require(
             std::memcmp(
@@ -115,7 +120,15 @@ namespace {
         using StaticScene = fjr::scene::StaticScene;
 
         StaticScene scene;
-        scene.strings = {'\0', 't', 'e', 'x', '\0'};
+        scene.strings = {
+            '\0',
+            'g', '\0',
+            'l', '\0',
+            'p', '\0',
+            't', 'e', 'x', '\0'
+        };
+        scene.source_groups.push_back({1});
+        scene.source_layers.push_back({3, 5, 0});
 
         StaticScene::TextureMip mip;
         mip.width = 1;
@@ -126,7 +139,7 @@ namespace {
         scene.texture_mips.push_back(mip);
 
         StaticScene::Texture texture;
-        texture.name = 1;
+        texture.name = 7;
         texture.width = 1;
         texture.height = 1;
         texture.dxgi_format = 28;
@@ -200,7 +213,10 @@ int main(int argc, char** argv) {
     const auto metadata =
         fjr::scene::StaticSceneReader::load_metadata(streamed_path);
     require(
-        metadata.texture_payload.file_offset != 0 &&
+        metadata.texture_payload.path ==
+            fjr::scene::StaticSceneReader::texture_path(streamed_path) &&
+        metadata.texture_payload.file_offset ==
+            fjr::scene::StaticTextureFileFormat::header_size() &&
         metadata.texture_payload.size == payload.size(),
         "Texture payload range changed.");
     require_equal(scene, *metadata.scene);
@@ -213,6 +229,10 @@ int main(int argc, char** argv) {
     fjr::scene::StaticSceneWriter::save(memory_path, scene);
     require(
         read_file(streamed_path) == read_file(memory_path),
-        "Streamed and memory outputs differ.");
+        "Streamed and memory scene outputs differ.");
+    require(
+        read_file(fjr::scene::StaticSceneReader::texture_path(streamed_path)) ==
+            read_file(fjr::scene::StaticSceneReader::texture_path(memory_path)),
+        "Streamed and memory texture outputs differ.");
     return 0;
 }

@@ -11,8 +11,10 @@
 #include <pxr/base/vt/array.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/sdf/layer.h>
 #include <pxr/usd/sdf/listOp.h>
 #include <pxr/usd/sdf/path.h>
+#include <pxr/usd/sdf/primSpec.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/camera.h>
@@ -251,40 +253,6 @@ namespace fjr::cooker {
             return result;
         }
 
-        [[nodiscard]] ObjectKind classify_object(std::string_view path) {
-            struct Rule {
-                std::string_view prefix;
-                ObjectKind kind;
-            };
-
-            static constexpr std::array rules{
-                Rule{"/World/Pyramid_Grass_B_", ObjectKind::PYRAMID_GRASS_B},
-                Rule{"/World/Anthurium_", ObjectKind::ANTHURIUM},
-                Rule{"/World/Grass_A_", ObjectKind::GRASS_A},
-                Rule{"/World/Grass_B_", ObjectKind::GRASS_B},
-                Rule{"/World/Moss_", ObjectKind::PYRAMID_MOSS},
-                Rule{"/World/QueenForest_", ObjectKind::QUEEN_FOREST},
-                Rule{"/World/RiverForest_", ObjectKind::RIVER_FOREST},
-                Rule{"/World/RiverSapling_", ObjectKind::RIVER_SAPLING},
-                Rule{"/World/RiverSeedling_", ObjectKind::RIVER_SEEDLING},
-                Rule{"/World/ShrubSorrel_", ObjectKind::SHRUB_SORREL},
-                Rule{"/World/Shrub_", ObjectKind::SHRUB},
-                Rule{"/World/Nettle_", ObjectKind::NETTLE},
-                Rule{"/root/Pyramid_v1a_DT", ObjectKind::PYRAMID},
-                Rule{"/root/STT_Fixed_BanyanForest_Reduced", ObjectKind::BANYAN},
-                Rule{"/root/River", ObjectKind::RIVER},
-                Rule{"/root/Creek", ObjectKind::CREEK},
-                Rule{"/root/", ObjectKind::TERRAIN},
-            };
-
-            for (const auto& rule : rules) {
-                if (path.starts_with(rule.prefix)) {
-                    return rule.kind;
-                }
-            }
-            return ObjectKind::UNKNOWN;
-        }
-
         [[nodiscard]] bool is_visible(const pxr::UsdPrim& prim) {
             if (!prim || !prim.IsActive()) {
                 return false;
@@ -407,15 +375,6 @@ namespace fjr::cooker {
             return result;
         }
 
-        [[nodiscard]] math::AABB transformed_bounds(
-            const math::AABB& source,
-            DirectX::FXMMATRIX transform) noexcept {
-
-            auto result = source;
-            result.transform(transform);
-            return result;
-        }
-
         struct SamplerKey {
             AddressMode address_u = AddressMode::WRAP;
             AddressMode address_v = AddressMode::WRAP;
@@ -466,6 +425,8 @@ namespace fjr::cooker {
 
         struct PendingMatrixBatch {
             std::uint32_t name = StaticScene::INVALID_INDEX;
+            std::uint32_t source_prim_path = StaticScene::INVALID_INDEX;
+            std::uint32_t source_layer = StaticScene::INVALID_INDEX;
             std::uint32_t prototype = StaticScene::INVALID_INDEX;
             std::vector<StaticScene::MatrixInstance> instances;
         };
@@ -480,6 +441,7 @@ namespace fjr::cooker {
 
                 result_->strings.push_back('\0');
                 string_offsets_.emplace(std::string{}, 0u);
+                build_source_provenance();
 
                 result_->point_instances.reserve(8'674'676);
                 result_->point_batches.reserve(778);
@@ -535,6 +497,157 @@ namespace fjr::cooker {
                 result_->strings.push_back('\0');
                 string_offsets_.emplace(std::string{value}, offset);
                 return offset;
+            }
+
+            [[nodiscard]] std::uint32_t add_source_group(
+                std::string_view name) {
+
+                const auto existing = source_group_indices_.find(
+                    std::string{name});
+                if (existing != source_group_indices_.end()) {
+                    return existing->second;
+                }
+
+                const auto index = checked_u32(
+                    result_->source_groups.size(),
+                    "Source group index");
+                result_->source_groups.push_back({add_string(name)});
+                source_group_indices_.emplace(std::string{name}, index);
+                source_group_names_.emplace_back(name);
+                return index;
+            }
+
+            [[nodiscard]] static std::string source_group_name(
+                const std::filesystem::path& authored_path) {
+
+                bool next_is_group = false;
+                for (const auto& component : authored_path) {
+                    const auto value = component.generic_string();
+                    if (next_is_group && !value.empty()) {
+                        return value;
+                    }
+                    next_is_group = value == "elements";
+                }
+                for (const auto& component : authored_path) {
+                    if (component.generic_string() == "cameras") {
+                        return "Cameras";
+                    }
+                }
+                return "Root";
+            }
+
+            void add_source_layer(
+                std::string_view authored_path,
+                const std::filesystem::path& real_path,
+                std::string_view group_name) {
+
+                StaticScene::SourceLayer layer;
+                layer.name = add_string(
+                    std::filesystem::path{authored_path}
+                        .filename().generic_string());
+                layer.path = add_string(authored_path);
+                layer.group = add_source_group(group_name);
+
+                const auto index = checked_u32(
+                    result_->source_layers.size(),
+                    "Source layer index");
+                result_->source_layers.push_back(layer);
+                source_layer_indices_.emplace(
+                    normalized_texture_key(real_path),
+                    index);
+            }
+
+            void build_source_provenance() {
+                const auto root = stage_->GetRootLayer();
+                if (!root) {
+                    fail("OpenUSD stage has no root layer.");
+                }
+
+                const std::filesystem::path root_path{
+                    root->GetRealPath()};
+                add_source_layer(
+                    root_path.filename().generic_string(),
+                    root_path,
+                    "Root");
+
+                const auto root_directory = root_path.parent_path();
+                for (const auto& authored : root->GetSubLayerPaths()) {
+                    const auto authored_string =
+                        static_cast<std::string>(authored);
+                    const std::filesystem::path authored_path{
+                        authored_string};
+                    const auto real_path =
+                        (root_directory / authored_path).lexically_normal();
+                    add_source_layer(
+                        authored_string,
+                        real_path,
+                        source_group_name(authored_path));
+                }
+            }
+
+            [[nodiscard]] std::uint32_t source_layer_for_prim(
+                const pxr::UsdPrim& prim) const {
+
+                // A referenced asset's child prim stack contains the asset
+                // layer, while the root USDA sublayer that owns the object is
+                // authored on an ancestor. Use the closest authored owner.
+                for (auto current = prim; current; current = current.GetParent()) {
+                    for (const auto& spec : current.GetPrimStack()) {
+                        if (!spec || !spec->GetLayer()) {
+                            continue;
+                        }
+                        const auto& layer = spec->GetLayer();
+                        std::filesystem::path path{layer->GetRealPath()};
+                        if (path.empty()) {
+                            path = layer->GetIdentifier();
+                        }
+                        const auto found = source_layer_indices_.find(
+                            normalized_texture_key(path));
+                        if (found != source_layer_indices_.end()) {
+                            return found->second;
+                        }
+                    }
+                }
+                return StaticScene::INVALID_INDEX;
+            }
+
+            [[nodiscard]] ObjectKind source_layer_kind(
+                std::uint32_t source_layer) const {
+
+                if (source_layer >= result_->source_layers.size()) {
+                    return ObjectKind::UNKNOWN;
+                }
+                const auto group =
+                    result_->source_layers[source_layer].group;
+                if (group >= source_group_names_.size()) {
+                    return ObjectKind::UNKNOWN;
+                }
+
+                const auto& name = source_group_names_[group];
+                static const std::unordered_map<std::string, ObjectKind>
+                    kinds{
+                        {"Pyramid", ObjectKind::PYRAMID},
+                        {"River", ObjectKind::RIVER},
+                        {"Creek", ObjectKind::CREEK},
+                        {"Terrain", ObjectKind::TERRAIN},
+                        {"Banyan", ObjectKind::BANYAN},
+                        {"Anthurium", ObjectKind::ANTHURIUM},
+                        {"Grass_A", ObjectKind::GRASS_A},
+                        {"Grass_B", ObjectKind::GRASS_B},
+                        {"Pyramid_Grass_B", ObjectKind::PYRAMID_GRASS_B},
+                        {"Pyramid_Moss", ObjectKind::PYRAMID_MOSS},
+                        {"QueenForest", ObjectKind::QUEEN_FOREST},
+                        {"RiverForest", ObjectKind::RIVER_FOREST},
+                        {"RiverSapling", ObjectKind::RIVER_SAPLING},
+                        {"RiverSeedling", ObjectKind::RIVER_SEEDLING},
+                        {"Shrub", ObjectKind::SHRUB},
+                        {"ShrubSorrel", ObjectKind::SHRUB_SORREL},
+                        {"Nettle", ObjectKind::NETTLE},
+                    };
+                const auto found = kinds.find(name);
+                return found == kinds.end()
+                    ? ObjectKind::UNKNOWN
+                    : found->second;
             }
 
             [[nodiscard]] DirectX::XMMATRIX local_transform(
@@ -602,8 +715,13 @@ namespace fjr::cooker {
                             targets.front().GetString());
                     }
 
-                    const auto kind = classify_object(
-                        prim.GetPath().GetString());
+                    const auto source_layer = source_layer_for_prim(prim);
+                    if (source_layer == StaticScene::INVALID_INDEX) {
+                        fail(
+                            "PointInstancer has no root USDA source layer: ",
+                            prim.GetPath().GetString());
+                    }
+                    const auto kind = source_layer_kind(source_layer);
                     const auto prototype = get_hierarchical_prototype(
                         prototype_prim,
                         kind,
@@ -654,6 +772,9 @@ namespace fjr::cooker {
 
                     StaticScene::PointBatch batch;
                     batch.name = add_string(prim.GetName().GetString());
+                    batch.source_prim_path = add_string(
+                        prim.GetPath().GetString());
+                    batch.source_layer = source_layer;
                     batch.prototype = prototype;
                     batch.instance_offset = checked_u32(
                         result_->point_instances.size(),
@@ -679,8 +800,6 @@ namespace fjr::cooker {
                         result_->point_instances.size() -
                             batch.instance_offset,
                         "Point instance count");
-                    batch.world_bounds = point_batch_bounds(batch);
-                    result_->info.world_bounds.merge(batch.world_bounds);
                     result_->point_batches.push_back(batch);
                 }
             }
@@ -714,8 +833,13 @@ namespace fjr::cooker {
                         if (!native_prototype) {
                             continue;
                         }
-                        const auto kind = classify_object(
-                            prim.GetPath().GetString());
+                        const auto source_layer = source_layer_for_prim(prim);
+                        if (source_layer == StaticScene::INVALID_INDEX) {
+                            fail(
+                                "Instance has no root USDA source layer: ",
+                                prim.GetPath().GetString());
+                        }
+                        const auto kind = source_layer_kind(source_layer);
                         const auto prototype = get_hierarchical_prototype(
                             native_prototype,
                             kind,
@@ -725,19 +849,28 @@ namespace fjr::cooker {
                         append_matrix_instance(
                             prototype,
                             prim.GetName().GetString(),
+                            prim.GetPath().GetString(),
+                            source_layer,
                             world_transform(prim));
                         continue;
                     }
 
                     if (prim.IsA<pxr::UsdGeomMesh>() && is_visible(prim)) {
-                        const auto kind = classify_object(
-                            prim.GetPath().GetString());
+                        const auto source_layer = source_layer_for_prim(prim);
+                        if (source_layer == StaticScene::INVALID_INDEX) {
+                            fail(
+                                "Mesh has no root USDA source layer: ",
+                                prim.GetPath().GetString());
+                        }
+                        const auto kind = source_layer_kind(source_layer);
                         const auto prototype = get_direct_mesh_prototype(
                             prim,
                             kind);
                         append_matrix_instance(
                             prototype,
                             prim.GetName().GetString(),
+                            prim.GetPath().GetString(),
+                            source_layer,
                             world_transform(prim));
                     }
                 }
@@ -820,11 +953,6 @@ namespace fjr::cooker {
                     part.mesh = mesh;
                     part.local_transform = store_matrix(current);
                     result_->prototype_parts.push_back(part);
-
-                    const auto part_bounds = transformed_bounds(
-                        result_->meshes[mesh].local_bounds,
-                        current);
-                    prototype.local_bounds.merge(part_bounds);
                 }
 
                 for (const auto& child : prim.GetChildren()) {
@@ -855,7 +983,6 @@ namespace fjr::cooker {
                     result_->prototype_parts.size(),
                     "Prototype part offset");
                 prototype.part_count = 1;
-                prototype.local_bounds = result_->meshes[mesh].local_bounds;
 
                 result_->prototype_parts.push_back({
                     mesh,
@@ -873,28 +1000,25 @@ namespace fjr::cooker {
             void append_matrix_instance(
                 std::uint32_t prototype,
                 std::string_view name,
+                std::string_view source_prim_path,
+                std::uint32_t source_layer,
                 DirectX::FXMMATRIX world) {
 
-                auto batch = matrix_batch_indices_.find(prototype);
-                if (batch == matrix_batch_indices_.end()) {
-                    const auto index = pending_matrix_batches_.size();
-                    PendingMatrixBatch pending;
-                    pending.name = add_string(name);
-                    pending.prototype = prototype;
-                    pending_matrix_batches_.push_back(std::move(pending));
-                    matrix_batch_indices_.emplace(prototype, index);
-                    batch = matrix_batch_indices_.find(prototype);
-                }
-
-                pending_matrix_batches_[batch->second].instances.push_back({
-                    store_matrix(world)
-                });
+                PendingMatrixBatch pending;
+                pending.name = add_string(name);
+                pending.source_prim_path = add_string(source_prim_path);
+                pending.source_layer = source_layer;
+                pending.prototype = prototype;
+                pending.instances.push_back({store_matrix(world)});
+                pending_matrix_batches_.push_back(std::move(pending));
             }
 
             void flatten_matrix_batches() {
                 for (auto& pending : pending_matrix_batches_) {
                     StaticScene::MatrixBatch batch;
                     batch.name = pending.name;
+                    batch.source_prim_path = pending.source_prim_path;
+                    batch.source_layer = pending.source_layer;
                     batch.prototype = pending.prototype;
                     batch.instance_offset = checked_u32(
                         result_->matrix_instances.size(),
@@ -908,58 +1032,8 @@ namespace fjr::cooker {
                         pending.instances.begin(),
                         pending.instances.end());
 
-                    batch.world_bounds = matrix_batch_bounds(batch);
-                    result_->info.world_bounds.merge(batch.world_bounds);
                     result_->matrix_batches.push_back(batch);
                 }
-            }
-
-            [[nodiscard]] math::AABB point_batch_bounds(
-                const StaticScene::PointBatch& batch) const {
-
-                math::AABB result;
-                const auto& prototype = result_->prototypes[batch.prototype];
-                const auto batch_world = DirectX::XMLoadFloat4x4(
-                    &batch.local_to_world);
-
-                for (std::uint32_t i = 0; i < batch.instance_count; ++i) {
-                    const auto& instance = result_->point_instances[
-                        batch.instance_offset + i];
-                    const auto scale = DirectX::XMMatrixScaling(
-                        instance.scale.x,
-                        instance.scale.y,
-                        instance.scale.z);
-                    const auto rotation = DirectX::XMMatrixRotationQuaternion(
-                        DirectX::XMLoadFloat4(&instance.orientation));
-                    const auto translation = DirectX::XMMatrixTranslation(
-                        instance.position.x,
-                        instance.position.y,
-                        instance.position.z);
-                    const auto world = DirectX::XMMatrixMultiply(
-                        DirectX::XMMatrixMultiply(
-                            DirectX::XMMatrixMultiply(scale, rotation),
-                            translation),
-                        batch_world);
-                    result.merge(transformed_bounds(
-                        prototype.local_bounds,
-                        world));
-                }
-                return result;
-            }
-
-            [[nodiscard]] math::AABB matrix_batch_bounds(
-                const StaticScene::MatrixBatch& batch) const {
-
-                math::AABB result;
-                const auto& prototype = result_->prototypes[batch.prototype];
-                for (std::uint32_t i = 0; i < batch.instance_count; ++i) {
-                    const auto& instance = result_->matrix_instances[
-                        batch.instance_offset + i];
-                    result.merge(transformed_bounds(
-                        prototype.local_bounds,
-                        DirectX::XMLoadFloat4x4(&instance.transform)));
-                }
-                return result;
             }
 
             [[nodiscard]] std::uint32_t cook_mesh(
@@ -1127,7 +1201,6 @@ namespace fjr::cooker {
                                 const auto local_index =
                                     vertex_indexer.get_or_add(vertex);
                                 result_->indices.push_back(local_index);
-                                submesh.local_bounds.merge(vertex.position);
                             }
                         }
                     }
@@ -1142,7 +1215,6 @@ namespace fjr::cooker {
                         continue;
                     }
 
-                    destination.local_bounds.merge(submesh.local_bounds);
                     result_->submeshes.push_back(submesh);
                     ++destination.submesh_count;
                 }
@@ -1763,6 +1835,11 @@ namespace fjr::cooker {
             std::vector<pxr::SdfPath> point_target_paths_;
 
             std::unordered_map<std::string, std::uint32_t> string_offsets_;
+            std::unordered_map<std::string, std::uint32_t>
+                source_group_indices_;
+            std::vector<std::string> source_group_names_;
+            std::unordered_map<std::string, std::uint32_t>
+                source_layer_indices_;
             std::unordered_map<std::string, std::uint32_t> mesh_cache_;
             std::unordered_map<std::string, std::uint32_t> prototype_cache_;
             std::unordered_map<std::string, MaterialRecord> material_cache_;
@@ -1772,8 +1849,6 @@ namespace fjr::cooker {
                 sampler_cache_;
 
             std::vector<PendingMatrixBatch> pending_matrix_batches_;
-            std::unordered_map<std::uint32_t, std::size_t>
-                matrix_batch_indices_;
         };
 
     } // namespace

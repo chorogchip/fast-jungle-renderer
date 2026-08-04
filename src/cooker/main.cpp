@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #ifndef FASTJUNGLE_DEFAULT_SCENE_USD
 #define FASTJUNGLE_DEFAULT_SCENE_USD ""
@@ -52,6 +53,64 @@ namespace {
             << L" MiB\n";
     }
 
+    [[nodiscard]] std::wstring scene_string(
+        const fjr::scene::StaticScene& scene,
+        std::uint32_t offset) {
+
+        if (offset >= scene.strings.size()) {
+            return L"<invalid>";
+        }
+        const char* value = scene.strings.data() + offset;
+        std::wstring result;
+        while (*value != '\0') {
+            result.push_back(static_cast<unsigned char>(*value));
+            ++value;
+        }
+        return result;
+    }
+
+    void print_source_summary(const fjr::scene::StaticScene& scene) {
+        struct Counts final {
+            std::uint64_t layers = 0;
+            std::uint64_t point_batches = 0;
+            std::uint64_t point_instances = 0;
+            std::uint64_t matrix_batches = 0;
+            std::uint64_t matrix_instances = 0;
+        };
+
+        std::vector<Counts> counts(scene.source_groups.size());
+        for (const auto& layer : scene.source_layers) {
+            ++counts[layer.group].layers;
+        }
+        for (const auto& batch : scene.point_batches) {
+            const auto group =
+                scene.source_layers[batch.source_layer].group;
+            ++counts[group].point_batches;
+            counts[group].point_instances += batch.instance_count;
+        }
+        for (const auto& batch : scene.matrix_batches) {
+            const auto group =
+                scene.source_layers[batch.source_layer].group;
+            ++counts[group].matrix_batches;
+            counts[group].matrix_instances += batch.instance_count;
+        }
+
+        std::wcout << L"  authored source groups:\n";
+        for (std::size_t index = 0;
+             index < scene.source_groups.size();
+             ++index) {
+            const auto& count = counts[index];
+            std::wcout
+                << L"    "
+                << scene_string(scene, scene.source_groups[index].name)
+                << L": " << count.layers << L" layers, "
+                << count.point_batches << L" point batches / "
+                << count.point_instances << L" instances, "
+                << count.matrix_batches << L" matrix batches / "
+                << count.matrix_instances << L" instances\n";
+        }
+    }
+
     void print_scene_summary(const fjr::scene::StaticScene& scene) {
         constexpr std::uint64_t OLD_VERTEX_SIZE = 48;
         constexpr std::uint64_t MEBIBYTE = 1024 * 1024;
@@ -84,12 +143,15 @@ namespace {
             << L"  indices: " << scene.indices.size() << L'\n'
             << L"  textures: " << scene.textures.size() << L'\n'
             << L"  materials: " << scene.materials.size() << L'\n'
+            << L"  source groups: " << scene.source_groups.size() << L'\n'
+            << L"  source layers: " << scene.source_layers.size() << L'\n'
             << L"  meshes: " << scene.meshes.size() << L'\n'
             << L"  prototypes: " << scene.prototypes.size() << L'\n'
             << L"  point batches: " << scene.point_batches.size() << L'\n'
             << L"  point instances: " << scene.point_instances.size() << L'\n'
             << L"  matrix batches: " << scene.matrix_batches.size() << L'\n'
             << L"  matrix instances: " << scene.matrix_instances.size() << L'\n';
+        print_source_summary(scene);
     }
 
     [[nodiscard]] int run_cooker(int argc, wchar_t** argv) {
@@ -182,7 +244,11 @@ namespace {
             texture_payload.path(),
             texture_payload_size);
         texture_payload.remove();
-        std::wcout << L"Saved " << output_path << L'\n';
+        std::wcout
+            << L"Saved " << output_path << L'\n'
+            << L"Saved "
+            << fjr::scene::StaticSceneWriter::texture_path(output_path)
+            << L'\n';
         print_memory_usage(L"scene save");
         return EXIT_SUCCESS;
     }

@@ -134,6 +134,18 @@ namespace fjr::scene {
 			EnumTextureBindingFlag flags = EnumTextureBindingFlag::LINEAR;
 		};
 
+		// Flat provenance from the root USDA composition. This intentionally
+		// preserves authored layer/group identity without storing a node tree.
+		struct SourceGroup {
+			uint32_t name = INVALID_INDEX;
+		};
+
+		struct SourceLayer {
+			uint32_t name = INVALID_INDEX;
+			uint32_t path = INVALID_INDEX;
+			uint32_t group = INVALID_INDEX;
+		};
+
 		struct Material {
 			uint32_t name = INVALID_INDEX;
 			DirectX::XMFLOAT4 base_color{ 0.18f, 0.18f, 0.18f, 1.0f };
@@ -170,7 +182,6 @@ namespace fjr::scene {
 			uint32_t index_offset = INVALID_INDEX;
 			uint32_t index_count = 0;
 			uint32_t material = INVALID_INDEX;
-			math::AABB local_bounds{};
 			EnumSubmeshFlag flags = EnumSubmeshFlag::DEFAULT;
 		};
 
@@ -178,7 +189,6 @@ namespace fjr::scene {
 			uint32_t name = INVALID_INDEX;
 			uint32_t submesh_offset = INVALID_INDEX;
 			uint32_t submesh_count = 0;
-			math::AABB local_bounds{};
 		};
 
 		struct PrototypePart {
@@ -212,7 +222,6 @@ namespace fjr::scene {
 			EnumObjectKind object_kind = EnumObjectKind::UNKNOWN;
 			uint32_t part_offset = INVALID_INDEX;
 			uint32_t part_count = 0;
-			math::AABB local_bounds{};
 		};
 
 		struct PointInstance {
@@ -224,11 +233,12 @@ namespace fjr::scene {
 
 		struct PointBatch {
 			uint32_t name = INVALID_INDEX;
+			uint32_t source_prim_path = INVALID_INDEX;
+			uint32_t source_layer = INVALID_INDEX;
 			uint32_t prototype = INVALID_INDEX;
 			uint32_t instance_offset = INVALID_INDEX;
 			uint32_t instance_count = 0;
 			DirectX::XMFLOAT4X4 local_to_world = IDENTITY_TRANSFORM;
-			math::AABB world_bounds{};
 		};
 
 		struct MatrixInstance {
@@ -237,10 +247,11 @@ namespace fjr::scene {
 
 		struct MatrixBatch {
 			uint32_t name = INVALID_INDEX;
+			uint32_t source_prim_path = INVALID_INDEX;
+			uint32_t source_layer = INVALID_INDEX;
 			uint32_t prototype = INVALID_INDEX;
 			uint32_t instance_offset = INVALID_INDEX;
 			uint32_t instance_count = 0;
-			math::AABB world_bounds{};
 		};
 
 		struct Camera {
@@ -266,7 +277,6 @@ namespace fjr::scene {
 		};
 
 		struct SceneInfo {
-			math::AABB world_bounds{};
 			// Number of triangle corners before and unique vertices after
 			// submesh-local position/normal/UV indexing.
 			uint64_t vertex_count_before_indexing = 0;
@@ -287,6 +297,8 @@ namespace fjr::scene {
 
 #define SceneDataBeforeTexture_MACRO \
     X(Char, strings) \
+    X(SourceGroup, source_groups) \
+    X(SourceLayer, source_layers) \
     X(Vertex, vertices) \
     X(Uint32_t, indices) \
     \
@@ -310,12 +322,12 @@ namespace fjr::scene {
 
 #define SceneData_MACRO \
     SceneDataBeforeTexture_MACRO \
-    X(Byte, texture_data) \
     SceneDataAfterTexture_MACRO
 
 #define X(type, name) std::vector<type> name;
 		SceneData_MACRO
 #undef X
+		std::vector<Byte> texture_data;
 
 		Camera camera;
 		EnvironmentLight environment_light;
@@ -327,6 +339,8 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<TextureMip>);
 		static_assert(std::is_trivially_copyable_v<Texture>);
 		static_assert(std::is_trivially_copyable_v<TextureBinding>);
+		static_assert(std::is_trivially_copyable_v<SourceGroup>);
+		static_assert(std::is_trivially_copyable_v<SourceLayer>);
 		static_assert(std::is_trivially_copyable_v<Material>);
 
 		static_assert(std::is_trivially_copyable_v<Submesh>);
@@ -343,15 +357,14 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<EnvironmentLight>);
 		static_assert(std::is_trivially_copyable_v<SceneInfo>);
 
-		static_assert(std::is_trivially_copyable_v<math::AABB>);
-
-
 		static_assert(std::is_standard_layout_v<Vertex>);
 
 		static_assert(std::is_standard_layout_v<Sampler>);
 		static_assert(std::is_standard_layout_v<TextureMip>);
 		static_assert(std::is_standard_layout_v<Texture>);
 		static_assert(std::is_standard_layout_v<TextureBinding>);
+		static_assert(std::is_standard_layout_v<SourceGroup>);
+		static_assert(std::is_standard_layout_v<SourceLayer>);
 		static_assert(std::is_standard_layout_v<Material>);
 
 		static_assert(std::is_standard_layout_v<Submesh>);
@@ -368,6 +381,5 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<EnvironmentLight>);
 		static_assert(std::is_standard_layout_v<SceneInfo>);
 
-		static_assert(std::is_standard_layout_v<math::AABB>);
 	};
 }

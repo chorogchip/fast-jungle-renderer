@@ -6,9 +6,11 @@
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <thread>
 
 namespace fjr::render {
 
@@ -48,6 +50,8 @@ namespace fjr::render {
 
         // build scene
 
+        scene_derived_data_ = SceneDerivedData::build(scene);
+
         dx::CommandContext upload_context;
         upload_context.init(
             device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, 0);
@@ -62,13 +66,16 @@ namespace fjr::render {
         command_queue_.execute(upload_context.get());
         command_queue_.flush();
 
-        scene_viewer_.init(&scene, scene_resources_.get());
+        scene_viewer_.init(
+            scene,
+            *scene_resources_,
+            scene_derived_data_);
 
         // camera
         camera_.set_scene_camera(scene.camera);
         camera_.set_viewport(width, height);
         if (!camera_.has_valid_lens() || !camera_.has_valid_transform()) {
-            camera_.frame_bounds(scene.info.world_bounds);
+            camera_.frame_bounds(scene_derived_data_.world_bounds);
         }
 
         this->resize(width, height);
@@ -81,6 +88,7 @@ namespace fjr::render {
         command_queue_.flush();
         swap_chain_.resize(width, height);
         camera_.set_viewport(width, height);
+        scene_viewer_.update_visibility(camera_);
 
         auto& heap = dx::HeapManager::g_heap_manager;
 
@@ -181,7 +189,34 @@ namespace fjr::render {
 
 
         auto& context = command_contexts_[frame];
-        command_queue_.wait(context.get_fence_value());
+        const UINT64 frame_fence = context.get_fence_value();
+        bool quit_requested = false;
+        while (frame_fence != 0 &&
+               command_queue_.get_completed_value() < frame_fence) {
+            MSG message{};
+            while (PeekMessageW(
+                &message,
+                nullptr,
+                0,
+                0,
+                PM_REMOVE)) {
+                if (message.message == WM_QUIT) {
+                    PostQuitMessage(static_cast<int>(message.wParam));
+                    quit_requested = true;
+                    break;
+                }
+
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+
+            if (quit_requested) {
+                command_queue_.wait(frame_fence);
+                break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
         context.reset();
 

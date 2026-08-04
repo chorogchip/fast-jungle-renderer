@@ -114,9 +114,15 @@ namespace fjr::log {
             << "  column:   " << loc.column() << '\n'
             << "  function: " << loc.function_name() << '\n';
 
+#if defined(FASTJUNGLE_LOG_ABORT_TO_STDERR)
+        std::cerr << logging_stream_.str();
+        std::cerr.flush();
+        std::_Exit(EXIT_FAILURE);
+#else
         flush_unlocked();
 
         std::abort();
+#endif
     }
 
     [[noreturn]]

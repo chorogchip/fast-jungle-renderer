@@ -67,6 +67,10 @@ option(FASTJUNGLE_BUILD_TESTS
     "Build FastJungle project tests"
     OFF
 )
+option(FASTJUNGLE_LOG_ABORT_TO_STDERR
+    "Write fatal Logger output to stderr and exit without an abort dialog"
+    OFF
+)
 
 set(FASTJUNGLE_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(FASTJUNGLE_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -96,6 +100,7 @@ function(fastjungle_apply_options target)
         _UNICODE
         NOMINMAX
         WIN32_LEAN_AND_MEAN
+        "$<$<BOOL:${FASTJUNGLE_LOG_ABORT_TO_STDERR}>:FASTJUNGLE_LOG_ABORT_TO_STDERR>"
         "$<$<CONFIG:Debug>:_DEBUG>"
         "$<$<CONFIG:Release>:NDEBUG>"
     )
@@ -716,6 +721,7 @@ if(FASTJUNGLE_BUILD_TESTS)
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamReader.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamWriter.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticTextureFileFormat.cpp"
     )
     fastjungle_apply_options(FastJungleSceneStreamingTest)
     target_include_directories(FastJungleSceneStreamingTest PRIVATE
@@ -774,6 +780,7 @@ message(STATUS "Build configuration      : ${CMAKE_BUILD_TYPE}")
 message(STATUS "MSVC runtime             : ${CMAKE_MSVC_RUNTIME_LIBRARY}")
 message(STATUS "Runtime output           : ${FASTJUNGLE_RUNTIME_DIR}")
 message(STATUS "Cooked output            : ${FASTJUNGLE_COOKED_DIR}")
+message(STATUS "Logger abort to stderr   : ${FASTJUNGLE_LOG_ABORT_TO_STDERR}")
 
 if(FASTJUNGLE_BUILD STREQUAL "cooker")
     message(STATUS "External CRT             : ${FASTJUNGLE_EXTERNAL_RUNTIME}")

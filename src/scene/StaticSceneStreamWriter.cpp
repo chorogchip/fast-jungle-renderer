@@ -7,19 +7,19 @@
 
 #include "FastJungle/scene/StaticSceneFileFormat.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
+#include "FastJungle/scene/StaticTextureFileFormat.hpp"
 
 #include <istream>
 #include <limits>
 
 namespace fjr::scene {
-
     namespace {
 
-        class SceneOutput final {
+        class TextureOutput final {
         public:
             static void save(
                 const std::filesystem::path& path,
-                const StaticScene& scene,
+                const std::vector<std::byte>* texture_data,
                 std::istream* texture_payload,
                 const std::filesystem::path& texture_payload_path,
                 std::uint64_t texture_payload_size) {
@@ -28,63 +28,58 @@ namespace fjr::scene {
                 temporary_path += L".tmp";
                 util::TemporaryFile temporary{temporary_path};
                 auto output = util::File::open_write(temporary.path());
-                util::BinaryWriter writer{
-                    output,
-                    temporary.path()
-                };
+                util::BinaryWriter writer{output, temporary.path()};
 
-                write(
+                StaticTextureFileFormat::write_header(
                     writer,
-                    scene,
-                    texture_payload,
-                    texture_payload_path,
                     texture_payload_size);
-                util::File::finish(output, temporary.path());
-                temporary.replace(path);
-            }
-
-        private:
-            static void write(
-                util::BinaryWriter& writer,
-                const StaticScene& scene,
-                std::istream* texture_payload,
-                const std::filesystem::path& texture_payload_path,
-                std::uint64_t texture_payload_size) {
-
-                const std::uint64_t size =
-                    StaticSceneWriter::calculate_size(
-                        scene,
-                        texture_payload_size);
-                StaticSceneFileFormat::write_header(
-                    writer,
-                    size - StaticSceneFileFormat::header_size());
-
-#define X(type, name) writer.write(scene.name);
-                SceneDataBeforeTexture_MACRO
-#undef X
-
-                if (texture_payload == nullptr) {
-                    writer.write(scene.texture_data);
+                if (texture_data != nullptr) {
+                    writer.write_bytes(
+                        texture_data->data(),
+                        texture_data->size());
                 }
                 else {
-                    if (texture_payload_size >
-                        std::numeric_limits<std::size_t>::max()) {
-                        log::Logger::g_logger
-                            << "Texture payload is too large: "
-                            << texture_payload_path << '\n';
-                        log::Logger::g_logger.abort();
-                    }
-                    const auto stored_size =
-                        static_cast<std::size_t>(texture_payload_size);
-                    writer.write(stored_size);
                     writer.copy(
                         *texture_payload,
                         texture_payload_size,
                         texture_payload_path);
                 }
 
+                const auto expected_size =
+                    StaticTextureFileFormat::header_size() +
+                    texture_payload_size;
+                if (writer.offset() != expected_size) {
+                    log::Logger::g_logger
+                        << "StaticTexture output size changed.\n";
+                    log::Logger::g_logger.abort();
+                }
+                util::File::finish(output, temporary.path());
+                temporary.replace(path);
+            }
+        };
+
+        class SceneOutput final {
+        public:
+            static void save(
+                const std::filesystem::path& path,
+                const StaticScene& scene,
+                std::uint64_t texture_payload_size) {
+
+                auto temporary_path = path;
+                temporary_path += L".tmp";
+                util::TemporaryFile temporary{temporary_path};
+                auto output = util::File::open_write(temporary.path());
+                util::BinaryWriter writer{output, temporary.path()};
+
+                const std::uint64_t size =
+                    StaticSceneWriter::calculate_size(scene);
+                StaticSceneFileFormat::write_header(
+                    writer,
+                    size - StaticSceneFileFormat::header_size(),
+                    texture_payload_size);
+
 #define X(type, name) writer.write(scene.name);
-                SceneDataAfterTexture_MACRO
+                SceneData_MACRO
 #undef X
 
                 writer.write(scene.camera);
@@ -95,6 +90,8 @@ namespace fjr::scene {
                         << "StaticScene output size changed.\n";
                     log::Logger::g_logger.abort();
                 }
+                util::File::finish(output, temporary.path());
+                temporary.replace(path);
             }
         };
 
@@ -105,12 +102,13 @@ namespace fjr::scene {
         const StaticScene& scene) {
 
         StaticSceneValidator::validate(scene);
-        SceneOutput::save(
-            path,
-            scene,
+        TextureOutput::save(
+            texture_path(path),
+            &scene.texture_data,
             nullptr,
             {},
             scene.texture_data.size());
+        SceneOutput::save(path, scene, scene.texture_data.size());
     }
 
     void StaticSceneWriter::save(
@@ -130,31 +128,31 @@ namespace fjr::scene {
             texture_payload_size);
         auto texture_payload = util::File::open_read(
             texture_payload_path);
-        SceneOutput::save(
-            path,
-            scene,
+        TextureOutput::save(
+            texture_path(path),
+            nullptr,
             &texture_payload,
             texture_payload_path,
             texture_payload_size);
+        SceneOutput::save(path, scene, texture_payload_size);
+    }
+
+    std::filesystem::path StaticSceneWriter::texture_path(
+        const std::filesystem::path& scene_path) {
+
+        auto result = scene_path;
+        result.replace_extension(L".fjtex");
+        return result;
     }
 
     std::uint64_t StaticSceneWriter::calculate_size(
-        const StaticScene& scene,
-        std::uint64_t texture_payload_size) {
+        const StaticScene& scene) {
 
         std::uint64_t total = StaticSceneFileFormat::header_size();
 
 #define X(type, name) \
         add_vector(total, scene.name.size(), sizeof(StaticScene::type));
-        SceneDataBeforeTexture_MACRO
-#undef X
-
-        add(total, sizeof(std::size_t));
-        add(total, texture_payload_size);
-
-#define X(type, name) \
-        add_vector(total, scene.name.size(), sizeof(StaticScene::type));
-        SceneDataAfterTexture_MACRO
+        SceneData_MACRO
 #undef X
 
         add(total, sizeof(StaticScene::Camera));

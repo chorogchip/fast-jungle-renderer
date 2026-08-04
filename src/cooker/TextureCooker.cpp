@@ -237,8 +237,12 @@ namespace fjr::cooker {
         TextureCookOptions options) {
 
         if (scene.textures.size() != texture_paths.size()) {
-            throw std::invalid_argument(
-                "Texture source count does not match StaticScene textures.");
+            fail(
+                "Texture source count does not match StaticScene textures: ",
+                std::to_string(texture_paths.size()),
+                " sources for ",
+                std::to_string(scene.textures.size()),
+                " textures.");
         }
         if (!scene.texture_data.empty() || !scene.texture_mips.empty()) {
             throw std::invalid_argument(

@@ -57,6 +57,9 @@ namespace fjr::util {
         }
 
         void skip(std::uint64_t size);
+        void read_raw(void* destination, std::size_t size) {
+            read_bytes(destination, size);
+        }
         void require_stream(
             std::istream& expected,
             std::uint64_t size,

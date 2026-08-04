@@ -9,6 +9,7 @@
 namespace fjr::scene {
 
     struct StaticScenePayloadRange final {
+        std::filesystem::path path;
         std::uint64_t file_offset = 0;
         std::uint64_t size = 0;
     };
@@ -29,6 +30,10 @@ namespace fjr::scene {
         [[nodiscard]]
         static StaticSceneMetadata load_metadata(
             const std::filesystem::path& path);
+
+        [[nodiscard]]
+        static std::filesystem::path texture_path(
+            const std::filesystem::path& scene_path);
     };
 
 } // namespace fjr::scene
