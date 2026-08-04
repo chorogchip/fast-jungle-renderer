@@ -38,33 +38,7 @@ namespace fjr::util {
             read_bytes(value.data(), count * sizeof(T));
         }
 
-        template<typename T>
-        void require_vector(
-            const std::vector<T>& expected,
-            std::string_view name) {
-
-            std::size_t count = 0;
-            read(count);
-            if (count != expected.size()) {
-                fail_changed(name);
-            }
-            require_bytes(expected.data(), count * sizeof(T), name);
-        }
-
-        template<typename T>
-        void require_record(const T& expected, std::string_view name) {
-            require_bytes(&expected, sizeof(T), name);
-        }
-
         void skip(std::uint64_t size);
-        void read_raw(void* destination, std::size_t size) {
-            read_bytes(destination, size);
-        }
-        void require_stream(
-            std::istream& expected,
-            std::uint64_t size,
-            const std::filesystem::path& expected_path,
-            std::string_view name);
         void require_end();
 
         [[nodiscard]]
@@ -75,23 +49,15 @@ namespace fjr::util {
 
     private:
         void read_bytes(void* destination, std::size_t size);
-        void require_bytes(
-            const void* expected,
-            std::size_t size,
-            std::string_view name);
 
         [[noreturn]]
         void fail(std::string_view message) const;
-
-        [[noreturn]]
-        void fail_changed(std::string_view name) const;
 
     private:
         std::istream& source_;
         std::uint64_t size_ = 0;
         std::uint64_t remaining_ = 0;
         std::filesystem::path path_;
-        std::vector<std::byte> buffer_;
     };
 
     class BinaryWriter final {
@@ -112,7 +78,6 @@ namespace fjr::util {
             write_bytes(value.data(), count * sizeof(T));
         }
 
-        void write_bytes(const void* source, std::size_t size);
         void copy(
             std::istream& source,
             std::uint64_t size,
@@ -122,6 +87,8 @@ namespace fjr::util {
         std::uint64_t offset() const noexcept;
 
     private:
+        void write_bytes(const void* source, std::size_t size);
+
         [[noreturn]]
         void fail(std::string_view message) const;
 
@@ -129,7 +96,6 @@ namespace fjr::util {
         std::ostream& destination_;
         std::filesystem::path path_;
         std::uint64_t offset_ = 0;
-        std::vector<std::byte> buffer_;
     };
 
 } // namespace fjr::util

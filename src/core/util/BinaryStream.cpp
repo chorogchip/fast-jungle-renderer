@@ -3,7 +3,6 @@
 #include "FastJungle/core/util/Logger.hpp"
 
 #include <algorithm>
-#include <cstring>
 #include <istream>
 #include <limits>
 #include <ostream>
@@ -24,15 +23,7 @@ namespace fjr::util {
         : source_(source),
           size_(size),
           remaining_(size),
-          path_(std::move(path)) {
-
-        try {
-            buffer_.resize(BUFFER_SIZE);
-        }
-        catch (...) {
-            fail("Failed to allocate the binary read buffer.");
-        }
-    }
+          path_(std::move(path)) {}
 
     void BinaryReader::skip(std::uint64_t size) {
         if (size > remaining_ ||
@@ -46,50 +37,6 @@ namespace fjr::util {
             fail("Failed to seek the binary input.");
         }
         remaining_ -= size;
-    }
-
-    void BinaryReader::require_stream(
-        std::istream& expected,
-        std::uint64_t size,
-        const std::filesystem::path& expected_path,
-        std::string_view name) {
-
-        std::vector<std::byte> expected_buffer;
-        try {
-            expected_buffer.resize(BUFFER_SIZE);
-        }
-        catch (...) {
-            fail("Failed to allocate the binary compare buffer.");
-        }
-
-        while (size != 0) {
-            const std::size_t chunk = static_cast<std::size_t>(
-                std::min<std::uint64_t>(size, buffer_.size()));
-            read_bytes(buffer_.data(), chunk);
-            expected.read(
-                reinterpret_cast<char*>(expected_buffer.data()),
-                static_cast<std::streamsize>(chunk));
-            if (expected.gcount() != static_cast<std::streamsize>(chunk)) {
-                log::Logger::g_logger
-                    << "Binary compare input is truncated: "
-                    << expected_path << '\n';
-                log::Logger::g_logger.abort();
-            }
-            if (std::memcmp(
-                buffer_.data(),
-                expected_buffer.data(),
-                chunk) != 0) {
-                fail_changed(name);
-            }
-            size -= chunk;
-        }
-
-        if (expected.peek() != std::char_traits<char>::eof()) {
-            log::Logger::g_logger
-                << "Binary compare input has trailing bytes: "
-                << expected_path << '\n';
-            log::Logger::g_logger.abort();
-        }
     }
 
     void BinaryReader::require_end() {
@@ -125,34 +72,9 @@ namespace fjr::util {
         }
     }
 
-    void BinaryReader::require_bytes(
-        const void* expected,
-        std::size_t size,
-        std::string_view name) {
-
-        const auto* cursor = static_cast<const std::byte*>(expected);
-        while (size != 0) {
-            const std::size_t chunk = std::min(size, buffer_.size());
-            read_bytes(buffer_.data(), chunk);
-            if (std::memcmp(buffer_.data(), cursor, chunk) != 0) {
-                fail_changed(name);
-            }
-            cursor += chunk;
-            size -= chunk;
-        }
-    }
-
     void BinaryReader::fail(std::string_view message) const {
         log::Logger::g_logger
             << message << '\n'
-            << "  path: " << path_ << '\n'
-            << "  offset: " << offset() << '\n';
-        log::Logger::g_logger.abort();
-    }
-
-    void BinaryReader::fail_changed(std::string_view name) const {
-        log::Logger::g_logger
-            << "Binary data changed: " << name << '\n'
             << "  path: " << path_ << '\n'
             << "  offset: " << offset() << '\n';
         log::Logger::g_logger.abort();
@@ -162,15 +84,7 @@ namespace fjr::util {
         std::ostream& destination,
         std::filesystem::path path)
         : destination_(destination),
-          path_(std::move(path)) {
-
-        try {
-            buffer_.resize(BUFFER_SIZE);
-        }
-        catch (...) {
-            fail("Failed to allocate the binary write buffer.");
-        }
-    }
+          path_(std::move(path)) {}
 
     void BinaryWriter::write_bytes(const void* source, std::size_t size) {
         const auto* cursor = static_cast<const char*>(source);
@@ -191,11 +105,19 @@ namespace fjr::util {
         std::uint64_t size,
         const std::filesystem::path& source_path) {
 
+        std::vector<std::byte> buffer;
+        try {
+            buffer.resize(BUFFER_SIZE);
+        }
+        catch (...) {
+            fail("Failed to allocate the binary copy buffer.");
+        }
+
         while (size != 0) {
             const std::size_t chunk = static_cast<std::size_t>(
-                std::min<std::uint64_t>(size, buffer_.size()));
+                std::min<std::uint64_t>(size, buffer.size()));
             source.read(
-                reinterpret_cast<char*>(buffer_.data()),
+                reinterpret_cast<char*>(buffer.data()),
                 static_cast<std::streamsize>(chunk));
             if (source.gcount() != static_cast<std::streamsize>(chunk)) {
                 log::Logger::g_logger
@@ -203,7 +125,7 @@ namespace fjr::util {
                     << source_path << '\n';
                 log::Logger::g_logger.abort();
             }
-            write_bytes(buffer_.data(), chunk);
+            write_bytes(buffer.data(), chunk);
             size -= chunk;
         }
 

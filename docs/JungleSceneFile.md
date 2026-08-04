@@ -11,7 +11,10 @@ The cooked runtime scene is split into two files:
 The renderer does not link OpenUSD. A scene and texture file are one validated
 pair and must be deployed together with the same basename.
 
-## Static scene header
+`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures, and
+streams the file without allocating another file-sized buffer.
+`FastJungle.exe` uses only the runtime reader and does not link or deploy
+OpenUSD.
 
 All values use the native little-endian x64 representation. The fixed 40-byte
 `.fjscene` header is:
@@ -26,10 +29,8 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | 24 | 8 | static payload byte count |
 | 32 | 8 | expected texture payload byte count |
 
-The payload serializes every vector in `SceneData_MACRO`, followed by the
-camera, environment light, and scene information records. Every vector starts
-with a native `size_t` element count and then stores its trivially copyable
-elements contiguously.
+The reader rejects unknown versions, ABI-size mismatches, length mismatches,
+truncation, and trailing bytes.
 
 ## Texture header
 

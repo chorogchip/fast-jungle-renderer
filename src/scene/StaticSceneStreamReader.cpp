@@ -4,50 +4,69 @@
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 
-#include "FastJungle/scene/StaticSceneFileFormat.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
 #include "FastJungle/scene/StaticTextureFileFormat.hpp"
 
 #include <limits>
 #include <utility>
 
+#include "StaticSceneFileHeader.hpp"
+
 namespace fjr::scene {
+
+    namespace {
+
+        [[nodiscard]]
+        std::unique_ptr<StaticScene> allocate_scene(
+            const std::filesystem::path& path) {
+
+            try {
+                return std::make_unique<StaticScene>();
+            }
+            catch (...) {
+                log::Logger::g_logger
+                    << "Failed to allocate StaticScene: " << path << '\n';
+                log::Logger::g_logger.abort();
+            }
+        }
+
+        void read_before_texture(
+            util::BinaryReader& reader,
+            StaticScene& scene) {
+
+#define X(type, name) reader.read(scene.name);
+            SceneDataBeforeTexture_MACRO
+#undef X
+        }
+
+        void read_after_texture(
+            util::BinaryReader& reader,
+            StaticScene& scene) {
+
+#define X(type, name) reader.read(scene.name);
+            SceneDataAfterTexture_MACRO
+#undef X
+
+            reader.read(scene.camera);
+            reader.read(scene.environment_light);
+            reader.read(scene.info);
+        }
+
+    } // namespace
 
     std::unique_ptr<StaticScene> StaticSceneReader::load(
         const std::filesystem::path& path) {
 
-        auto metadata = load_metadata(path);
-        auto& scene = metadata.scene;
-        if (metadata.texture_payload.size >
-            std::numeric_limits<std::size_t>::max()) {
-            log::Logger::g_logger
-                << "StaticTexture payload exceeds addressable memory: "
-                << metadata.texture_payload.path << '\n';
-            log::Logger::g_logger.abort();
-        }
+        auto source = util::File::open_read(path);
+        util::BinaryReader reader{source, util::File::size(path), path};
 
-        auto texture_source = util::File::open_read(
-            metadata.texture_payload.path);
-        util::BinaryReader texture_reader{
-            texture_source,
-            util::File::size(metadata.texture_payload.path),
-            metadata.texture_payload.path};
-        const auto texture_size =
-            StaticTextureFileFormat::read_header(texture_reader);
-        try {
-            scene->texture_data.resize(
-                static_cast<std::size_t>(texture_size));
-        }
-        catch (...) {
-            log::Logger::g_logger
-                << "Failed to allocate StaticTexture payload: "
-                << metadata.texture_payload.path << '\n';
-            log::Logger::g_logger.abort();
-        }
-        texture_reader.read_raw(
-            scene->texture_data.data(),
-            scene->texture_data.size());
-        texture_reader.require_end();
+        static_scene_file_header::read(reader);
+
+        auto scene = allocate_scene(path);
+        read_before_texture(reader, *scene);
+        reader.read(scene->texture_data);
+        read_after_texture(reader, *scene);
+        reader.require_end();
         StaticSceneValidator::validate(*scene);
         return std::move(scene);
     }
@@ -58,27 +77,21 @@ namespace fjr::scene {
         auto source = util::File::open_read(path);
         util::BinaryReader reader{source, util::File::size(path), path};
 
-        const auto expected_texture_size =
-            StaticSceneFileFormat::read_header(reader);
+        static_scene_file_header::read(reader);
 
         StaticSceneMetadata result;
-        try {
-            result.scene = std::make_unique<StaticScene>();
-        }
-        catch (...) {
-            log::Logger::g_logger
-                << "Failed to allocate StaticScene metadata: "
-                << path << '\n';
-            log::Logger::g_logger.abort();
-        }
+        result.scene = allocate_scene(path);
+        read_before_texture(reader, *result.scene);
 
-#define X(type, name) reader.read(result.scene->name);
-        SceneData_MACRO
-#undef X
+        std::size_t texture_payload_size = 0;
+        reader.read(texture_payload_size);
+        result.texture_payload = {
+            .file_offset = reader.offset(),
+            .size = texture_payload_size
+        };
+        reader.skip(texture_payload_size);
 
-        reader.read(result.scene->camera);
-        reader.read(result.scene->environment_light);
-        reader.read(result.scene->info);
+        read_after_texture(reader, *result.scene);
         reader.require_end();
 
         const auto external_path = texture_path(path);

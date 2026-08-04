@@ -717,7 +717,7 @@ if(FASTJUNGLE_BUILD_TESTS)
         "${FASTJUNGLE_SOURCE_DIR}/core/util/File.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/core/util/TemporaryFile.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileFormat.cpp"
+        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileHeader.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamReader.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamWriter.cpp"
         "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
