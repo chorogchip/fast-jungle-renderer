@@ -9,6 +9,7 @@
 
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/Texture.hpp"
+#include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
@@ -188,6 +189,10 @@ namespace fjr::render {
         scene::StaticScene::SceneInfo scene_info;
 
         std::uint32_t default_material_id = 0;
+
+
+        dx::DescAlloc texture_descriptors;
+        dx::DescAlloc sampler_descriptors;
     };
 
     static_assert(sizeof(SceneResources::CameraConstants) ==

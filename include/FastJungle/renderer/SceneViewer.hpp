@@ -16,10 +16,11 @@ namespace fjr::render {
 			const scene::StaticScene* scene,
 			SceneResources* scene_resources);
 
-		std::span<const Draw::DrawDataCpu> get_draw_data() const;
+		std::span<const Draw::DrawDataCpu> get_draw_data() const noexcept;
 
 	private:
 		const scene::StaticScene* scene_raw_;
 		SceneResources* scene_resources_;
-	};
+
+		std::vector<Draw::DrawDataCpu> draws_;	};
 }

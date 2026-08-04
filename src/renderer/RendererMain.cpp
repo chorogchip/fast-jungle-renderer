@@ -39,14 +39,15 @@ namespace fjr::render {
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
             command_contexts_[i].init(
                 device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, i);
-            frame_data_[i].init(device_.Get(), camera_);
+            frame_data_[i].init(device_.Get());
         }
 
         // build scene
 
         dx::CommandContext upload_context;
         upload_context.init(
-            device_.Get(), D3D12_COMMAND_LIST_TYPE_COPY, 0);
+            device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, 0);
+        upload_context.reset();
 
         SceneResourcesBuilder::BuildContexts build_contexts{};
         build_contexts.device = device_.Get();
@@ -85,8 +86,10 @@ namespace fjr::render {
         desc_rtv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         desc_rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
+        auto arena = heap.heap_rtv.default_arena();
+
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
-            desc_rtv_[i] = heap.heap_rtv.default_arena().alloc();
+            desc_rtv_[i] = arena.alloc();
 
             device_->CreateRenderTargetView(
                 swap_chain_.get_buffer(i).get(),
@@ -151,19 +154,26 @@ namespace fjr::render {
 
         forward_pass_.views.desc_materials =
             scene_resources_->buf_materials->GetGPUVirtualAddress();
-        forward_pass_.views.desc_texture_bindings;
-        forward_pass_.views.descs_textures;  // TODO
-        forward_pass_.views.descs_samplers;  // TODO
+        forward_pass_.views.desc_texture_bindings =
+            scene_resources_->buf_texture_bindings->GetGPUVirtualAddress();
+
+        forward_pass_.views.descs_textures =
+            scene_resources_->texture_descriptors;
+        forward_pass_.views.descs_samplers = 
+            scene_resources_->sampler_descriptors;
+
+        forward_pass_.views.width = width;
+        forward_pass_.views.height = height;
 
         for (std::uint32_t i = 0; i < FRAME_COUNT; ++i)
-            frame_data_[i].upload_camera_data();
+            frame_data_[i].upload_camera_data(camera_, scene_resources_->environment_light);
     }
 
     void RendererMain::render() {
 
-        const int frame = swap_chain_.get_frame_count();
+        const int frame = swap_chain_.get_current_frame();
 
-        frame_data_[frame].upload_camera_data();
+        frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
 
         auto& context = command_contexts_[frame];
         command_queue_.wait(context.get_fence_value());

@@ -56,7 +56,7 @@ namespace fjr::render {
             dx::CommandContext& context,
             std::span<const Draw::DrawDataCpu> draws);
 
-        void reset();
+        void reset() noexcept;
 
     private:
         static constexpr std::uint32_t PIPELINE_STATE_COUNT = 4;

@@ -19,8 +19,6 @@ namespace {
         std::filesystem::path scene =
             std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
             "JungleRuins.fjscene";
-        fjr::RendererMain::RenderPath render_path =
-            fjr::RendererMain::RenderPath::FORWARD;
         std::optional<std::uint32_t> smoke_test_frames;
     };
 
@@ -47,12 +45,6 @@ namespace {
             const std::wstring_view argument{argv[index]};
             if (argument == L"--scene" && index + 1 < argc) {
                 options.scene = argv[++index];
-            } else if (argument == L"--visibility-buffer") {
-                options.render_path =
-                    fjr::RendererMain::RenderPath::VISIBILITY_BUFFER;
-            } else if (argument == L"--forward") {
-                options.render_path =
-                    fjr::RendererMain::RenderPath::FORWARD;
             } else if (
                 argument == L"--smoke-test-frames" &&
                 index + 1 < argc) {
@@ -283,7 +275,6 @@ int WINAPI wWinMain(
     fjr::Application application;
     const RendererLaunchOptions launch_options =
         get_renderer_launch_options();
-    application.set_render_path(launch_options.render_path);
 
     Win32State state{
         .application = nullptr,

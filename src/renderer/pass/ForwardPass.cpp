@@ -218,7 +218,6 @@ namespace fjr::render {
                 Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
                 &draw.constants, 0);
 
-            // this code is not good..
             context->SetGraphicsRootConstantBufferView(
                 static_cast<UINT>(RootParameter::ROOT_CBUF_TRANSFORMS),
                 views.cbuf_transform_matrix.at(

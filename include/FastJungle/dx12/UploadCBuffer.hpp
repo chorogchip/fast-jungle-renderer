@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FastJungle/dx12/Buffer.hpp"
+#include "FastJungle/dx12/WindowsUtils.hpp"
 
 #include <d3d12.h>
 
@@ -14,16 +15,18 @@ namespace fjr::dx {
 			
 			src_ = &src;
 			struct_size_ = sizeof(T);
-			size_t size = (sizeof(T) + 255) / 256;
+
+			constexpr size_t alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+			const size_t aligned_size = (sizeof(T) + alignment - 1) & ~(alignment - 1);
 
 			Buffer::init(
 				device,
-				size,
+				aligned_size,
 				D3D12_HEAP_TYPE_GPU_UPLOAD,
 				D3D12_RESOURCE_FLAG_NONE,
 				D3D12_RESOURCE_STATE_GENERIC_READ);
 
-			dx::abort_failed(resource_->Map(0, nullptr, &mapped_));
+			abort_failed(resource_->Map(0, nullptr, &mapped_));
 		}
 		
 		void copy() {

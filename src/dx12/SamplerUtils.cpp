@@ -66,26 +66,12 @@ namespace fjr::dx {
 
     } // namespace
 
-    D3D12_GPU_DESCRIPTOR_HANDLE SamplerUtils::create(
+    void SamplerUtils::create(
         ID3D12Device* device,
-        const DescriptorHeap& heap,
-        const DescriptorAllocation& allocation,
-        const D3D12_SAMPLER_DESC& description,
-        UINT descriptor_offset) {
+        D3D12_CPU_DESCRIPTOR_HANDLE location,
+        const D3D12_SAMPLER_DESC& description) {
 
-        if (descriptor_offset >= allocation.get_count()) {
-            std::abort();
-        }
-
-        device->CreateSampler(
-            &description,
-            heap.get_cpu_handle(
-                allocation,
-                descriptor_offset));
-
-        return heap.get_gpu_handle(
-            allocation,
-            descriptor_offset);
+        device->CreateSampler(&description, location);
     }
 
     D3D12_SAMPLER_DESC

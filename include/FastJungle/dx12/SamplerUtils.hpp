@@ -1,8 +1,5 @@
 #pragma once
 
-#include "FastJungle/dx12/DescriptorAllocator.hpp"
-#include "FastJungle/dx12/DescriptorHeap.hpp"
-
 #include <d3d12.h>
 
 namespace fjr::dx {
@@ -12,12 +9,10 @@ namespace fjr::dx {
         SamplerUtils() = delete;
 
         [[nodiscard]]
-        static D3D12_GPU_DESCRIPTOR_HANDLE create(
+        static void create(
             ID3D12Device* device,
-            const DescriptorHeap& heap,
-            const DescriptorAllocation& allocation,
-            const D3D12_SAMPLER_DESC& description,
-            UINT descriptor_offset = 0);
+            D3D12_CPU_DESCRIPTOR_HANDLE location,
+            const D3D12_SAMPLER_DESC& description);
 
         [[nodiscard]]
         static D3D12_SAMPLER_DESC default_desc() noexcept;

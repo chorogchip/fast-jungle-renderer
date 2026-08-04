@@ -44,8 +44,6 @@ namespace fjr {
             renderer_.render();
         }
 
-        renderer_.close();
-
         return 0;
     }
 
