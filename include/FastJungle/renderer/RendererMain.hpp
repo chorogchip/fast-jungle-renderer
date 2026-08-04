@@ -24,7 +24,7 @@ namespace fjr::render {
     public:
 
         RendererMain() = default;
-        ~RendererMain() = default;
+        ~RendererMain();
 
         RendererMain(const RendererMain&) = delete;
         RendererMain(RendererMain&&) = delete;

@@ -12,6 +12,10 @@
 
 namespace fjr::render {
 
+    RendererMain::~RendererMain() {
+        command_queue_.flush();
+    }
+
     void RendererMain::init(
         void* window,
         std::uint32_t width,
@@ -34,7 +38,7 @@ namespace fjr::render {
 
         dx::HeapManager::g_heap_manager.init(
             device_.Get(),
-            256, 16, 1, FRAME_COUNT);
+            1024, 128, 1, FRAME_COUNT);
 
         for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
             command_contexts_[i].init(
@@ -137,7 +141,9 @@ namespace fjr::render {
             &view,
             desc_dsv_.get_cpu());
 
-        forward_pass_.init(device_.Get());
+        forward_pass_.init(device_.Get(),
+            scene_resources_->texture_descriptors.get_count(),
+            scene_resources_->sampler_descriptors.get_count());
         forward_pass_.views.view_vertices = scene_resources_->view_vertices;
         forward_pass_.views.view_indices = scene_resources_->view_indices;
         forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
@@ -173,10 +179,10 @@ namespace fjr::render {
 
         const int frame = swap_chain_.get_current_frame();
 
-        frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
 
         auto& context = command_contexts_[frame];
         command_queue_.wait(context.get_fence_value());
+        frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
         context.reset();
 
         swap_chain_.get_current_buffer().transition(

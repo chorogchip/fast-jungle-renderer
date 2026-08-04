@@ -50,7 +50,9 @@ namespace fjr::render {
 
         ViewForRecord views{};
 
-        void init(ID3D12Device* device);
+        void init(ID3D12Device* device,
+            UINT texture_descriptor_count,
+            UINT sampler_descriptor_count);
 
         void record(
             dx::CommandContext& context,

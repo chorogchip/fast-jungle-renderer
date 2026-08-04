@@ -22,7 +22,7 @@ namespace fjr::dx {
 			Buffer::init(
 				device,
 				aligned_size,
-				D3D12_HEAP_TYPE_GPU_UPLOAD,
+				D3D12_HEAP_TYPE_UPLOAD,
 				D3D12_RESOURCE_FLAG_NONE,
 				D3D12_RESOURCE_STATE_GENERIC_READ);
 

@@ -320,6 +320,26 @@ namespace fjr::render {
 
             auto arena = dx::HeapManager::g_heap_manager.heap_srv_cbv_uav
                 .alloc_arena(texture_descriptor_count);
+            bool first_descriptor = true;
+            
+            const auto allocate_texture_descriptor =
+                [&]() -> D3D12_CPU_DESCRIPTOR_HANDLE {
+
+                const dx::DescAlloc allocation = arena.alloc();
+
+                if (first_descriptor) {
+                    resources.texture_descriptors = dx::DescAlloc{
+                        allocation.get_cpu(),
+                        allocation.get_gpu(),
+                        texture_descriptor_count
+                    };
+
+                    first_descriptor = false;
+                }
+
+                return allocation.get_cpu();
+                };
+
 
             if (scene.textures.empty()) {
                 D3D12_SHADER_RESOURCE_VIEW_DESC description{};
@@ -332,7 +352,7 @@ namespace fjr::render {
                 device->CreateShaderResourceView(
                     nullptr,
                     &description,
-                    arena.alloc().get_cpu());
+                    allocate_texture_descriptor());
                 return;
             }
 
@@ -341,18 +361,20 @@ namespace fjr::render {
             for (std::size_t texture_index = 0;
                 texture_index < scene.textures.size();
                 ++texture_index) {
-                const auto& source_texture =
+                auto& source_texture =
                     scene.textures[texture_index];
                 const auto source_format = static_cast<DXGI_FORMAT>(
                     source_texture.dxgi_format);
+
+                // i edit this mamually
+                int mip_count = 1; // source_texture.mip_count = 1;
 
                 D3D12_RESOURCE_DESC description{};
                 description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
                 description.Width = source_texture.width;
                 description.Height = source_texture.height;
                 description.DepthOrArraySize = 1;
-                description.MipLevels = static_cast<UINT16>(
-                    source_texture.mip_count);
+                description.MipLevels = mip_count;
                 description.Format = dx::FormatUtils::to_bc(source_format);
                 description.SampleDesc.Count = 1;
                 description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -366,14 +388,14 @@ namespace fjr::render {
                     D3D12_RESOURCE_STATE_COPY_DEST);
 
                 std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(
-                    source_texture.mip_count);
-                std::vector<UINT> row_counts(source_texture.mip_count);
-                std::vector<UINT64> row_sizes(source_texture.mip_count);
+                    mip_count);
+                std::vector<UINT> row_counts(mip_count);
+                std::vector<UINT64> row_sizes(mip_count);
                 UINT64 upload_size = 0;
                 device->GetCopyableFootprints(
                     &description,
                     0,
-                    source_texture.mip_count,
+                    mip_count,
                     0,
                     footprints.data(),
                     row_counts.data(),
@@ -397,7 +419,7 @@ namespace fjr::render {
                     &mapped));
 
                 for (std::uint32_t mip_index = 0;
-                    mip_index < source_texture.mip_count;
+                    mip_index < mip_count;
                     ++mip_index) {
                     const auto& source_mip = scene.texture_mips[
                         static_cast<std::size_t>(source_texture.mip_offset) +
@@ -430,7 +452,7 @@ namespace fjr::render {
                 upload->Unmap(0, &written_range);
 
                 for (std::uint32_t mip_index = 0;
-                    mip_index < source_texture.mip_count;
+                    mip_index < mip_count;
                     ++mip_index) {
                     D3D12_TEXTURE_COPY_LOCATION destination{};
                     destination.pResource = texture.get();
@@ -459,13 +481,13 @@ namespace fjr::render {
 
                 (void)texture.create_srv(
                     device,
-                    arena.alloc().get_cpu(),
-                    {},
+                    allocate_texture_descriptor(),
+                    dx::TextureViewRange{ 0, 1, 0, 1 },
                     dx::FormatUtils::to_linear(source_format));
                 (void)texture.create_srv(
                     device,
-                    arena.alloc().get_cpu(),
-                    {},
+                    allocate_texture_descriptor(),
+                    dx::TextureViewRange{0, 1, 0, 1},
                     dx::FormatUtils::to_srgb(source_format));
             }
         }
@@ -479,9 +501,27 @@ namespace fjr::render {
                 1u,
                 static_cast<UINT>(scene.samplers.size()));
             
-
             auto arena = dx::HeapManager::g_heap_manager.heap_sampler
                 .alloc_arena(sampler_count);
+            bool first_descriptor = true;
+
+            const auto allocate_sampler =
+                [&]() -> D3D12_CPU_DESCRIPTOR_HANDLE {
+
+                const dx::DescAlloc allocation = arena.alloc();
+
+                if (first_descriptor) {
+                    resources.sampler_descriptors = dx::DescAlloc{
+                        allocation.get_cpu(),
+                        allocation.get_gpu(),
+                        sampler_count
+                    };
+
+                    first_descriptor = false;
+                }
+
+                return allocation.get_cpu();
+                };
 
             for (UINT sampler_index = 0;
                 sampler_index < sampler_count;
@@ -515,7 +555,7 @@ namespace fjr::render {
                         16u);
                 }
 
-                device->CreateSampler(&description, arena.alloc().get_cpu());
+                device->CreateSampler(&description, allocate_sampler());
             }
         }
 

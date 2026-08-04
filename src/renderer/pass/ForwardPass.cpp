@@ -26,7 +26,9 @@ namespace fjr::render {
         };
     }
 
-    void ForwardPass::init(ID3D12Device* device) {
+    void ForwardPass::init(ID3D12Device* device,
+        UINT texture_descriptor_count,
+        UINT sampler_descriptor_count) {
 
         dx::RootSignatureBuilder root_builder{};
         root_builder.init(RootParameter::COUNT);
@@ -65,7 +67,7 @@ namespace fjr::render {
         root_builder.set_resource_table(RootParameter::TABLE_TEXTURES)
             .srv()
             .reg(3)
-            .count(5)  // just fix this..
+            .count(texture_descriptor_count)  // just fix this..
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_pixel()
@@ -74,7 +76,7 @@ namespace fjr::render {
         root_builder.set_sampler_table(RootParameter::TABLE_SAMPLERS)
             .sampler()
             .reg(0)
-            .count(5)  // temp
+            .count(sampler_descriptor_count)  // temp
             .add_range()
             .vis_pixel()
             .add();

@@ -1,5 +1,7 @@
 #include "FastJungle/renderer/FrameData.hpp"
 
+#include <cmath>
+
 namespace fjr::render {
 
 	void FrameData::init(ID3D12Device* device) {
