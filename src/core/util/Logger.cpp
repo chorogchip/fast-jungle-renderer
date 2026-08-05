@@ -102,7 +102,10 @@ namespace fjr::log {
     }
 
     void Logger::flush_debug_string_unlocked() {
-        OutputDebugStringA(logging_stream_.str().c_str());
+        const auto str = logging_stream_.str();
+        if (!str.empty())
+            OutputDebugStringA(str.c_str());
+        logging_stream_.str({});
         logging_stream_.clear();
     }
 

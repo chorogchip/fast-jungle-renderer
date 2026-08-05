@@ -6,6 +6,20 @@
 
 namespace fjr {
 
+    namespace {
+
+        double calc_ema(double* ema, double sample) {
+            constexpr double rise_alpha = 1.0;
+            constexpr double fall_alpha = 0.02;
+
+            const double alpha =
+                sample > *ema ? rise_alpha : fall_alpha;
+
+            *ema += alpha * (sample - *ema);
+            return *ema;
+        }
+    }
+
     void Application::init(
         void* native_window, uint32_t width, uint32_t height,
         const scene::StaticScene& scene,
@@ -30,14 +44,11 @@ namespace fjr {
                 std::chrono::duration<double, std::milli>(
                     time_end - time_begin).count();
 
-            const double weight = 0.1;
-            frame_time_ema_ =
-                frame_time_ema_ * (1.0 - weight) +
-                frame_time_ms * weight;
-
             fjr::log::Logger::g_logger_debug_out <<
                 "Frame Time: [" << frame_time_ms <<
-                " ms] EMA: [" << frame_time_ema_ << " ms]\n";
+                " ms] EMA: [" <<
+                calc_ema(&frame_time_ema_, frame_time_ms) <<
+                " ms]\n";
             fjr::log::Logger::g_logger_debug_out.flush_debug_string();
         }
     }
