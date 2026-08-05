@@ -51,9 +51,7 @@ namespace fjr::render {
         result.static_instance_max_scale.resize(
             scene.static_mesh_instances.size());
 
-        for (std::size_t mesh_index = 0;
-             mesh_index < scene.meshes.size();
-             ++mesh_index) {
+        for (std::size_t mesh_index = 0; mesh_index < scene.meshes.size(); ++mesh_index) {
             const auto& mesh = scene.meshes[mesh_index];
             const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
             auto& bounds = result.mesh_bounds[mesh_index];

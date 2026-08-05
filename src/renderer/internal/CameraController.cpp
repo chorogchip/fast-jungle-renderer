@@ -35,16 +35,16 @@ namespace fjr::render::internal {
     CameraController::CameraController(void* native_window) noexcept
         : native_window_(native_window) {}
 
-    bool CameraController::update(Camera& camera) noexcept {
+    void CameraController::update(Camera& camera) noexcept {
 
         const auto window = static_cast<HWND>(native_window_);
-        if (GetForegroundWindow() != window) return false;
+        if (GetForegroundWindow() != window) return;
 
         const float speed = key_down(VK_SHIFT)
             ? SPRINT_SPEED_METERS_PER_SECOND
             : WALK_SPEED_METERS_PER_SECOND;
 
-        return apply(
+        apply(
             camera,
             axis('D', 'A'),
             axis('E', 'Q'),
@@ -80,7 +80,7 @@ namespace fjr::render::internal {
         default: return;
         }
 
-        const bool changed = apply(
+        apply(
             camera,
             strafe,
             lift,
@@ -88,12 +88,9 @@ namespace fjr::render::internal {
             yaw,
             pitch,
             TAP_MOVE_METERS);
-        if (changed) {
-            update_caption(camera, lod_selection);
-        }
     }
 
-    bool CameraController::apply(
+    void CameraController::apply(
         Camera& camera,
         float strafe,
         float lift,
@@ -104,7 +101,7 @@ namespace fjr::render::internal {
 
         if (strafe == 0.0f && lift == 0.0f && advance == 0.0f &&
             yaw == 0.0f && pitch == 0.0f) {
-            return false;
+            return ;
         }
 
         using namespace DirectX;
@@ -156,29 +153,7 @@ namespace fjr::render::internal {
         DirectX::XMFLOAT4X4 transform;
         XMStoreFloat4x4(&transform, world);
         camera.set_world_transform(transform);
-        return true;
-    }
-
-    void CameraController::update_caption(
-        const Camera& camera,
-        LodSelectionMode lod_selection) const noexcept {
-
-        const auto position = camera.get_world_position();
-        const wchar_t* lod_label = L"Auto LOD";
-        if (lod_selection == LodSelectionMode::FINEST) {
-            lod_label = L"LOD Finest";
-        } else if (lod_selection == LodSelectionMode::COARSEST) {
-            lod_label = L"LOD Coarsest";
-        }
-        wchar_t title[192]{};
-        swprintf_s(
-            title,
-            L"Fast Jungle Renderer - %s - Camera %.1f, %.1f, %.1f",
-            lod_label,
-            position.x,
-            position.y,
-            position.z);
-        SetWindowTextW(static_cast<HWND>(native_window_), title);
+        return;
     }
 
 } // namespace fjr::render::internal

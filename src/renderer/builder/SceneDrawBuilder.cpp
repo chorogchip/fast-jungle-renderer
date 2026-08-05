@@ -141,9 +141,10 @@ namespace fjr::render {
             const scene::StaticScene& scene,
             scene::StaticScene::IndexRange range) {
 
-            for (std::uint32_t local_batch = 0;
-                local_batch < range.count;
-                ++local_batch) {
+            for (uint32_t local_batch = 0; local_batch < range.count; ++local_batch) {
+
+                // TODO seperate point batch
+
                 const auto batch_index = range.offset + local_batch;
                 const auto& batch = scene.point_batches[batch_index];
                 if (batch.instance_count == 0) {

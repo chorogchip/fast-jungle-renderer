@@ -16,14 +16,14 @@ namespace fjr::render {
         public:
             explicit CameraController(void* native_window) noexcept;
 
-            [[nodiscard]] bool update(Camera& camera) noexcept;
+            void update(Camera& camera) noexcept;
             void step(
                 Camera& camera,
                 std::uint32_t virtual_key,
                 LodSelectionMode lod_selection);
 
         private:
-            [[nodiscard]] static bool apply(
+            static void apply(
                 Camera& camera,
                 float strafe,
                 float lift,
