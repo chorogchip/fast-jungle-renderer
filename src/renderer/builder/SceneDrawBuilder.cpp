@@ -5,6 +5,8 @@
 #include <limits>
 #include <utility>
 
+#include "FastJungle/renderer/component/GPUPointData.hpp"
+
 namespace fjr::render {
 
     namespace {
@@ -86,6 +88,12 @@ namespace fjr::render {
             const auto& mesh = scene.meshes[mesh_index];
             bool appended = false;
 
+
+            if (instance_kind == SceneResources::InstanceKind::POINT &&
+                mesh.lod_count != POINT_LOD_COUNT) {
+                log::Logger::g_logger << log::abrt("LOD value mismatch in data");
+            }
+
             for (std::uint32_t local_lod = 0;
                 local_lod < mesh.lod_count;
                 ++local_lod) {
@@ -115,6 +123,11 @@ namespace fjr::render {
                     draw.base_vertex = static_cast<std::int32_t>(
                         submesh.vertex_offset);
                     draw.instance_count = instance_count;
+                    draw.lod_index = local_lod;
+                    if (instance_kind == SceneResources::InstanceKind::POINT) {
+                        draw.instance_bin_index =
+                            bounds_index * render::POINT_LOD_COUNT + local_lod;
+                    }
                     draw.constants.instance_offset = instance_offset;
                     draw.constants.material_id =
                         submesh.material == scene::StaticScene::INVALID_INDEX

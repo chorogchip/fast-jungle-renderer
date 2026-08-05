@@ -126,6 +126,22 @@ namespace fjr::render {
 
         dx::DescAlloc texture_descriptors;
         dx::DescAlloc sampler_descriptors;
+
+
+        // buffers for GPU indirect culling
+        dx::Buffer buf_point_clusters;
+        dx::Buffer buf_point_batches_gpu;
+        dx::Buffer buf_point_definitions;
+        dx::Buffer buf_point_draw_templates;
+
+        uint32_t point_cluster_count = 0;
+        uint32_t point_instance_count = 0;
+        uint32_t point_bin_count = 0;
+        uint32_t point_draw_template_count = 0;
+
+        std::array<uint32_t, POINT_PIPELINE_CLASS_COUNT> point_command_class_bases{};
+
+        std::array<uint32_t, POINT_PIPELINE_CLASS_COUNT> point_command_class_capacities{};
     };
 
     static_assert(sizeof(SceneResources::PointDrawConstants) ==

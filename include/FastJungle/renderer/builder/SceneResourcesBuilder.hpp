@@ -29,6 +29,7 @@ namespace fjr::render {
 		static BuildResult build(
 			BuildContexts& contexts,
 			const scene::StaticScene& scene,
+			const SceneBoundsBuilder& bounds,
 			const RendererOptions& options);
 	};
 } // namespace fjr::render

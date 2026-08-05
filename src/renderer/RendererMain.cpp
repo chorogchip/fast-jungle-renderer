@@ -62,11 +62,13 @@ namespace fjr::render {
         build_contexts.device = device_.Get();
         build_contexts.command_queue = &command_queue_;
 
+        const auto bounds = SceneBoundsBuilder::build(scene);
+
         auto scene_build = render::SceneResourcesBuilder::build(
-            build_contexts, scene, options);
+            build_contexts, scene, bounds, options);
         scene_resources_ = std::move(scene_build.resources);
 
-        const auto bounds = SceneBoundsBuilder::build(scene);
+
         scene_viewer_.init(scene_build.draw_items, bounds);
 
         // camera

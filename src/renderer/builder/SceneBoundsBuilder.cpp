@@ -90,61 +90,133 @@ namespace fjr::render {
         for (std::size_t definition_index = 0;
              definition_index < scene.instanced_mesh_definitions.size();
              ++definition_index) {
+
             const auto& definition =
                 scene.instanced_mesh_definitions[definition_index];
+
+            const auto& definition_local =
+                DirectX::XMLoadFloat4x4(&definition.local_transform);
+
             result.instanced_definition_bounds[definition_index] =
                 transformed(
                     result.mesh_bounds[definition.mesh],
-                    DirectX::XMLoadFloat4x4(
-                        &definition.local_transform));
+                    definition_local);
+
+            result.instanced_definition_max_scale[definition_index] =
+                maximum_scale(definition_local);
         }
 
+        result.point_batch_cluster_ranges.resize(
+            scene.point_batches.size());
+
+        result.point_batch_transform_max_scale.resize(
+            scene.point_batches.size());
+
         for (std::size_t batch_index = 0;
-             batch_index < scene.point_batches.size();
-             ++batch_index) {
+            batch_index < scene.point_batches.size();
+            ++batch_index) {
+
             const auto& batch = scene.point_batches[batch_index];
-            auto& bounds = result.point_batch_bounds[batch_index];
-            auto& max_scale = result.point_batch_max_scale[batch_index];
             const auto& definition =
                 scene.instanced_mesh_definitions[batch.definition];
-            const auto definition_local = DirectX::XMLoadFloat4x4(
-                &definition.local_transform);
-            const auto batch_world = DirectX::XMLoadFloat4x4(
-                &batch.local_to_world);
-            for (std::uint32_t local_instance = 0;
-                 local_instance < batch.instance_count;
-                 ++local_instance) {
-                const auto& instance = scene.point_instances[
-                    static_cast<std::size_t>(batch.instance_offset) +
-                    local_instance];
-                const auto scale = DirectX::XMMatrixScaling(
-                    instance.scale.x,
-                    instance.scale.y,
-                    instance.scale.z);
-                const auto rotation = DirectX::XMMatrixRotationQuaternion(
-                    DirectX::XMLoadFloat4(&instance.orientation));
-                const auto translation = DirectX::XMMatrixTranslation(
-                    instance.position.x,
-                    instance.position.y,
-                    instance.position.z);
-                const auto instance_world = DirectX::XMMatrixMultiply(
-                    DirectX::XMMatrixMultiply(
-                        scale,
-                        rotation),
-                    translation);
-                // Apply the complete transform to the mesh AABB once. This
-                // avoids compounding the looseness of intermediate AABBs.
-                const auto world = DirectX::XMMatrixMultiply(
-                    DirectX::XMMatrixMultiply(
-                        definition_local,
-                        instance_world),
-                    batch_world);
-                bounds.merge(transformed(
-                    result.mesh_bounds[definition.mesh],
-                    world));
-                max_scale = std::max(max_scale, maximum_scale(world));
+
+            auto& batch_bounds =
+                result.point_batch_bounds[batch_index];
+
+            auto& batch_max_scale =
+                result.point_batch_max_scale[batch_index];
+
+            const auto definition_local =
+                DirectX::XMLoadFloat4x4(
+                    &definition.local_transform);
+
+            const auto batch_world =
+                DirectX::XMLoadFloat4x4(
+                    &batch.local_to_world);
+
+            result.point_batch_transform_max_scale[batch_index] =
+                maximum_scale(batch_world);
+
+            auto& cluster_range =
+                result.point_batch_cluster_ranges[batch_index];
+
+            cluster_range.offset = static_cast<std::uint32_t>(
+                result.point_clusters.size());
+
+            // temp
+            static constexpr uint32_t point_cluster_size = 65535;
+
+            for (std::uint32_t local_begin = 0;
+                local_begin < batch.instance_count;
+                local_begin += point_cluster_size) {
+
+                PointClusterCpu cluster;
+                cluster.point_batch_index =
+                    static_cast<std::uint32_t>(batch_index);
+                cluster.instance_offset =
+                    batch.instance_offset + local_begin;
+                cluster.instance_count = std::min(
+                    point_cluster_size,
+                    batch.instance_count - local_begin);
+
+                for (std::uint32_t local_instance = 0;
+                    local_instance < cluster.instance_count;
+                    ++local_instance) {
+
+                    const auto instance_index =
+                        cluster.instance_offset + local_instance;
+
+                    const auto& instance =
+                        scene.point_instances[instance_index];
+
+                    const auto scale =
+                        DirectX::XMMatrixScaling(
+                            instance.scale.x,
+                            instance.scale.y,
+                            instance.scale.z);
+
+                    const auto rotation =
+                        DirectX::XMMatrixRotationQuaternion(
+                            DirectX::XMLoadFloat4(
+                                &instance.orientation));
+
+                    const auto translation =
+                        DirectX::XMMatrixTranslation(
+                            instance.position.x,
+                            instance.position.y,
+                            instance.position.z);
+
+                    const auto instance_world =
+                        scale * rotation * translation;
+
+                    // row-vector convention:
+                    // definition * instance * batch
+                    const auto world =
+                        definition_local *
+                        instance_world *
+                        batch_world;
+
+                    const auto instance_bounds =
+                        transformed(
+                            result.mesh_bounds[definition.mesh],
+                            world);
+
+                    cluster.world_bounds.merge(instance_bounds);
+                    batch_max_scale = std::max(
+                        batch_max_scale,
+                        maximum_scale(world));
+                }
+
+                batch_bounds.merge(cluster.world_bounds);
+                result.point_clusters.push_back(cluster);
             }
-            result.world_bounds.merge(bounds);
+
+            cluster_range.count =
+                static_cast<std::uint32_t>(
+                    result.point_clusters.size()) -
+                cluster_range.offset;
+
+            result.world_bounds.merge(batch_bounds);
         }
 
         for (std::size_t instance_index = 0;
