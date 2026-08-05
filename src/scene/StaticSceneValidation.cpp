@@ -2,6 +2,7 @@
 
 #include "FastJungle/core/util/Logger.hpp"
 
+#include <array>
 #include <cmath>
 
 namespace fjr::scene {
@@ -252,24 +253,78 @@ namespace fjr::scene {
 				stream, scene.corner_texcoord2_values.size(), "corner texcoord stream");
 		}
 
-		for (const auto& definition : scene.instanced_mesh_definitions) {
+		std::vector<bool> point_mesh_used(scene.meshes.size());
+		std::uint64_t expected_span_offset = 0;
+		std::uint64_t expected_instance_offset = 0;
+		for (const auto& batch : scene.point_mesh_batches) {
 			require_index(
-				definition.mesh,
+				batch.mesh,
 				scene.meshes.size(),
-				"instanced mesh definition");
-        }
+				"point mesh batch");
+			if (point_mesh_used[batch.mesh]) {
+				log::Logger::g_logger
+					<< "A point mesh belongs to multiple batches.\n";
+				log::Logger::g_logger.abort();
+			}
+			point_mesh_used[batch.mesh] = true;
+			require_range(
+				batch.category_spans.offset,
+				batch.category_spans.count,
+				scene.point_category_spans.size(),
+				"point mesh category span");
+			if (batch.category_spans.count == 0 ||
+				batch.category_spans.offset != expected_span_offset) {
 
-        for (const auto& batch : scene.point_batches) {
-            require_index(
-				batch.definition,
-				scene.instanced_mesh_definitions.size(),
-				"point batch definition");
-            require_range(
-                batch.instance_offset,
-                batch.instance_count,
-                scene.point_instances.size(),
-                "point batch instance");
-        }
+				log::Logger::g_logger
+					<< "Point mesh category spans are not contiguous.\n";
+				log::Logger::g_logger.abort();
+			}
+
+			std::array<
+				bool,
+				static_cast<std::size_t>(
+					StaticScene::EnumPointCategory::COUNT)>
+				batch_categories{};
+			for (std::uint32_t local = 0;
+				local < batch.category_spans.count;
+				++local) {
+
+				const auto& span = scene.point_category_spans[
+					static_cast<std::size_t>(
+						batch.category_spans.offset) + local];
+				const auto category =
+					static_cast<std::size_t>(span.category);
+				if (category >= batch_categories.size() ||
+					batch_categories[category]) {
+
+					log::Logger::g_logger
+						<< "Point mesh category is invalid or repeated.\n";
+					log::Logger::g_logger.abort();
+				}
+				batch_categories[category] = true;
+				require_range(
+					span.instances.offset,
+					span.instances.count,
+					scene.point_instances.size(),
+					"point category instance");
+				if (span.instances.count == 0 ||
+					span.instances.offset != expected_instance_offset) {
+
+					log::Logger::g_logger
+						<< "Point category instances are not contiguous.\n";
+					log::Logger::g_logger.abort();
+				}
+				expected_instance_offset += span.instances.count;
+			}
+			expected_span_offset += batch.category_spans.count;
+		}
+		if (expected_span_offset != scene.point_category_spans.size() ||
+			expected_instance_offset != scene.point_instances.size()) {
+
+			log::Logger::g_logger
+				<< "Point mesh batches do not cover all point data.\n";
+			log::Logger::g_logger.abort();
+		}
 
 		for (const auto& instance : scene.static_mesh_instances) {
 			require_index(instance.mesh, scene.meshes.size(), "static mesh instance");

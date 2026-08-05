@@ -5,7 +5,6 @@
 #include "FastJungle/cooker/StaticSceneBuilder.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -38,9 +37,6 @@ namespace fjr::cooker::internal {
         [[nodiscard]] MaterialId append_material(
             const scene::StaticScene::Material& material);
 
-        [[nodiscard]] DefinitionId intern_definition(
-            const scene::StaticScene::InstancedMeshDefinition& definition);
-
         void set_camera(const scene::StaticScene::Camera& camera);
 
         void set_environment_light(
@@ -65,26 +61,12 @@ namespace fjr::cooker::internal {
                 const SamplerKey& key) const noexcept;
         };
 
-        struct DefinitionKey final {
-            std::uint32_t mesh = scene::StaticScene::INVALID_INDEX;
-            std::array<std::uint32_t, 16> transform{};
-
-            bool operator==(const DefinitionKey&) const = default;
-        };
-
-        struct DefinitionKeyHash final {
-            [[nodiscard]] std::size_t operator()(
-                const DefinitionKey& value) const noexcept;
-        };
-
         std::unique_ptr<scene::StaticScene> scene_;
         std::vector<std::string> texture_paths_;
         std::unordered_map<std::string, std::uint32_t> string_offsets_;
         std::unordered_map<std::string, TextureId> texture_cache_;
         std::unordered_map<SamplerKey, SamplerId, SamplerKeyHash>
             sampler_cache_;
-        std::unordered_map<DefinitionKey, DefinitionId, DefinitionKeyHash>
-            definition_cache_;
     };
 
 } // namespace fjr::cooker::internal

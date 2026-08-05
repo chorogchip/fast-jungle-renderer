@@ -1,9 +1,9 @@
 #pragma once
 
 /*
-Renderer°¡ StaticSceneÀ» °¡°ø ½Ã CPU/GPU ¾çÃø¿¡¼­ Ã³¸®ÇÏ°í ¹öÆÛ¸¦ ¸¸µë
-¿©±â¿¡´Â CPU/GPU ¾çÃø¿¡¼­ ¾Ë¾Æ¾ß ÇÒ °ø¿ë Å¸ÀÔ Á¤ÀÇ
-Áß°£¿¡ ¸¸µé°í ¾ø¾Ù Å¸ÀÔÀº °¡´ÉÇÏ¸é ´Ù¸¥ °÷¿¡¼­ ¾¸
+Rendererê°€ StaticSceneì„ ê°€ê³µ ì‹œ CPU/GPU ì–‘ì¸¡ì—ì„œ ì²˜ë¦¬í•˜ê³  ë²„í¼ë¥¼ ë§Œë“¬
+ì—¬ê¸°ì—ëŠ” CPU/GPU ì–‘ì¸¡ì—ì„œ ì•Œì•„ì•¼ í•  ê³µìš© íƒ€ì… ì •ì˜
+ì¤‘ê°„ì— ë§Œë“¤ê³  ì—†ì•¨ íƒ€ì…ì€ ê°€ëŠ¥í•˜ë©´ ë‹¤ë¥¸ ê³³ì—ì„œ ì”€
 */
 
 #include <cstdint>
@@ -15,19 +15,18 @@ namespace fjr::render::data {
 
     struct alignas(Consts::CBUF_ALIGN) CbufPointDraw {
         DirectX::XMFLOAT4X4 part_local_transform = Consts::I_MAT;
-        DirectX::XMFLOAT4X4 batch_local_to_world = Consts::I_MAT;
     };
 
     /*
-        StaticSceneÀÇ Çà·Äµé ÇÏ³ª·Î ÇÕÄ§.
-        normal º¯È¯±îÁö ÀÌ Çà·Ä·Î Ã³¸®ÇÔ. (uniform scale °¡Á¤)
+        StaticSceneì˜ í–‰ë ¬ë“¤ í•˜ë‚˜ë¡œ í•©ì¹¨.
+        normal ë³€í™˜ê¹Œì§€ ì´ í–‰ë ¬ë¡œ ì²˜ë¦¬í•¨. (uniform scale ê°€ì •)
     */
     struct alignas(Consts::CBUF_ALIGN) CbufMatrixDraw {
         DirectX::XMFLOAT4X4 part_local_transform = Consts::I_MAT;
     };
 
     /*
-        StaticScene¿¡¼­ matrix¸¸ ºĞ¸®ÇØ¼­ ¾¸.
+        StaticSceneì—ì„œ matrixë§Œ ë¶„ë¦¬í•´ì„œ ì”€.
     */
     struct StbufMatrixInstance {
         DirectX::XMFLOAT4X4 transform = Consts::I_MAT;

@@ -160,27 +160,21 @@ namespace fjr::render {
             if (draw.instnace_class ==
                 data::EnumPointOrMatrix::POINT) {
 
-                const std::uint32_t batch_index =
-                    draw.offset_cbuf_transform;
-
-                if (contains(
-                    components.river_seedling.point_batches,
-                    batch_index)) {
-
+                if (draw.point_category ==
+                    scene::StaticScene::EnumPointCategory::
+                        RIVER_SEEDLING) {
                     return options.river_seedling;
                 }
 
-                if (contains(
-                    components.river_forest.point_batches,
-                    batch_index)) {
-
+                if (draw.point_category ==
+                    scene::StaticScene::EnumPointCategory::
+                        RIVER_FOREST) {
                     return options.river_forest;
                 }
 
-                if (contains(
-                    components.pyramid_moss.point_batches,
-                    batch_index)) {
-
+                if (draw.point_category ==
+                    scene::StaticScene::EnumPointCategory::
+                        PYRAMID_MOSS) {
                     return options.pyramid_moss;
                 }
 

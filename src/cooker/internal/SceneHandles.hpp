@@ -36,9 +36,7 @@ namespace fjr::cooker::internal {
     struct TextureBindingIdTag;
     struct MaterialIdTag;
     struct MeshIdTag;
-    struct DefinitionIdTag;
     struct PointInstanceIdTag;
-    struct PointBatchIdTag;
     struct StaticInstanceIdTag;
 
     using StringOffset = SceneHandle<StringOffsetTag>;
@@ -47,9 +45,7 @@ namespace fjr::cooker::internal {
     using TextureBindingId = SceneHandle<TextureBindingIdTag>;
     using MaterialId = SceneHandle<MaterialIdTag>;
     using MeshId = SceneHandle<MeshIdTag>;
-    using DefinitionId = SceneHandle<DefinitionIdTag>;
     using PointInstanceId = SceneHandle<PointInstanceIdTag>;
-    using PointBatchId = SceneHandle<PointBatchIdTag>;
     using StaticInstanceId = SceneHandle<StaticInstanceIdTag>;
 
     template<typename Handle>

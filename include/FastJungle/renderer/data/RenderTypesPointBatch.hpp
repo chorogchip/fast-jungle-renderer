@@ -10,10 +10,10 @@
 
 namespace fjr::render::data {
 
-    // PointBatch -> (PointCluster, new) -> PointInstance
+    // PointMeshBatch -> PointCluster -> PointInstance
     struct StbufPointCluster {
         DirectX::XMFLOAT3 bounds_center{};
-        uint32_t point_batch_index = 0;
+        uint32_t point_mesh_batch_index = 0;
 
         DirectX::XMFLOAT3 bounds_extent{};
         uint32_t instance_offset = 0;
@@ -21,18 +21,13 @@ namespace fjr::render::data {
         uint32_t padding[3]{};
     };
 
-    // StaticScene PointBatch -> this new PointBatchGpu
-    struct StbufPointBatch {
-        DirectX::XMFLOAT4X4 part_local_transform{};
-        DirectX::XMFLOAT4X4 batch_local_to_world{};
+    struct StbufPointMeshBatch {
+        DirectX::XMFLOAT4X4 local_transform{};
 
-        uint32_t definition_index = 0;
+        uint32_t mesh_index = 0;
         uint32_t first_bin = 0;
         uint32_t first_cluster = 0;
         uint32_t cluster_count = 0;
-
-        float transform_max_scale = 1.0f;
-        float padding[3]{};
     };
 
     // definition AABB
@@ -44,7 +39,7 @@ namespace fjr::render::data {
 
     struct StbufPointDraw {
         uint32_t bin_index = Consts::IND_ERR;
-        uint32_t point_batch_index = 0;
+        uint32_t point_mesh_batch_index = 0;
         uint32_t material_id = 0;
         EnumPSOClass pipeline_class = EnumPSOClass::SINGLE_SIDED;
 
@@ -55,10 +50,10 @@ namespace fjr::render::data {
     };
 
     // indirect root constant (3)
-    struct IndirectbufPointBatch {
+    struct IndirectbufPointMeshBatch {
         std::uint32_t visible_instance_offset = 0;
         std::uint32_t material_id = 0;
-        std::uint32_t point_batch_index = 0;
+        std::uint32_t point_mesh_batch_index = 0;
         D3D12_DRAW_INDEXED_ARGUMENTS draw{};
 
         static inline constexpr uint32_t CONSTANT_COUNT = 3;
@@ -77,13 +72,13 @@ namespace fjr::render::data {
     };
 
     static_assert(sizeof(StbufPointCluster) == 48);
-    static_assert(sizeof(StbufPointBatch) == 160);
+    static_assert(sizeof(StbufPointMeshBatch) == 80);
     static_assert(sizeof(StbufPointDef) == 48);
-    static_assert(sizeof(IndirectbufPointBatch) == 32);
+    static_assert(sizeof(IndirectbufPointMeshBatch) == 32);
 
     static_assert(std::is_trivially_copyable_v<StbufPointCluster>);
-    static_assert(std::is_trivially_copyable_v<StbufPointBatch>);
+    static_assert(std::is_trivially_copyable_v<StbufPointMeshBatch>);
     static_assert(std::is_trivially_copyable_v<StbufPointDef>);
-    static_assert(std::is_trivially_copyable_v<IndirectbufPointBatch>);
+    static_assert(std::is_trivially_copyable_v<IndirectbufPointMeshBatch>);
 
 }

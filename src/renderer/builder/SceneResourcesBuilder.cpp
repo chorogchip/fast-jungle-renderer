@@ -142,11 +142,11 @@ namespace fjr::render {
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
             upload_if_not_empty(
-                output.points.batches,
+                output.points.mesh_batches,
                 uploader,
                 std::span<
-                const data::StbufPointBatch>{
-                points.batches},
+                const data::StbufPointMeshBatch>{
+                points.mesh_batches},
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
             upload_if_not_empty(
@@ -169,9 +169,9 @@ namespace fjr::render {
                 static_cast<std::uint32_t>(
                     points.clusters.size());
 
-            output.points.batch_count =
+            output.points.mesh_batch_count =
                 static_cast<std::uint32_t>(
-                    points.batches.size());
+                    points.mesh_batches.size());
 
             output.points.definition_count =
                 static_cast<std::uint32_t>(

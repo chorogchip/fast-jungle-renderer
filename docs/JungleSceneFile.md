@@ -1,4 +1,4 @@
-# Jungle scene file version 4
+# Jungle scene file version 5
 
 ## Purpose
 
@@ -23,7 +23,7 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`4`) |
+| 8 | 4 | format version (`5`) |
 | 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
@@ -71,23 +71,26 @@ monotonic. Auxiliary triangle and corner primvars remain defined against LOD0
 topology only.
 
 At runtime a 1-pixel projected-error threshold selects one LOD. Static meshes
-use their individual bounds and scale. The current PointBatch draw path uses
-the batch's nearest bound distance and maximum instance scale, which is safe
-but conservative until GPU instance compaction can select LOD per instance.
+use their individual bounds and scale. The current point path derives
+256-instance clusters and uses each cluster's bounds and maximum instance
+scale, which remains conservative until GPU instance compaction can select LOD
+per instance.
 
-## Preserved flat source structure
+## Point mesh and category structure
 
-The cooker records the root USDA and all authored root sublayers as
-`SourceLayer` records. Each layer belongs to a flat `SourceGroup` derived from
-its authored path, such as `Pyramid`, `Terrain`, `River`, `Grass_A`, or
-`Grass_B`. Every `PointBatch` and `MatrixBatch` stores its source layer,
-authored prim path, prototype, instance range, and authored transform data.
+Point-instancer provenance is intentionally not a runtime boundary. The cooker
+resolves each prototype to a mesh and local transform, requires every source
+PointInstancer transform to be bit-exact identity, and stably reorders its
+instances by mesh and category. All sources using the same mesh must also have
+the same bit-exact local transform; disagreement is a cook error instead of a
+hidden second mesh identity.
 
-Referenced asset children inherit the closest authored root-sublayer owner.
-The format does not copy the composed USD node hierarchy, and the cooker does
-not merge independently authored matrix objects merely because they share a
-prototype. All 778 PointInstancer batches and all 8,674,676 point instances are
-retained.
+Each unique point mesh becomes one `PointMeshBatch`. Its contiguous
+`PointCategorySpan` records preserve semantic distinctions such as `Grass_B`
+versus `Pyramid_Grass_B` even when both use the same mesh. The Jungle scene
+therefore stores 53 point mesh batches, 58 category spans, and all 8,674,676
+point instances. Static mesh instances remain independent and keep their full
+world matrices.
 
 ## Renderer-owned derived data
 
@@ -96,13 +99,13 @@ renderer derives bounds in this order:
 
 1. LOD0 submesh bounds from vertex positions;
 2. mesh bounds from LOD0 submeshes;
-3. prototype bounds from mesh parts and local transforms;
-4. point and matrix batch bounds from instances;
-5. the complete scene bound from all batches.
+3. point-mesh local and point-span bounds from instances;
+4. static-instance bounds from their world transforms;
+5. the complete scene bound.
 
-VFC consumes these renderer-owned batch bounds. Future spatial structures can
-therefore be rebuilt from preserved static data without changing or reducing
-the source-oriented cooked representation.
+VFC consumes these renderer-owned bounds. Future spatial structures can
+therefore be rebuilt from the compact mesh/category representation without
+changing the cooked scene contract.
 
 ## Bounded-memory cooker path
 

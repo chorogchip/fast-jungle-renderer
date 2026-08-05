@@ -6,6 +6,7 @@
 
 #include "FastJungle/core/math/AABB.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render::data {
 
@@ -42,6 +43,8 @@ namespace fjr::render::data {
         EnumPointOrMatrix instnace_class = EnumPointOrMatrix::POINT;
         EnumPSOClass pso_class = EnumPSOClass::SINGLE_SIDED;
         EnumDrawCpuFlag flags = EnumDrawCpuFlag::DEFAULT;
+        scene::StaticScene::EnumPointCategory point_category =
+            scene::StaticScene::EnumPointCategory::COUNT;
 
         uint32_t offset_cbuf_transform = Consts::IND_ERR;
         uint32_t offset_index = Consts::IND_ERR;

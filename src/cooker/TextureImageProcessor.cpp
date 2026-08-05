@@ -1,6 +1,6 @@
-#include "TextureImageProcessing.hpp"
+#include "FastJungle/cooker/TextureImageProcessing.hpp"
 
-#include "CookerCommon.hpp"
+#include "FastJungle/cooker/CookerCommon.hpp"
 
 #include <DirectXMath.h>
 

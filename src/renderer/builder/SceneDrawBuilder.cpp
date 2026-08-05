@@ -68,6 +68,7 @@ namespace fjr::render {
             const scene::StaticScene& scene,
             std::uint32_t mesh_index,
             data::EnumPointOrMatrix instance_class,
+            scene::StaticScene::EnumPointCategory point_category,
             std::uint32_t instance_offset,
             std::uint32_t instance_count,
             std::uint32_t transform_constant_index,
@@ -140,6 +141,9 @@ namespace fjr::render {
                                 select_draw_flags(
                                     submesh.flags);
 
+                            draw.point_category =
+                                point_category;
+
                             draw.offset_cbuf_transform =
                                 transform_constant_index;
 
@@ -175,45 +179,28 @@ namespace fjr::render {
             }
         }
 
-        void append_point_range(
+        void append_point_cluster(
             std::vector<data::DrawFinalGPUIndirect>& output,
             const scene::StaticScene& scene,
-            const data::SceneBounds& bounds,
-            scene::StaticScene::IndexRange range) {
+            const data::SceneBounds::PointClusterBounds& cluster) {
 
-            for (std::uint32_t local_batch = 0;
-                local_batch < range.count;
-                ++local_batch) {
+            const auto batch_index =
+                cluster.point_mesh_batch_index;
 
-                const auto batch_index =
-                    range.offset + local_batch;
+            const auto& batch =
+                scene.point_mesh_batches[batch_index];
 
-                const auto& batch =
-                    scene.point_batches[batch_index];
-
-                if (batch.instance_count == 0) {
-                    continue;
-                }
-
-                const auto& definition =
-                    scene.instanced_mesh_definitions[
-                        batch.definition];
-
-                // Point constant buffer index를 원본
-                // PointBatch index와 일치시킨다.
-                append_mesh_draws(
-                    output,
-                    scene,
-                    definition.mesh,
-                    data::EnumPointOrMatrix::POINT,
-                    batch.instance_offset,
-                    batch.instance_count,
-                    batch_index,
-                    bounds.points.batch_bounds[
-                        batch_index],
-                        bounds.points.batch_max_scale[
-                            batch_index]);
-            }
+            append_mesh_draws(
+                output,
+                scene,
+                batch.mesh,
+                data::EnumPointOrMatrix::POINT,
+                cluster.category,
+                cluster.instances.offset,
+                cluster.instances.count,
+                batch_index,
+                cluster.world_bounds,
+                cluster.world_max_scale);
         }
 
         void append_point_draws(
@@ -230,80 +217,12 @@ namespace fjr::render {
                 return;
             }
 
-            const auto& components =
-                scene.components;
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.anthurium.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.nettle.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.shrub_sorrel.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.shrub.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.grass_b.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.grass_a.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.pyramid_grass_b.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.pyramid_moss.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.queen_forest.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.river_forest.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.river_sapling.point_batches);
-
-            append_point_range(
-                output,
-                scene,
-                bounds,
-                components.river_seedling.point_batches);
+            for (const auto& cluster : bounds.points.clusters) {
+                append_point_cluster(
+                    output,
+                    scene,
+                    cluster);
+            }
         }
 
         void append_static_instance(
@@ -327,6 +246,7 @@ namespace fjr::render {
                 scene,
                 instance.mesh,
                 data::EnumPointOrMatrix::MATRIX,
+                scene::StaticScene::EnumPointCategory::COUNT,
                 instance_index,
                 1,
                 0,

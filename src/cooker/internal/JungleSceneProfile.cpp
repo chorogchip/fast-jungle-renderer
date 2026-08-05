@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <string_view>
 
 namespace fjr::cooker::internal {
@@ -167,87 +168,120 @@ namespace fjr::cooker::internal {
             component == JungleComponent::TERRAIN_CINEMATIC;
     }
 
-    std::span<const JungleComponent>
-    JungleSceneProfile::point_components() noexcept {
-        return POINT_COMPONENTS;
-    }
+    scene::StaticScene::EnumPointCategory
+    JungleSceneProfile::point_category(JungleComponent component) {
 
-    void JungleSceneProfile::set_point_batch_range(
-        scene::StaticScene::Components& components,
-        JungleComponent component,
-        scene::StaticScene::IndexRange range) {
+        using Category = scene::StaticScene::EnumPointCategory;
 
         switch (component) {
         case JungleComponent::ANTHURIUM:
-            components.anthurium.point_batches = range;
-            break;
+            return Category::ANTHURIUM;
         case JungleComponent::NETTLE:
-            components.nettle.point_batches = range;
-            break;
+            return Category::NETTLE;
         case JungleComponent::SHRUB_SORREL:
-            components.shrub_sorrel.point_batches = range;
-            break;
+            return Category::SHRUB_SORREL;
         case JungleComponent::SHRUB:
-            components.shrub.point_batches = range;
-            break;
+            return Category::SHRUB;
         case JungleComponent::GRASS_B:
-            components.grass_b.point_batches = range;
-            break;
+            return Category::GRASS_B;
         case JungleComponent::GRASS_A:
-            components.grass_a.point_batches = range;
-            break;
+            return Category::GRASS_A;
         case JungleComponent::PYRAMID_GRASS_B:
-            components.pyramid_grass_b.point_batches = range;
-            break;
+            return Category::PYRAMID_GRASS_B;
         case JungleComponent::PYRAMID_MOSS:
-            components.pyramid_moss.point_batches = range;
-            break;
+            return Category::PYRAMID_MOSS;
         case JungleComponent::QUEEN_FOREST:
-            components.queen_forest.point_batches = range;
-            break;
+            return Category::QUEEN_FOREST;
         case JungleComponent::RIVER_FOREST:
-            components.river_forest.point_batches = range;
-            break;
+            return Category::RIVER_FOREST;
         case JungleComponent::RIVER_SAPLING:
-            components.river_sapling.point_batches = range;
-            break;
+            return Category::RIVER_SAPLING;
         case JungleComponent::RIVER_SEEDLING:
-            components.river_seedling.point_batches = range;
-            break;
+            return Category::RIVER_SEEDLING;
         default:
-            fail("Non-point component received a point-batch range.");
+            fail("Non-point component received as a point category.");
         }
     }
 
     void JungleSceneProfile::validate_contract(
         const scene::StaticScene& source) {
 
-        const auto& components = source.components;
-        const std::array point_ranges{
-            components.anthurium.point_batches,
-            components.nettle.point_batches,
-            components.shrub_sorrel.point_batches,
-            components.shrub.point_batches,
-            components.grass_b.point_batches,
-            components.grass_a.point_batches,
-            components.pyramid_grass_b.point_batches,
-            components.pyramid_moss.point_batches,
-            components.queen_forest.point_batches,
-            components.river_forest.point_batches,
-            components.river_sapling.point_batches,
-            components.river_seedling.point_batches,
-        };
+        constexpr std::size_t EXPECTED_POINT_MESH_BATCHES = 53;
+        constexpr std::size_t EXPECTED_POINT_CATEGORY_SPANS = 58;
+        constexpr std::size_t EXPECTED_POINT_INSTANCES = 8'674'676;
 
-        std::uint32_t expected_offset = 0;
-        for (const auto& range : point_ranges) {
-            if (range.count == 0 || range.offset != expected_offset) {
-                fail("Point components must form non-empty contiguous ranges.");
+        if (source.point_mesh_batches.size() !=
+            EXPECTED_POINT_MESH_BATCHES) {
+
+            fail("Jungle point mesh batch count changed.");
+        }
+        if (source.point_category_spans.size() !=
+            EXPECTED_POINT_CATEGORY_SPANS) {
+
+            fail("Jungle point category span count changed.");
+        }
+        if (source.point_instances.size() != EXPECTED_POINT_INSTANCES) {
+            fail("Jungle point instance count changed.");
+        }
+
+        std::set<std::uint32_t> meshes;
+        std::array<
+            bool,
+            static_cast<std::size_t>(
+                scene::StaticScene::EnumPointCategory::COUNT)>
+            seen_categories{};
+
+        std::uint32_t expected_span_offset = 0;
+        std::uint32_t expected_instance_offset = 0;
+        for (const auto& batch : source.point_mesh_batches) {
+            if (!meshes.insert(batch.mesh).second) {
+                fail("One point mesh produced multiple batches.");
             }
-            expected_offset += range.count;
+            if (batch.category_spans.count == 0 ||
+                batch.category_spans.offset != expected_span_offset) {
+
+                fail("Point mesh category spans are not contiguous.");
+            }
+
+            std::set<scene::StaticScene::EnumPointCategory>
+                batch_categories;
+            for (std::uint32_t local = 0;
+                local < batch.category_spans.count;
+                ++local) {
+
+                const auto& span = source.point_category_spans[
+                    static_cast<std::size_t>(
+                        batch.category_spans.offset) + local];
+                const auto category_index =
+                    static_cast<std::size_t>(span.category);
+                if (category_index >= seen_categories.size()) {
+                    fail("Point category is invalid.");
+                }
+                if (!batch_categories.insert(span.category).second) {
+                    fail("Point mesh repeats a category span.");
+                }
+                if (span.instances.count == 0 ||
+                    span.instances.offset != expected_instance_offset) {
+
+                    fail("Point category instance ranges are not contiguous.");
+                }
+                seen_categories[category_index] = true;
+                expected_instance_offset += span.instances.count;
+            }
+            expected_span_offset += batch.category_spans.count;
         }
-        if (expected_offset != source.point_batches.size()) {
-            fail("Point component ranges do not cover all batches.");
+        if (expected_span_offset != source.point_category_spans.size() ||
+            expected_instance_offset != source.point_instances.size()) {
+
+            fail("Point mesh batches do not cover all point data.");
         }
+        if (std::ranges::find(seen_categories, false) !=
+            seen_categories.end()) {
+
+            fail("A required Jungle point category is empty.");
+        }
+
+        const auto& components = source.components;
         if (components.terrain.extended.count == 0 ||
             components.terrain.cinematic.count == 0) {
             fail("Both compiler-known Terrain regions must be non-empty.");

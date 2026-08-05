@@ -45,12 +45,12 @@ namespace fjr::render::data {
 
         struct PointResources {
             dx::Buffer clusters;
-            dx::Buffer batches;
+            dx::Buffer mesh_batches;
             dx::Buffer definitions;
             dx::Buffer draw_templates;
 
             uint32_t cluster_count = 0;
-            uint32_t batch_count = 0;
+            uint32_t mesh_batch_count = 0;
             uint32_t definition_count = 0;
             uint32_t draw_template_count = 0;
             uint32_t bin_count = 0;

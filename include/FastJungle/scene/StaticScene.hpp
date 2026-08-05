@@ -43,8 +43,8 @@ namespace fjr::scene {
 		viewport: origin: top-left / +X: right / +Y: down
 		uv: origin: top-left / +X: right / +Y: down
 
-		Final mesh transform:
-		InstancedMeshDefinition::local_transform * PointInstanceTRS * PointBatch::local_to_world
+		Final point mesh transform:
+		PointMeshBatch::local_transform * PointInstanceTRS
 		
 		StaticMeshInstance::world_transform is the final world transform.
 		*/
@@ -243,11 +243,6 @@ namespace fjr::scene {
 			uint32_t value_count = 0;
 		};
 
-		struct InstancedMeshDefinition {
-			uint32_t mesh = INVALID_INDEX;
-			DirectX::XMFLOAT4X4 local_transform = IDENTITY_TRANSFORM;
-		};
-
 		struct PointInstance {
 			DirectX::XMFLOAT3 position{};
 			DirectX::XMFLOAT4 orientation{ 0.0f, 0.0f, 0.0f, 1.0f};
@@ -255,13 +250,34 @@ namespace fjr::scene {
 		};
 		static_assert(sizeof(PointInstance) == 40);
 
-		struct PointBatch {
-			uint32_t name = INVALID_INDEX;
-			uint32_t definition = INVALID_INDEX;
-			uint32_t instance_offset = INVALID_INDEX;
-			uint32_t instance_count = 0;
-			DirectX::XMFLOAT4X4 local_to_world = IDENTITY_TRANSFORM;
+		enum class EnumPointCategory : uint32_t {
+			ANTHURIUM,
+			NETTLE,
+			SHRUB_SORREL,
+			SHRUB,
+			GRASS_B,
+			GRASS_A,
+			PYRAMID_GRASS_B,
+			PYRAMID_MOSS,
+			QUEEN_FOREST,
+			RIVER_FOREST,
+			RIVER_SAPLING,
+			RIVER_SEEDLING,
+			COUNT,
 		};
+
+		struct PointCategorySpan {
+			EnumPointCategory category = EnumPointCategory::ANTHURIUM;
+			IndexRange instances;
+		};
+
+		struct PointMeshBatch {
+			uint32_t mesh = INVALID_INDEX;
+			IndexRange category_spans;
+			DirectX::XMFLOAT4X4 local_transform = IDENTITY_TRANSFORM;
+		};
+		static_assert(sizeof(PointCategorySpan) == 12);
+		static_assert(sizeof(PointMeshBatch) == 76);
 
 		struct StaticMeshInstance {
 			uint32_t name = INVALID_INDEX;
@@ -278,19 +294,6 @@ namespace fjr::scene {
 			IndexRange cinematic;
 		};
 
-		struct Anthurium { IndexRange point_batches; };
-		struct Nettle { IndexRange point_batches; };
-		struct ShrubSorrel { IndexRange point_batches; };
-		struct Shrub { IndexRange point_batches; };
-		struct GrassB { IndexRange point_batches; };
-		struct GrassA { IndexRange point_batches; };
-		struct PyramidGrassB { IndexRange point_batches; };
-		struct PyramidMoss { IndexRange point_batches; };
-		struct QueenForest { IndexRange point_batches; };
-		struct RiverForest { IndexRange point_batches; };
-		struct RiverSapling { IndexRange point_batches; };
-		struct RiverSeedling { IndexRange point_batches; };
-
 		// These members are the compiler-visible contract of the Jungle root
 		// USDA. Counts inside a component remain data; component identity and
 		// storage shape do not.
@@ -300,18 +303,6 @@ namespace fjr::scene {
 			Creek creek;
 			Banyan banyan;
 			Terrain terrain;
-			Anthurium anthurium;
-			Nettle nettle;
-			ShrubSorrel shrub_sorrel;
-			Shrub shrub;
-			GrassB grass_b;
-			GrassA grass_a;
-			PyramidGrassB pyramid_grass_b;
-			PyramidMoss pyramid_moss;
-			QueenForest queen_forest;
-			RiverForest river_forest;
-			RiverSapling river_sapling;
-			RiverSeedling river_seedling;
 		};
 
 		struct Camera {
@@ -383,10 +374,9 @@ namespace fjr::scene {
     X(Float3, corner_color3_values) \
     X(CornerTexcoord2Stream, corner_texcoord2_streams) \
     X(Float2, corner_texcoord2_values) \
-    X(InstancedMeshDefinition, instanced_mesh_definitions) \
-    \
     X(PointInstance, point_instances) \
-    X(PointBatch, point_batches) \
+    X(PointCategorySpan, point_category_spans) \
+    X(PointMeshBatch, point_mesh_batches) \
     X(StaticMeshInstance, static_mesh_instances)
 
 #define SceneData_MACRO \
@@ -418,10 +408,9 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<CornerFloatStream>);
 		static_assert(std::is_trivially_copyable_v<CornerColor3Stream>);
 		static_assert(std::is_trivially_copyable_v<CornerTexcoord2Stream>);
-		static_assert(std::is_trivially_copyable_v<InstancedMeshDefinition>);
-
 		static_assert(std::is_trivially_copyable_v<PointInstance>);
-		static_assert(std::is_trivially_copyable_v<PointBatch>);
+		static_assert(std::is_trivially_copyable_v<PointCategorySpan>);
+		static_assert(std::is_trivially_copyable_v<PointMeshBatch>);
 		static_assert(std::is_trivially_copyable_v<StaticMeshInstance>);
 		static_assert(std::is_trivially_copyable_v<Components>);
 
@@ -444,10 +433,9 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<CornerFloatStream>);
 		static_assert(std::is_standard_layout_v<CornerColor3Stream>);
 		static_assert(std::is_standard_layout_v<CornerTexcoord2Stream>);
-		static_assert(std::is_standard_layout_v<InstancedMeshDefinition>);
-
 		static_assert(std::is_standard_layout_v<PointInstance>);
-		static_assert(std::is_standard_layout_v<PointBatch>);
+		static_assert(std::is_standard_layout_v<PointCategorySpan>);
+		static_assert(std::is_standard_layout_v<PointMeshBatch>);
 		static_assert(std::is_standard_layout_v<StaticMeshInstance>);
 		static_assert(std::is_standard_layout_v<Components>);
 

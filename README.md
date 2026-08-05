@@ -51,8 +51,8 @@ JungleRuins.fjscene + JungleRuins.fjtex
 GPU renderer
 ```
 
-The cooker writes a version 4 `JungleRuins.fjscene` containing geometry,
-materials, instances, and flat source provenance, plus a companion
+The cooker writes a version 5 `JungleRuins.fjscene` containing geometry,
+materials, instances, and runtime component categories, plus a companion
 `JungleRuins.fjtex` containing texture pixels. The runtime renderer reads both
 without linking OpenUSD. Run the Release cooker preset once to create both
 files under `assets/cooked`; both renderer presets then use them. The first
@@ -65,13 +65,13 @@ companion texture file without allocating a second file-sized memory buffer.
 Before texture cooking, meshoptimizer generates 100%, 40%, 15%, and 4% mesh
 LODs that share LOD0 vertices and add index ranges only. The runtime selects a
 level using a 1-pixel projected-error threshold; static instances are selected
-individually and PointBatch selection is currently conservative per batch.
-The scene records preserve the root USDA sublayer and group that owns every
-point or matrix batch, along with its authored prim path. Spatial bounds are
-not cooked as authoritative data: the renderer derives submesh, mesh,
-prototype, batch, and scene bounds from the preserved static data before VFC.
-The v4 files do not yet apply instance compression or GPU-oriented vertex
-packing.
+individually and points use renderer-derived 256-instance clusters.
+Point instancers that resolve to the same mesh are merged into one
+`PointMeshBatch`; `PointCategorySpan` records keep categories such as
+`Grass_B` and `Pyramid_Grass_B` explicit without preserving source-instancer
+boundaries. Spatial bounds are not cooked as authoritative data: the renderer
+derives them from the static data before VFC. The v5 files do not yet apply
+instance compression or GPU-oriented vertex packing.
 
 The offline cooker will handle:
 

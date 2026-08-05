@@ -100,8 +100,8 @@ namespace fjr::render {
             result.materials.push_back(output);
         }
 
-        // Default material. SceneDrawBuilder´Â ÀÌ index¸¦
-        // scene.materials.size()·Î °è»êÇÑ´Ù.
+        // Default material. SceneDrawBuilderëŠ” ì´ indexë¥¼
+        // scene.materials.size()ë¡œ ê³„ì‚°í•œë‹¤.
         result.materials.emplace_back();
 
         // Matrix instances
@@ -119,34 +119,27 @@ namespace fjr::render {
                 output);
         }
 
-        // Point draw constants´Â PointBatch index¿Í
-        // constant index°¡ ÀÏÄ¡ÇÑ´Ù.
+        // Point draw constantsëŠ” PointMeshBatch indexì™€
+        // constant indexê°€ ì¼ì¹˜í•œë‹¤.
         result.point_constants.resize(
-            scene.point_batches.size());
+            scene.point_mesh_batches.size());
 
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_batches.size();
+            batch_index < scene.point_mesh_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_batches[batch_index];
-
-            const auto& definition =
-                scene.instanced_mesh_definitions[
-                    batch.definition];
+                scene.point_mesh_batches[batch_index];
 
             auto& output =
                 result.point_constants[batch_index];
 
             output.part_local_transform =
-                definition.local_transform;
-
-            output.batch_local_to_world =
-                batch.local_to_world;
+                batch.local_transform;
         }
 
-        // ¸ğµç matrix draw´Â ¿Ï¼ºµÈ world matrix¸¦
-        // instance buffer¿¡¼­ ÀĞ´Â´Ù.
+        // ëª¨ë“  matrix drawëŠ” ì™„ì„±ëœ world matrixë¥¼
+        // instance bufferì—ì„œ ì½ëŠ”ë‹¤.
         if (!scene.static_mesh_instances.empty()) {
             result.matrix_constants.emplace_back();
         }

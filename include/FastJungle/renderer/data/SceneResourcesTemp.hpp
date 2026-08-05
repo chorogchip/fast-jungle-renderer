@@ -15,7 +15,7 @@ namespace fjr::render::data {
 
         struct PointRenderPlan {
             std::vector<StbufPointCluster> clusters;
-            std::vector<StbufPointBatch> batches;
+            std::vector<StbufPointMeshBatch> mesh_batches;
             std::vector<StbufPointDef> definitions;
             std::vector<StbufPointDraw> draw_templates;
 

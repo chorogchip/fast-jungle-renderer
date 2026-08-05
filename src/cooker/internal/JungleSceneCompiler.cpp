@@ -61,6 +61,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -113,9 +114,28 @@ namespace fjr::cooker {
         }
 
 		struct PointInstancerSource {
-			SourceComponent component = SourceComponent::UNKNOWN;
+			StaticScene::EnumPointCategory category =
+				StaticScene::EnumPointCategory::ANTHURIUM;
+			std::uint32_t mesh = StaticScene::INVALID_INDEX;
+			DirectX::XMFLOAT4X4 local_transform =
+				StaticScene::IDENTITY_TRANSFORM;
+			std::uint32_t source_ordinal = 0;
 			pxr::UsdPrim prim;
 		};
+
+		struct ResolvedMesh {
+			std::uint32_t mesh = StaticScene::INVALID_INDEX;
+			DirectX::XMFLOAT4X4 local_transform =
+				StaticScene::IDENTITY_TRANSFORM;
+		};
+
+		[[nodiscard]] bool matrix_bits_equal(
+			const DirectX::XMFLOAT4X4& left,
+			const DirectX::XMFLOAT4X4& right) noexcept {
+
+			return std::bit_cast<std::array<std::uint32_t, 16>>(left) ==
+				std::bit_cast<std::array<std::uint32_t, 16>>(right);
+		}
 
         class Builder final {
         public:
@@ -136,7 +156,7 @@ namespace fjr::cooker {
                 }
 
                 collect_point_instancers();
-                build_point_batches();
+                build_point_mesh_batches();
                 build_direct_scene();
 				flatten_static_components();
 				JungleSceneProfile::validate_contract(*result_);
@@ -144,8 +164,8 @@ namespace fjr::cooker {
                 if (result_->vertices.empty() || result_->meshes.empty()) {
                     fail("Intel Jungle produced no renderable meshes.");
                 }
-                if (result_->point_batches.empty()) {
-                    fail("Intel Jungle produced no PointInstancer batches.");
+                if (result_->point_mesh_batches.empty()) {
+                    fail("Intel Jungle produced no point mesh batches.");
                 }
 
                 return assembler_.finish();
@@ -198,59 +218,127 @@ namespace fjr::cooker {
 							"PointInstancer belongs to a non-point root component: ",
 							prim.GetPath().GetString());
 					}
-					point_instancers_.push_back({component, prim});
+
+					const auto prototype_prim = stage_->GetPrimAtPath(
+						targets.front());
+					if (!prototype_prim) {
+						fail(
+							"Missing PointInstancer prototype: ",
+							targets.front().GetString());
+					}
+
+					const auto resolved = resolve_single_mesh(prototype_prim);
+					const auto instancer_world = SceneSpace::store(
+						world_transform(prim));
+					if (!matrix_bits_equal(
+						instancer_world,
+						StaticScene::IDENTITY_TRANSFORM)) {
+
+						fail(
+							"PointInstancer world transform is not bit-exact identity: ",
+							prim.GetPath().GetString());
+					}
+
+					point_instancers_.push_back({
+						.category = JungleSceneProfile::point_category(component),
+						.mesh = resolved.mesh,
+						.local_transform = resolved.local_transform,
+						.source_ordinal = checked_u32(
+							point_instancers_.size(),
+							"PointInstancer source ordinal"),
+						.prim = prim,
+					});
                 }
 
 				std::ranges::stable_sort(
 					point_instancers_,
 					[](const PointInstancerSource& left,
 					   const PointInstancerSource& right) {
-						return static_cast<std::uint32_t>(left.component) <
-							static_cast<std::uint32_t>(right.component);
+						return std::tuple{
+							left.mesh,
+							static_cast<std::uint32_t>(left.category),
+							left.source_ordinal,
+						} < std::tuple{
+							right.mesh,
+							static_cast<std::uint32_t>(right.category),
+							right.source_ordinal,
+						};
 					});
             }
 
-            void build_point_batches() {
+            void build_point_mesh_batches() {
 				std::size_t source_index = 0;
-				for (const auto component :
-                    JungleSceneProfile::point_components()) {
-					const auto first = checked_u32(
-						result_->point_batches.size(),
-						"Point component batch offset");
+				while (source_index < point_instancers_.size()) {
+					const auto mesh = point_instancers_[source_index].mesh;
+					const auto local_transform =
+						point_instancers_[source_index].local_transform;
+
+					StaticScene::PointMeshBatch batch;
+					batch.mesh = mesh;
+					batch.local_transform = local_transform;
+					batch.category_spans.offset = checked_u32(
+						result_->point_category_spans.size(),
+						"Point mesh category span offset");
+
 					while (source_index < point_instancers_.size() &&
-						point_instancers_[source_index].component == component) {
-						build_point_batch(point_instancers_[source_index].prim);
-						++source_index;
+						point_instancers_[source_index].mesh == mesh) {
+
+						const auto& first_source =
+							point_instancers_[source_index];
+						if (!matrix_bits_equal(
+							first_source.local_transform,
+							local_transform)) {
+
+							fail(
+								"One point mesh resolves to multiple local transforms: ",
+								first_source.prim.GetPath().GetString());
+						}
+
+						StaticScene::PointCategorySpan span;
+						span.category = first_source.category;
+						span.instances.offset = checked_u32(
+							result_->point_instances.size(),
+							"Point category instance offset");
+
+						while (source_index < point_instancers_.size() &&
+							point_instancers_[source_index].mesh == mesh &&
+							point_instancers_[source_index].category ==
+								span.category) {
+
+							const auto& source = point_instancers_[source_index];
+							if (!matrix_bits_equal(
+								source.local_transform,
+								local_transform)) {
+
+								fail(
+									"One point mesh resolves to multiple local transforms: ",
+									source.prim.GetPath().GetString());
+							}
+
+							append_point_instances(source.prim);
+							++source_index;
+						}
+
+						span.instances.count = checked_u32(
+							result_->point_instances.size() -
+								span.instances.offset,
+							"Point category instance count");
+						if (span.instances.count == 0) {
+							fail("Point mesh category span has no visible instances.");
+						}
+						result_->point_category_spans.push_back(span);
 					}
-					JungleSceneProfile::set_point_batch_range(
-                        result_->components,
-                        component, {
-						.offset = first,
-						.count = checked_u32(
-							result_->point_batches.size() - first,
-							"Point component batch count"),
-					});
-				}
-				if (source_index != point_instancers_.size()) {
-					fail("PointInstancer component ordering is incomplete.");
+
+					batch.category_spans.count = checked_u32(
+						result_->point_category_spans.size() -
+							batch.category_spans.offset,
+						"Point mesh category span count");
+					result_->point_mesh_batches.push_back(batch);
 				}
 			}
 
-			void build_point_batch(const pxr::UsdPrim& prim) {
+			void append_point_instances(const pxr::UsdPrim& prim) {
                     const pxr::UsdGeomPointInstancer source{prim};
-                    pxr::SdfPathVector targets;
-                    source.GetPrototypesRel().GetTargets(&targets);
-                    const auto prototype_prim = stage_->GetPrimAtPath(
-                        targets.front());
-                    if (!prototype_prim) {
-                        fail(
-                            "Missing PointInstancer prototype: ",
-                            targets.front().GetString());
-                    }
-
-					const auto definition = get_instanced_mesh_definition(
-						prototype_prim);
-
                     pxr::VtIntArray prototype_indices;
                     pxr::VtVec3fArray positions;
                     pxr::VtQuathArray orientations;
@@ -294,15 +382,6 @@ namespace fjr::cooker {
                             invisible_ids.end());
                     }
 
-                    StaticScene::PointBatch batch;
-                    batch.name = add_string(prim.GetName().GetString());
-					batch.definition = definition;
-                    batch.instance_offset = checked_u32(
-                        result_->point_instances.size(),
-                        "Point instance offset");
-                    batch.local_to_world = SceneSpace::store(
-                        world_transform(prim));
-
                     for (std::size_t index = 0; index < positions.size(); ++index) {
                         const std::int64_t id = ids.size() == positions.size()
                             ? ids[index]
@@ -319,11 +398,6 @@ namespace fjr::cooker {
                         });
                     }
 
-                    batch.instance_count = checked_u32(
-                        result_->point_instances.size() -
-                            batch.instance_offset,
-                        "Point instance count");
-                    result_->point_batches.push_back(batch);
             }
 
             void build_direct_scene() {
@@ -407,10 +481,10 @@ namespace fjr::cooker {
                 }
             }
 
-			[[nodiscard]] StaticScene::InstancedMeshDefinition resolve_single_mesh(
+			[[nodiscard]] ResolvedMesh resolve_single_mesh(
 				const pxr::UsdPrim& root) {
 
-				StaticScene::InstancedMeshDefinition result;
+				ResolvedMesh result;
 				bool found = false;
 				collect_single_mesh(
 					root,
@@ -429,7 +503,7 @@ namespace fjr::cooker {
 			void collect_single_mesh(
                 const pxr::UsdPrim& prim,
                 DirectX::FXMMATRIX parent_transform,
-				StaticScene::InstancedMeshDefinition& result,
+				ResolvedMesh& result,
 				bool& found,
                 std::size_t depth) {
 
@@ -482,13 +556,6 @@ namespace fjr::cooker {
                         depth + 1);
                 }
             }
-
-			[[nodiscard]] std::uint32_t get_instanced_mesh_definition(
-				const pxr::UsdPrim& root) {
-
-				const auto definition = resolve_single_mesh(root);
-				return assembler_.intern_definition(definition).value();
-			}
 
 			void append_static_instance(
 				SourceComponent component,

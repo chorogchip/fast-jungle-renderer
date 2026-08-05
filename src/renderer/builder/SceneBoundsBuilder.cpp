@@ -58,17 +58,12 @@ namespace fjr::render {
 
         geometry.submesh_bounds.resize(scene.submeshes.size());
         geometry.mesh_bounds.resize(scene.meshes.size());
-        geometry.definition_bounds.resize(
-            scene.instanced_mesh_definitions.size());
-        geometry.definition_max_scale.resize(
-            scene.instanced_mesh_definitions.size());
-
-        points.batch_bounds.resize(scene.point_batches.size());
-        points.batch_max_scale.resize(scene.point_batches.size());
-        points.batch_transform_max_scale.resize(
-            scene.point_batches.size());
+        points.local_bounds.resize(scene.point_mesh_batches.size());
+        points.local_max_scale.resize(scene.point_mesh_batches.size());
+        points.batch_bounds.resize(scene.point_mesh_batches.size());
+        points.batch_max_scale.resize(scene.point_mesh_batches.size());
         points.batch_cluster_ranges.resize(
-            scene.point_batches.size());
+            scene.point_mesh_batches.size());
 
         static_instances.bounds.resize(
             scene.static_mesh_instances.size());
@@ -118,7 +113,7 @@ namespace fjr::render {
                 mesh_bounds.merge(submesh_bounds);
             }
 
-            // ¸ðµç LOD submesh°¡ LOD0 vertex range¸¦ °øÀ¯ÇÑ´Ù.
+            // ëª¨ë“  LOD submeshê°€ LOD0 vertex rangeë¥¼ ê³µìœ í•œë‹¤.
             for (std::uint32_t local_lod = 1;
                 local_lod < mesh.lod_count;
                 ++local_lod) {
@@ -144,40 +139,13 @@ namespace fjr::render {
             }
         }
 
-        // Instanced definition bounds
-        for (std::size_t definition_index = 0;
-            definition_index <
-            scene.instanced_mesh_definitions.size();
-            ++definition_index) {
-
-            const auto& definition =
-                scene.instanced_mesh_definitions[
-                    definition_index];
-
-            const auto transform =
-                DirectX::XMLoadFloat4x4(
-                    &definition.local_transform);
-
-            geometry.definition_bounds[definition_index] =
-                transformed(
-                    geometry.mesh_bounds[definition.mesh],
-                    transform);
-
-            geometry.definition_max_scale[definition_index] =
-                maximum_scale(transform);
-        }
-
-        // PointBatch¿Í PointCluster bounds
+        // PointMeshBatchì™€ PointCluster bounds
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_batches.size();
+            batch_index < scene.point_mesh_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_batches[batch_index];
-
-            const auto& definition =
-                scene.instanced_mesh_definitions[
-                    batch.definition];
+                scene.point_mesh_batches[batch_index];
 
             auto& batch_bounds =
                 points.batch_bounds[batch_index];
@@ -185,16 +153,16 @@ namespace fjr::render {
             auto& batch_max_scale =
                 points.batch_max_scale[batch_index];
 
-            const auto definition_local =
+            const auto batch_local =
                 DirectX::XMLoadFloat4x4(
-                    &definition.local_transform);
+                    &batch.local_transform);
 
-            const auto batch_world =
-                DirectX::XMLoadFloat4x4(
-                    &batch.local_to_world);
-
-            points.batch_transform_max_scale[batch_index] =
-                maximum_scale(batch_world);
+            points.local_bounds[batch_index] =
+                transformed(
+                    geometry.mesh_bounds[batch.mesh],
+                    batch_local);
+            points.local_max_scale[batch_index] =
+                maximum_scale(batch_local);
 
             auto& cluster_range =
                 points.batch_cluster_ranges[batch_index];
@@ -203,24 +171,35 @@ namespace fjr::render {
                 static_cast<std::uint32_t>(
                     points.clusters.size());
 
-            for (std::uint32_t local_begin = 0;
-                local_begin < batch.instance_count;
-                local_begin += data::Consts::PNT_CLUSTER_SZ) {
+            for (std::uint32_t local_span = 0;
+                local_span < batch.category_spans.count;
+                ++local_span) {
 
-                auto& cluster =
-                    points.clusters.emplace_back();
+                const auto& span = scene.point_category_spans[
+                    static_cast<std::size_t>(
+                        batch.category_spans.offset) +
+                    local_span];
 
-                cluster.point_batch_index =
-                    static_cast<std::uint32_t>(
-                        batch_index);
+                for (std::uint32_t local_begin = 0;
+                    local_begin < span.instances.count;
+                    local_begin += data::Consts::PNT_CLUSTER_SZ) {
 
-                cluster.instances.offset =
-                    batch.instance_offset + local_begin;
+                    auto& cluster =
+                        points.clusters.emplace_back();
 
-                cluster.instances.count =
-                    std::min(
-                        data::Consts::PNT_CLUSTER_SZ,
-                        batch.instance_count - local_begin);
+                    cluster.point_mesh_batch_index =
+                        static_cast<std::uint32_t>(
+                            batch_index);
+
+                    cluster.category = span.category;
+
+                    cluster.instances.offset =
+                        span.instances.offset + local_begin;
+
+                    cluster.instances.count =
+                        std::min(
+                            data::Consts::PNT_CLUSTER_SZ,
+                            span.instances.count - local_begin);
 
                 for (std::uint32_t local_instance = 0;
                     local_instance <
@@ -257,27 +236,33 @@ namespace fjr::render {
                         scale * rotation * translation;
 
                     const auto world =
-                        definition_local *
-                        instance_world *
-                        batch_world;
+                        batch_local * instance_world;
 
                     const auto instance_bounds =
                         transformed(
-                            geometry.mesh_bounds[
-                                definition.mesh],
+                            geometry.mesh_bounds[batch.mesh],
                                 world);
 
                     cluster.world_bounds.merge(
                         instance_bounds);
 
+                    const float instance_max_scale =
+                        maximum_scale(world);
+
+                    cluster.world_max_scale =
+                        std::max(
+                            cluster.world_max_scale,
+                            instance_max_scale);
+
                     batch_max_scale =
                         std::max(
                             batch_max_scale,
-                            maximum_scale(world));
+                            instance_max_scale);
                 }
 
-                batch_bounds.merge(
-                    cluster.world_bounds);
+                    batch_bounds.merge(
+                        cluster.world_bounds);
+                }
             }
 
             cluster_range.count =

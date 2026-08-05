@@ -56,19 +56,20 @@ namespace {
     }
 
 	void print_component_summary(const fjr::scene::StaticScene& scene) {
-		auto print_points = [&scene](
-			std::wstring_view name,
-			fjr::scene::StaticScene::IndexRange range) {
-
-			std::uint64_t instances = 0;
-			for (std::uint32_t local = 0; local < range.count; ++local) {
-				instances += scene.point_batches[
-					static_cast<std::size_t>(range.offset) + local]
-					.instance_count;
-			}
-			std::wcout << L"    " << name << L": "
-				<< range.count << L" point batches / "
-				<< instances << L" instances\n";
+		using Category = fjr::scene::StaticScene::EnumPointCategory;
+		const std::array category_names{
+			std::pair{Category::ANTHURIUM, L"Anthurium"},
+			std::pair{Category::NETTLE, L"Nettle"},
+			std::pair{Category::SHRUB_SORREL, L"ShrubSorrel"},
+			std::pair{Category::SHRUB, L"Shrub"},
+			std::pair{Category::GRASS_B, L"Grass_B"},
+			std::pair{Category::GRASS_A, L"Grass_A"},
+			std::pair{Category::PYRAMID_GRASS_B, L"Pyramid_Grass_B"},
+			std::pair{Category::PYRAMID_MOSS, L"Pyramid_Moss"},
+			std::pair{Category::QUEEN_FOREST, L"QueenForest"},
+			std::pair{Category::RIVER_FOREST, L"RiverForest"},
+			std::pair{Category::RIVER_SAPLING, L"RiverSapling"},
+			std::pair{Category::RIVER_SEEDLING, L"RiverSeedling"},
 		};
 
 		std::wcout << L"  compiler-known components:\n";
@@ -76,18 +77,19 @@ namespace {
 		std::wcout << L"    Terrain: "
 			<< scene.components.terrain.extended.count << L" extended / "
 			<< scene.components.terrain.cinematic.count << L" cinematic\n";
-		print_points(L"Anthurium", scene.components.anthurium.point_batches);
-		print_points(L"Nettle", scene.components.nettle.point_batches);
-		print_points(L"ShrubSorrel", scene.components.shrub_sorrel.point_batches);
-		print_points(L"Shrub", scene.components.shrub.point_batches);
-		print_points(L"Grass_B", scene.components.grass_b.point_batches);
-		print_points(L"Grass_A", scene.components.grass_a.point_batches);
-		print_points(L"Pyramid_Grass_B", scene.components.pyramid_grass_b.point_batches);
-		print_points(L"Pyramid_Moss", scene.components.pyramid_moss.point_batches);
-		print_points(L"QueenForest", scene.components.queen_forest.point_batches);
-		print_points(L"RiverForest", scene.components.river_forest.point_batches);
-		print_points(L"RiverSapling", scene.components.river_sapling.point_batches);
-		print_points(L"RiverSeedling", scene.components.river_seedling.point_batches);
+		for (const auto& [category, name] : category_names) {
+			std::uint64_t instances = 0;
+			std::uint32_t spans = 0;
+			for (const auto& span : scene.point_category_spans) {
+				if (span.category == category) {
+					++spans;
+					instances += span.instances.count;
+				}
+			}
+			std::wcout << L"    " << name << L": "
+				<< spans << L" mesh spans / "
+				<< instances << L" instances\n";
+		}
     }
 
     void print_scene_summary(const fjr::scene::StaticScene& scene) {
@@ -141,9 +143,10 @@ namespace {
             << L"  textures: " << scene.textures.size() << L'\n'
             << L"  materials: " << scene.materials.size() << L'\n'
 			<< L"  meshes: " << scene.meshes.size() << L'\n'
-			<< L"  instanced mesh definitions: "
-			<< scene.instanced_mesh_definitions.size() << L'\n'
-			<< L"  point batches: " << scene.point_batches.size() << L'\n'
+			<< L"  point mesh batches: "
+			<< scene.point_mesh_batches.size() << L'\n'
+			<< L"  point category spans: "
+			<< scene.point_category_spans.size() << L'\n'
 			<< L"  point instances: " << scene.point_instances.size() << L'\n'
 			<< L"  static mesh instances: "
 			<< scene.static_mesh_instances.size() << L'\n';

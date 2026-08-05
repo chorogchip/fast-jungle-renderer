@@ -4,7 +4,6 @@ cbuffer CameraConstants : register(b0) {
 
 cbuffer DrawTransformConstants : register(b1) {
     row_major float4x4 part_local_transform;
-    row_major float4x4 batch_local_to_world;
 };
 
 cbuffer DrawConstants : register(b2) {
@@ -60,7 +59,6 @@ float4 main(VertexInput input, uint local_instance_id : SV_InstanceID)
         world_position.xyz = rotate_by_quaternion(
             world_position.xyz * scale,
             orientation) + position;
-        world_position = mul(world_position, batch_local_to_world);
     } else {
         const uint byte_offset = instance_id * MATRIX_INSTANCE_SIZE;
         world_position = transform_position_rows(

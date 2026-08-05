@@ -3,6 +3,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <set>
+#include <tuple>
 
 namespace fjr::render {
 
@@ -41,8 +43,8 @@ namespace fjr::render {
                 size.z * 0.5f
             };
 
-            result.point_batch_index =
-                source.point_batch_index;
+            result.point_mesh_batch_index =
+                source.point_mesh_batch_index;
 
             result.instance_offset =
                 source.instances.offset;
@@ -67,45 +69,40 @@ namespace fjr::render {
 
         result.bin_count =
             static_cast<std::uint32_t>(
-                scene.point_batches.size()) *
+                scene.point_mesh_batches.size()) *
             data::Consts::LOD_CNT;
 
-        // Point definitions
+        // GPU point definitions are one-to-one with point mesh batches.
         result.definitions.resize(
-            scene.instanced_mesh_definitions.size());
+            scene.point_mesh_batches.size());
 
-        for (std::size_t definition_index = 0;
-            definition_index <
-            scene.instanced_mesh_definitions.size();
-            ++definition_index) {
+        for (std::size_t batch_index = 0;
+            batch_index < scene.point_mesh_batches.size();
+            ++batch_index) {
 
-            const auto& definition =
-                scene.instanced_mesh_definitions[
-                    definition_index];
+            const auto& batch =
+                scene.point_mesh_batches[batch_index];
 
             const auto& mesh =
-                scene.meshes[definition.mesh];
+                scene.meshes[batch.mesh];
 
-            const auto& definition_bounds =
-                bounds.geometry.definition_bounds[
-                    definition_index];
+            const auto& local_bounds =
+                bounds.points.local_bounds[batch_index];
 
             const auto center =
-                definition_bounds.get_center();
+                local_bounds.get_center();
 
             const auto size =
-                definition_bounds.get_size();
+                local_bounds.get_size();
 
             auto& output =
-                result.definitions[
-                    definition_index];
+                result.definitions[batch_index];
 
             output.bounds_center_scale = {
                 center.x,
                 center.y,
                 center.z,
-                bounds.geometry.definition_max_scale[
-                    definition_index]
+                bounds.points.local_max_scale[batch_index]
             };
 
             output.bounds_extent = {
@@ -131,36 +128,29 @@ namespace fjr::render {
             }
         }
 
-        // Point batches
-        result.batches.resize(
-            scene.point_batches.size());
+        // Point mesh batches
+        result.mesh_batches.resize(
+            scene.point_mesh_batches.size());
 
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_batches.size();
+            batch_index < scene.point_mesh_batches.size();
             ++batch_index) {
 
             const auto& source =
-                scene.point_batches[batch_index];
-
-            const auto& definition =
-                scene.instanced_mesh_definitions[
-                    source.definition];
+                scene.point_mesh_batches[batch_index];
 
             const auto& cluster_range =
                 bounds.points.batch_cluster_ranges[
                     batch_index];
 
             auto& output =
-                result.batches[batch_index];
+                result.mesh_batches[batch_index];
 
-            output.part_local_transform =
-                definition.local_transform;
+            output.local_transform =
+                source.local_transform;
 
-            output.batch_local_to_world =
-                source.local_to_world;
-
-            output.definition_index =
-                source.definition;
+            output.mesh_index =
+                source.mesh;
 
             output.first_bin =
                 static_cast<std::uint32_t>(
@@ -173,10 +163,6 @@ namespace fjr::render {
             output.cluster_count =
                 cluster_range.count;
 
-            output.transform_max_scale =
-                bounds.points
-                .batch_transform_max_scale[
-                    batch_index];
         }
 
         // Point clusters
@@ -195,6 +181,14 @@ namespace fjr::render {
             std::uint32_t,
             data::Consts::PIPELINE_CNT>
             command_counts{};
+        std::set<std::tuple<
+            std::uint32_t,
+            std::uint32_t,
+            std::uint32_t,
+            data::EnumPSOClass,
+            std::uint32_t,
+            std::uint32_t,
+            std::int32_t>> template_keys;
 
         for (const auto& draw : draw_items) {
 
@@ -204,23 +198,23 @@ namespace fjr::render {
                 continue;
             }
 
-            // Alpha blend는 현재 direct path에 남긴다.
+            // Alpha blend remains on the direct path.
             if (is_alpha_blended(draw.flags)) {
                 continue;
             }
 
             data::StbufPointDraw output;
 
-            const auto point_batch_index =
+            const auto point_mesh_batch_index =
                 draw.offset_cbuf_transform;
 
             output.bin_index =
-                point_batch_index *
+                point_mesh_batch_index *
                 data::Consts::LOD_CNT +
                 draw.lod_index;
 
-            output.point_batch_index =
-                point_batch_index;
+            output.point_mesh_batch_index =
+                point_mesh_batch_index;
 
             output.material_id =
                 draw.constants.offset_material;
@@ -238,6 +232,19 @@ namespace fjr::render {
                 static_cast<std::int32_t>(
                     draw.offset_vertex);
 
+            const auto key = std::tuple{
+                output.point_mesh_batch_index,
+                draw.lod_index,
+                output.material_id,
+                output.pipeline_class,
+                output.index_count,
+                output.first_index,
+                output.base_vertex,
+            };
+            if (!template_keys.insert(key).second) {
+                continue;
+            }
+
             const auto class_index =
                 static_cast<std::size_t>(
                     output.pipeline_class);
@@ -247,7 +254,7 @@ namespace fjr::render {
             result.draw_templates.push_back(output);
         }
 
-        // Pipeline class별 indirect command 구간
+        // Indirect command ranges grouped by pipeline class.
         std::uint32_t command_cursor = 0;
 
         for (std::size_t class_index = 0;

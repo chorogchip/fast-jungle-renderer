@@ -5,8 +5,6 @@
 
 #include "FastJungle/core/math/CheckedCast.hpp"
 
-#include <array>
-#include <bit>
 #include <cstdint>
 #include <utility>
 
@@ -35,19 +33,6 @@ namespace fjr::cooker::internal {
         return hash;
     }
 
-    std::size_t StaticSceneAssembler::DefinitionKeyHash::operator()(
-        const DefinitionKey& value) const noexcept {
-
-        std::uint64_t hash = 14695981039346656037ull;
-        hash ^= value.mesh;
-        hash *= 1099511628211ull;
-        for (const auto word : value.transform) {
-            hash ^= word;
-            hash *= 1099511628211ull;
-        }
-        return static_cast<std::size_t>(hash);
-    }
-
     StaticSceneAssembler::StaticSceneAssembler()
         : scene_(std::make_unique<StaticScene>()) {
 
@@ -55,8 +40,8 @@ namespace fjr::cooker::internal {
         string_offsets_.emplace(std::string{}, 0u);
 
         scene_->point_instances.reserve(8'674'676);
-        scene_->point_batches.reserve(778);
-        scene_->instanced_mesh_definitions.reserve(64);
+        scene_->point_category_spans.reserve(58);
+        scene_->point_mesh_batches.reserve(53);
         scene_->static_mesh_instances.reserve(84);
         scene_->meshes.reserve(160);
         scene_->submeshes.reserve(256);
@@ -140,27 +125,6 @@ namespace fjr::cooker::internal {
             scene_->materials.size(),
             "Material index")};
         scene_->materials.push_back(material);
-        return id;
-    }
-
-    DefinitionId StaticSceneAssembler::intern_definition(
-        const StaticScene::InstancedMeshDefinition& definition) {
-
-        const DefinitionKey key{
-            .mesh = definition.mesh,
-            .transform = std::bit_cast<std::array<std::uint32_t, 16>>(
-                definition.local_transform),
-        };
-        const auto cached = definition_cache_.find(key);
-        if (cached != definition_cache_.end()) {
-            return cached->second;
-        }
-
-        const DefinitionId id{math::checked_cast<std::uint32_t>(
-            scene_->instanced_mesh_definitions.size(),
-            "Instanced mesh definition index")};
-        scene_->instanced_mesh_definitions.push_back(definition);
-        definition_cache_.emplace(key, id);
         return id;
     }
 

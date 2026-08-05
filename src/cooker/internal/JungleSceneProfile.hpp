@@ -8,7 +8,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string>
 #include <unordered_map>
 
@@ -58,13 +57,8 @@ namespace fjr::cooker::internal {
         [[nodiscard]] static bool is_static_component(
             JungleComponent component) noexcept;
 
-        [[nodiscard]] static std::span<const JungleComponent>
-        point_components() noexcept;
-
-        static void set_point_batch_range(
-            scene::StaticScene::Components& components,
-            JungleComponent component,
-            scene::StaticScene::IndexRange range);
+        [[nodiscard]] static scene::StaticScene::EnumPointCategory
+        point_category(JungleComponent component);
 
         static void validate_contract(const scene::StaticScene& source);
 
