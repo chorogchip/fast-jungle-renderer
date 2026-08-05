@@ -1,5 +1,7 @@
 #include "FastJungle/cooker/TextureCooker.hpp"
 
+#include "CookerCommon.hpp"
+
 #include <DirectXTex.h>
 
 #if defined(FASTJUNGLE_HAS_OPENEXR)
@@ -20,38 +22,12 @@
 #include <system_error>
 #include <utility>
 
-#include "FastJungle/cooker/TextureCompressionPolicy.hpp"
-
-#include "FastJungle/cooker/TextureImageProcessor.hpp"
+#include "TextureImageProcessing.hpp"
 
 namespace fjr::cooker {
-
     namespace {
-
-        [[noreturn]] void fail(std::string message) {
-            throw std::runtime_error(std::move(message));
-        }
-
-        template<typename... Parts>
-        [[noreturn]] void fail(Parts&&... parts) {
-            std::string message;
-            (message.append(std::forward<Parts>(parts)), ...);
-            fail(std::move(message));
-        }
-
-        [[nodiscard]] std::uint32_t checked_u32(
-            std::size_t value,
-            std::string_view subject) {
-
-            if (value > std::numeric_limits<std::uint32_t>::max()) {
-                fail(std::string{subject}, " exceeds uint32_t.");
-            }
-            return static_cast<std::uint32_t>(value);
-        }
-
         [[nodiscard]] std::string lowercase_extension(
             const std::filesystem::path& path) {
-
             auto result = path.extension().string();
             std::ranges::transform(
                 result,
@@ -72,7 +48,6 @@ namespace fjr::cooker {
 
         [[nodiscard]] TextureFileKind texture_file_kind(
             const std::filesystem::path& path) {
-
             const auto extension = lowercase_extension(path);
             if (extension == ".dds") return TextureFileKind::DDS;
             if (extension == ".tga") return TextureFileKind::TGA;
@@ -111,7 +86,6 @@ namespace fjr::cooker {
         void load_texture_metadata(
             const std::filesystem::path& path,
             DirectX::TexMetadata& metadata) {
-
             HRESULT result = E_FAIL;
             switch (texture_file_kind(path)) {
             case TextureFileKind::DDS:
@@ -160,7 +134,6 @@ namespace fjr::cooker {
             const std::filesystem::path& path,
             DirectX::TexMetadata& metadata,
             DirectX::ScratchImage& image) {
-
             HRESULT result = E_FAIL;
             switch (texture_file_kind(path)) {
             case TextureFileKind::DDS:
@@ -208,12 +181,24 @@ namespace fjr::cooker {
             }
         }
 
+        void validate_texture_metadata(
+            const DirectX::TexMetadata& metadata,
+            const std::filesystem::path& path) {
+            if (metadata.dimension != DirectX::TEX_DIMENSION_TEXTURE2D ||
+                metadata.arraySize != 1 ||
+                metadata.depth != 1 ||
+                metadata.mipLevels == 0) {
+                fail(
+                    "Texture is not a single 2D image: ",
+                    path.generic_string());
+            }
+        }
+
         void write_bytes(
             std::ofstream& output,
             const std::byte* data,
             std::size_t size,
             const std::filesystem::path& path) {
-
             if (size > static_cast<std::size_t>(
                 std::numeric_limits<std::streamsize>::max())) {
                 fail("Texture mip is too large: ", path.generic_string());
@@ -235,7 +220,6 @@ namespace fjr::cooker {
         std::span<const std::string> texture_paths,
         const std::filesystem::path& payload_path,
         TextureCookOptions options) {
-
         if (scene.textures.size() != texture_paths.size()) {
             fail(
                 "Texture source count does not match StaticScene textures: ",
@@ -251,7 +235,19 @@ namespace fjr::cooker {
 
         const ComScope com_scope;
         const auto compression_plans =
-            TextureCompressionPolicy::resolve(scene);
+            resolve_texture_compression(scene);
+        auto cooked_textures = scene.textures;
+        std::vector<scene::StaticScene::TextureMip> cooked_mips;
+        auto cooked_bindings = scene.texture_bindings;
+        for (auto& binding : cooked_bindings) {
+            if (binding.texture >= compression_plans.size()) {
+                throw std::runtime_error(
+                    "Texture compression binding index is invalid.");
+            }
+            binding = normalize_texture_binding(
+                binding,
+                compression_plans[binding.texture]);
+        }
 
         std::ofstream output{
             payload_path,
@@ -270,16 +266,9 @@ namespace fjr::cooker {
                 const std::filesystem::path path{texture_paths[index]};
                 DirectX::TexMetadata metadata{};
                 load_texture_metadata(path, metadata);
-                if (metadata.dimension != DirectX::TEX_DIMENSION_TEXTURE2D ||
-                    metadata.arraySize != 1 ||
-                    metadata.depth != 1 ||
-                    metadata.mipLevels == 0) {
-                    fail(
-                        "Texture is not a single 2D image: ",
-                        path.generic_string());
-                }
+                validate_texture_metadata(metadata, path);
                 if (options.maximum_decoded_texture_bytes != 0 &&
-                    TextureImageProcessor::estimate_working_memory(
+                    estimate_texture_working_memory(
                         metadata,
                         compression_plans[index]) >
                         options.maximum_decoded_texture_bytes) {
@@ -290,30 +279,22 @@ namespace fjr::cooker {
 
                 DirectX::ScratchImage decoded;
                 load_texture(path, metadata, decoded);
-
-                if (metadata.dimension != DirectX::TEX_DIMENSION_TEXTURE2D ||
-                    metadata.arraySize != 1 ||
-                    metadata.depth != 1 ||
-                    metadata.mipLevels == 0) {
-                    fail(
-                        "Texture is not a single 2D image: ",
-                        path.generic_string());
-                }
+                validate_texture_metadata(metadata, path);
                 DirectX::ScratchImage processed;
-                TextureImageProcessor::process(
+                process_texture_image(
                     decoded,
                     compression_plans[index],
                     options.fast_bc7,
                     processed);
                 metadata = processed.GetMetadata();
 
-                auto& texture = scene.textures[index];
+                auto& texture = cooked_textures[index];
                 texture.width = checked_u32(metadata.width, "Texture width");
                 texture.height = checked_u32(metadata.height, "Texture height");
                 texture.dxgi_format =
                     static_cast<std::uint32_t>(metadata.format);
                 texture.mip_offset = checked_u32(
-                    scene.texture_mips.size(),
+                    cooked_mips.size(),
                     "Texture mip offset");
                 texture.mip_count = checked_u32(
                     metadata.mipLevels,
@@ -345,7 +326,7 @@ namespace fjr::cooker {
                         "Texture mip slice pitch");
                     destination.data_byte_offset_local =
                         payload_size - texture.data_byte_offset;
-                    scene.texture_mips.push_back(destination);
+                    cooked_mips.push_back(destination);
 
                     if (image->slicePitch >
                         std::numeric_limits<std::uint64_t>::max() -
@@ -364,10 +345,6 @@ namespace fjr::cooker {
                     payload_size - texture.data_byte_offset;
             }
 
-            TextureCompressionPolicy::apply_binding_changes(
-                scene,
-                compression_plans);
-
             output.flush();
             if (!output) {
                 fail(
@@ -380,6 +357,10 @@ namespace fjr::cooker {
                     "Failed to close texture payload: ",
                     payload_path.generic_string());
             }
+
+            scene.textures = std::move(cooked_textures);
+            scene.texture_mips = std::move(cooked_mips);
+            scene.texture_bindings = std::move(cooked_bindings);
         }
         catch (...) {
             output.close();

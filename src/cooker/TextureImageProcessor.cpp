@@ -1,4 +1,6 @@
-#include "FastJungle/cooker/TextureImageProcessor.hpp"
+#include "TextureImageProcessing.hpp"
+
+#include "CookerCommon.hpp"
 
 #include <DirectXMath.h>
 
@@ -7,13 +9,7 @@
 #include <stdexcept>
 
 namespace fjr::cooker {
-
     namespace {
-
-        [[noreturn]] void fail(const char* message) {
-            throw std::runtime_error(message);
-        }
-
         void checked_add(std::uint64_t& total, std::uint64_t amount) {
             if (amount > std::numeric_limits<std::uint64_t>::max() - total) {
                 fail("Texture working memory estimate exceeds uint64_t.");
@@ -26,7 +22,6 @@ namespace fjr::cooker {
             std::size_t width,
             std::size_t height,
             bool full_mip_chain) {
-
             std::uint64_t result = 0;
             do {
                 std::size_t row_pitch = 0;
@@ -52,7 +47,6 @@ namespace fjr::cooker {
         [[nodiscard]] DXGI_FORMAT working_format(
             DXGI_FORMAT source,
             const TextureCompressionPlan& plan) noexcept {
-
             if (!DirectX::IsCompressed(source)) {
                 return DirectX::MakeLinear(source);
             }
@@ -72,7 +66,6 @@ namespace fjr::cooker {
         [[nodiscard]] DirectX::XMVECTOR select_channel(
             DirectX::XMVECTOR value,
             scene::StaticScene::EnumTextureChannel channel) {
-
             switch (channel) {
             case scene::StaticScene::EnumTextureChannel::R:
                 return DirectX::XMVectorSplatX(value);
@@ -93,7 +86,6 @@ namespace fjr::cooker {
             const DirectX::Image& source,
             const TextureCompressionPlan& plan,
             DirectX::ScratchImage& result) {
-
             const HRESULT transform_result = DirectX::TransformImage(
                 source,
                 [&plan](
@@ -101,7 +93,6 @@ namespace fjr::cooker {
                     const DirectX::XMVECTOR* input,
                     std::size_t width,
                     std::size_t) {
-
                     for (std::size_t x = 0; x < width; ++x) {
                         DirectX::XMVECTOR value = input[x];
                         if (plan.linearize_source_channel) {
@@ -120,7 +111,6 @@ namespace fjr::cooker {
 
         [[nodiscard]] DirectX::TEX_FILTER_FLAGS mip_filter(
             const TextureCompressionPlan& plan) noexcept {
-
             std::uint32_t result = DirectX::TEX_FILTER_FANT;
             if (plan.filter_as_srgb) {
                 result |= DirectX::TEX_FILTER_SRGB;
@@ -132,7 +122,6 @@ namespace fjr::cooker {
             const TextureCompressionPlan& plan,
             bool fast_bc7,
             bool parallel) noexcept {
-
             std::uint32_t result = DirectX::TEX_COMPRESS_DEFAULT;
             if (fast_bc7 &&
                 plan.dxgi_format == DXGI_FORMAT_BC7_UNORM) {
@@ -146,10 +135,9 @@ namespace fjr::cooker {
 
     } // namespace
 
-    std::uint64_t TextureImageProcessor::estimate_working_memory(
+    std::uint64_t estimate_texture_working_memory(
         const DirectX::TexMetadata& metadata,
         const TextureCompressionPlan& plan) {
-
         std::uint64_t result = image_chain_size(
             metadata.format,
             metadata.width,
@@ -188,12 +176,11 @@ namespace fjr::cooker {
         return result;
     }
 
-    void TextureImageProcessor::process(
+    void process_texture_image(
         DirectX::ScratchImage& decoded,
         const TextureCompressionPlan& plan,
         bool fast_bc7,
         DirectX::ScratchImage& compressed) {
-
         DirectX::ScratchImage decompressed;
         DirectX::ScratchImage isolated;
         DirectX::ScratchImage mip_chain;

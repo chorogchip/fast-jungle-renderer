@@ -1,14 +1,13 @@
-#include "FastJungle/cooker/TextureCompressionPolicy.hpp"
+#include "TextureCompression.hpp"
 
 #include <dxgiformat.h>
 
+#include <algorithm>
 #include <array>
 #include <stdexcept>
 
 namespace fjr::cooker {
-
     namespace {
-
         enum class TextureUsage : std::uint32_t {
             None = 0,
             Color = 1u << 0u,
@@ -17,32 +16,14 @@ namespace fjr::cooker {
             Environment = 1u << 3u
         };
 
-        [[nodiscard]] TextureUsage operator|(
-            TextureUsage left,
-            TextureUsage right) noexcept {
-
-            return static_cast<TextureUsage>(
-                static_cast<std::uint32_t>(left) |
-                static_cast<std::uint32_t>(right));
-        }
-
-        [[nodiscard]] bool contains(
-            TextureUsage value,
-            TextureUsage expected) noexcept {
-
-            return (static_cast<std::uint32_t>(value) &
-                static_cast<std::uint32_t>(expected)) != 0;
-        }
-
         struct UsageRecord final {
-            TextureUsage usage = TextureUsage::None;
+            std::uint32_t usage = 0;
             std::array<bool, 5> scalar_channels{};
             bool srgb = false;
         };
 
         [[nodiscard]] std::size_t channel_index(
             scene::StaticScene::EnumTextureChannel channel) {
-
             const auto index = static_cast<std::size_t>(channel);
             if (index >= 5) {
                 throw std::runtime_error(
@@ -56,7 +37,6 @@ namespace fjr::cooker {
             std::vector<UsageRecord>& usages,
             std::uint32_t binding_index,
             TextureUsage usage) {
-
             if (binding_index == scene::StaticScene::INVALID_INDEX) {
                 return;
             }
@@ -72,7 +52,7 @@ namespace fjr::cooker {
             }
 
             auto& record = usages[binding.texture];
-            record.usage = record.usage | usage;
+            record.usage |= static_cast<std::uint32_t>(usage);
             record.srgb = record.srgb ||
                 binding.flags ==
                     scene::StaticScene::EnumTextureBindingFlag::SRGB;
@@ -81,19 +61,8 @@ namespace fjr::cooker {
             }
         }
 
-        [[nodiscard]] std::size_t count_scalar_channels(
-            const UsageRecord& usage) noexcept {
-
-            std::size_t count = 0;
-            for (const bool used : usage.scalar_channels) {
-                count += used ? 1u : 0u;
-            }
-            return count;
-        }
-
         [[nodiscard]] scene::StaticScene::EnumTextureChannel scalar_channel(
             const UsageRecord& usage) noexcept {
-
             for (std::size_t index = 0;
                  index < usage.scalar_channels.size();
                  ++index) {
@@ -108,7 +77,7 @@ namespace fjr::cooker {
     } // namespace
 
     std::vector<TextureCompressionPlan>
-    TextureCompressionPolicy::resolve(const scene::StaticScene& scene) {
+    resolve_texture_compression(const scene::StaticScene& scene) {
         std::vector<UsageRecord> usages(scene.textures.size());
 
         for (const auto& material : scene.materials) {
@@ -150,21 +119,21 @@ namespace fjr::cooker {
                 throw std::runtime_error(
                     "Environment texture index is invalid.");
             }
-            usages[scene.environment_light.texture].usage =
-                usages[scene.environment_light.texture].usage |
-                TextureUsage::Environment;
+            usages[scene.environment_light.texture].usage |=
+                static_cast<std::uint32_t>(TextureUsage::Environment);
         }
 
         std::vector<TextureCompressionPlan> result;
         result.reserve(usages.size());
         for (const auto& usage : usages) {
             TextureCompressionPlan plan;
-            const bool environment = contains(
-                usage.usage,
-                TextureUsage::Environment);
-            const bool color = contains(usage.usage, TextureUsage::Color);
-            const bool normal = contains(usage.usage, TextureUsage::Normal);
-            const bool scalar = contains(usage.usage, TextureUsage::Scalar);
+            const auto contains = [&usage](TextureUsage expected) {
+                return (usage.usage & static_cast<std::uint32_t>(expected)) != 0;
+            };
+            const bool environment = contains(TextureUsage::Environment);
+            const bool color = contains(TextureUsage::Color);
+            const bool normal = contains(TextureUsage::Normal);
+            const bool scalar = contains(TextureUsage::Scalar);
 
             if (environment && !color && !normal && !scalar) {
                 plan.dxgi_format = DXGI_FORMAT_BC6H_UF16;
@@ -173,7 +142,7 @@ namespace fjr::cooker {
                 plan.dxgi_format = DXGI_FORMAT_BC5_UNORM;
             }
             else if (scalar && !color && !normal && !environment &&
-                count_scalar_channels(usage) == 1) {
+                std::ranges::count(usage.scalar_channels, true) == 1) {
                 plan.dxgi_format = DXGI_FORMAT_BC4_UNORM;
                 plan.source_channel = scalar_channel(usage);
                 plan.isolate_source_channel = true;
@@ -188,27 +157,15 @@ namespace fjr::cooker {
         return result;
     }
 
-    void TextureCompressionPolicy::apply_binding_changes(
-        scene::StaticScene& scene,
-        std::span<const TextureCompressionPlan> plans) {
-
-        if (plans.size() != scene.textures.size()) {
-            throw std::invalid_argument(
-                "Texture compression plan count is invalid.");
-        }
-
-        for (auto& binding : scene.texture_bindings) {
-            if (binding.texture >= plans.size()) {
-                throw std::runtime_error(
-                    "Texture compression binding index is invalid.");
-            }
-            if (!plans[binding.texture].isolate_source_channel) {
-                continue;
-            }
+    scene::StaticScene::TextureBinding
+    normalize_texture_binding(
+        scene::StaticScene::TextureBinding binding,
+        const TextureCompressionPlan& plan) noexcept {
+        if (plan.isolate_source_channel) {
             binding.channel = scene::StaticScene::EnumTextureChannel::R;
-            binding.flags =
-                scene::StaticScene::EnumTextureBindingFlag::LINEAR;
+            binding.flags = scene::StaticScene::EnumTextureBindingFlag::LINEAR;
         }
+        return binding;
     }
 
 } // namespace fjr::cooker
