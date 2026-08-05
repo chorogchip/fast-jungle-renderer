@@ -151,6 +151,13 @@ namespace fjr::render {
         calc_matrix();
     }
 
+    void Camera::set_aspect_ratio(float aspect_ratio) noexcept {
+        aspect_ratio_ = std::max(
+            aspect_ratio,
+            MIN_ASPECT_RATIO);
+        calc_matrix();
+    }
+
     void Camera::move_up(float delta_time) noexcept {
         position_.y += move_speed_ * delta_time;
         calc_matrix();

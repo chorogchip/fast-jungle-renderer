@@ -35,6 +35,8 @@ namespace fjr::render {
         void set_rotation(
             const DirectX::XMFLOAT4& rotation) noexcept;
 
+        void set_aspect_ratio(float aspect_ratio) noexcept;
+
         void move_up(float delta_time) noexcept;
         void move_forward(float delta_time) noexcept;
         void rotate_right(float delta_time) noexcept;

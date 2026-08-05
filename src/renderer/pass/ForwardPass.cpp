@@ -8,7 +8,7 @@
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
-#include "FastJungle/renderer/data/SceneResources.hpp"
+#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 
 namespace fjr::render {
 
@@ -42,7 +42,7 @@ namespace fjr::render {
 
         root_builder.set_constants(RootParameter::CONSTANT_DRAW)
             .reg(2)
-            .count(Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT)
+            .count(3)
             .vis_all().add();
 
         root_builder.set_root_cbv(RootParameter::ROOT_CBUF_CAMERA)
@@ -156,7 +156,7 @@ namespace fjr::render {
 
     void ForwardPass::record(
         dx::CommandContext& context,
-        std::span<const Draw::DrawDataCpu> draws) {
+        std::span<const data::DrawFinalCPU> draws) {
 
         context->OMSetRenderTargets(
             1, &views.desc_rtv, FALSE, &views.desc_dsv);
@@ -207,9 +207,8 @@ namespace fjr::render {
             }
 
             const bool point_instanced =
-                draw.constants.instnace_kind ==
-                static_cast<std::uint32_t>(
-                    SceneResources::InstanceKind::POINT);
+                draw.instnace_class ==
+                data::EnumPointOrMatrix::POINT;
             const auto& transform_constants = point_instanced
                 ? views.cbuf_transform_point
                 : views.cbuf_transform_matrix;
@@ -226,16 +225,24 @@ namespace fjr::render {
                 static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
                 instances);
 
+            const std::array<std::uint32_t, 3>
+                root_constants{
+                    draw.constants.offset_instance,
+                    draw.constants.offset_material,
+                    static_cast<std::uint32_t>(
+                        draw.instnace_class)
+                };
+
             context->SetGraphicsRoot32BitConstants(
                 static_cast<UINT>(RootParameter::CONSTANT_DRAW),
-                Draw::DrawDataCpu::ROOT_CONSTANTS_COUNT,
-                &draw.constants, 0);
+                static_cast<UINT>(root_constants.size()),
+                root_constants.data(), 0);
 
             context->DrawIndexedInstanced(
                 draw.count_index,
                 draw.count_instance,
                 draw.offset_index,
-                draw.offset_vertex,
+                static_cast<INT>(draw.offset_vertex),
                 0);
         }
     }

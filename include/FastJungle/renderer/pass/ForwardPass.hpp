@@ -10,6 +10,7 @@
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/View.hpp"
+#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 
 namespace fjr::render {
 
@@ -55,7 +56,7 @@ namespace fjr::render {
 
         void record(
             dx::CommandContext& context,
-            std::span<const Draw::DrawDataCpu> draws);
+            std::span<const data::DrawFinalCPU> draws);
 
     private:
         static constexpr std::uint32_t PIPELINE_STATE_COUNT = 4;

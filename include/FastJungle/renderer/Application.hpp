@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 #include "FastJungle/renderer/CameraController.hpp"
 #include "FastJungle/renderer/RendererMain.hpp"
@@ -22,7 +23,10 @@ namespace fjr {
             const scene::StaticScene& scene,
             const render::RendererOptions& options = {});
 
-        void run(std::function<bool()> pump_messages);
+        std::vector<double> run(
+            std::function<bool()> pump_messages,
+            std::uint32_t warmup_frames = 0,
+            std::uint32_t measured_frames = 0);
         void resize(uint32_t width, uint32_t height);
         void handle_key_down(uint32_t virtual_key);
 

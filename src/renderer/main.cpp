@@ -1,15 +1,19 @@
 
 #include <Windows.h>
 #include <shellapi.h>
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 #include "FastJungle/core/util/Assume.h"
 #include "FastJungle/core/util/Logger.hpp"
@@ -23,7 +27,53 @@ namespace {
     struct RendererLaunchOptions {
         std::filesystem::path scene = std::filesystem::path{ FASTJUNGLE_DEFAULT_COOKED_DIR } / "JungleRuins.fjscene";
         fjr::render::RendererOptions renderer;
+        std::optional<std::filesystem::path> benchmark_output;
+        std::uint32_t benchmark_warmup_frames = 60;
+        std::uint32_t benchmark_frames = 240;
     };
+
+    void write_benchmark(
+        const std::filesystem::path& path,
+        const std::vector<double>& samples) {
+
+        if (samples.empty()) return;
+
+        std::error_code error;
+        if (!path.parent_path().empty()) {
+            std::filesystem::create_directories(
+                path.parent_path(),
+                error);
+        }
+
+        auto sorted = samples;
+        std::ranges::sort(sorted);
+
+        const auto percentile = [&](double value) {
+            const auto index = static_cast<std::size_t>(
+                value * static_cast<double>(sorted.size() - 1));
+            return sorted[index];
+        };
+
+        const double total = std::accumulate(
+            samples.begin(),
+            samples.end(),
+            0.0);
+
+        const double mean = total /
+            static_cast<double>(samples.size());
+
+        std::ofstream output{ path, std::ios::trunc };
+        output
+            << "frames,mean_ms,p50_ms,p95_ms,min_ms,max_ms,fps\n"
+            << samples.size() << ','
+            << std::fixed << std::setprecision(6)
+            << mean << ','
+            << percentile(0.50) << ','
+            << percentile(0.95) << ','
+            << sorted.front() << ','
+            << sorted.back() << ','
+            << 1000.0 / mean << '\n';
+    }
 
     RendererLaunchOptions get_renderer_launch_options() {
         RendererLaunchOptions options;
@@ -56,6 +106,64 @@ namespace {
 
             } else if (argument == L"--overview") {
                 options.renderer.frame_entire_scene = true;
+
+            } else if (argument == L"--no-vsync") {
+                options.renderer.vsync = false;
+
+            } else if (argument == L"--benchmark-output" &&
+                index + 1 < argc) {
+
+                options.benchmark_output = argv[++index];
+                options.renderer.vsync = false;
+
+            } else if (argument == L"--benchmark-warmup" &&
+                index + 1 < argc) {
+
+                options.benchmark_warmup_frames =
+                    static_cast<std::uint32_t>(
+                        std::wcstoul(argv[++index], nullptr, 10));
+
+            } else if (argument == L"--benchmark-frames" &&
+                index + 1 < argc) {
+
+                options.benchmark_frames =
+                    static_cast<std::uint32_t>(
+                        std::wcstoul(argv[++index], nullptr, 10));
+
+            } else if (argument == L"--demo-pyramid") {
+                options.renderer.objects.river_seedling = false;
+                options.renderer.objects.river_forest = false;
+                options.renderer.objects.pyramid_moss = false;
+                options.renderer.objects.other_foliage = false;
+                options.renderer.objects.terrain = false;
+
+            } else if (argument == L"--demo-foliage") {
+                options.renderer.objects.terrain = false;
+                options.renderer.objects.other = false;
+
+            } else if (argument == L"--demo-basic") {
+                options.renderer.objects.river_seedling = false;
+                options.renderer.objects.river_forest = false;
+                options.renderer.objects.pyramid_moss = false;
+                options.renderer.objects.other_foliage = false;
+
+            } else if (argument == L"--no-river-seedling") {
+                options.renderer.objects.river_seedling = false;
+
+            } else if (argument == L"--no-river-forest") {
+                options.renderer.objects.river_forest = false;
+
+            } else if (argument == L"--no-pyramid-moss") {
+                options.renderer.objects.pyramid_moss = false;
+
+            } else if (argument == L"--no-other-foliage") {
+                options.renderer.objects.other_foliage = false;
+
+            } else if (argument == L"--no-terrain") {
+                options.renderer.objects.terrain = false;
+
+            } else if (argument == L"--no-other") {
+                options.renderer.objects.other = false;
 
             }
         }
@@ -143,9 +251,6 @@ int WINAPI wWinMain(
     _In_ int show_command) {
 
     auto options = get_renderer_launch_options();
-    options.renderer.lod_selection = fjr::render::LodSelectionMode::COARSEST;
-    options.renderer.object_selection = fjr::render::ObjectSelectionMode::DEFAULT_ALL;
-
     HWND hwnd = create_window(instance, 1280, 720);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
     MSVC_ASSUME(hwnd != nullptr);
@@ -165,7 +270,7 @@ int WINAPI wWinMain(
     ShowWindow(hwnd, show_command);
     UpdateWindow(hwnd);
 
-    g_application.run([] {
+    auto frame_times = g_application.run([] {
 
         MSG message{};
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
@@ -176,7 +281,19 @@ int WINAPI wWinMain(
         }
         return true;
 
-        });
+        },
+        options.benchmark_output
+            ? options.benchmark_warmup_frames
+            : 0,
+        options.benchmark_output
+            ? options.benchmark_frames
+            : 0);
+
+    if (options.benchmark_output) {
+        write_benchmark(
+            *options.benchmark_output,
+            frame_times);
+    }
 
     return 0;
 }

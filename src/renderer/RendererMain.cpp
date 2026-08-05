@@ -1,14 +1,247 @@
 #include "FastJungle/renderer/RendererMain.hpp"
 
-#include "FastJungle/dx12/WindowsUtils.hpp"
-#include "FastJungle/dx12/HeapManager.hpp"
-#include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
-#include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
+#include <DirectXMath.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <span>
 #include <utility>
 
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/dx12/HeapManager.hpp"
+#include "FastJungle/dx12/WindowsUtils.hpp"
+#include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneDynamicDataBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneFrameConstDataBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneResourcesTempBuilder.hpp"
+#include "FastJungle/renderer/data/RenderConsts.hpp"
+
 namespace fjr::render {
+
+    namespace {
+
+        [[nodiscard]]
+        bool positive_finite(float value) noexcept {
+            return std::isfinite(value) && value > 1.0e-6f;
+        }
+
+        void frame_camera(
+            Camera& camera,
+            const math::AABB& bounds,
+            float aspect_ratio) noexcept {
+
+            using namespace DirectX;
+
+            XMFLOAT3 center{};
+            XMFLOAT3 size{1.0f, 1.0f, 1.0f};
+            if (bounds.is_valid()) {
+                center = bounds.get_center();
+                size = bounds.get_size();
+            }
+
+            const float radius = std::max({
+                size.x,
+                size.y,
+                size.z,
+                1.0f,
+            });
+
+            const XMVECTOR position_vector = XMVectorSet(
+                center.x,
+                center.y + radius * 0.25f,
+                center.z - radius * 1.75f,
+                1.0f);
+
+            const XMMATRIX view = XMMatrixLookAtLH(
+                position_vector,
+                XMLoadFloat3(&center),
+                XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+
+            const XMMATRIX world = XMMatrixInverse(nullptr, view);
+
+            XMFLOAT3 position{};
+            XMFLOAT4 rotation{};
+            XMStoreFloat3(&position, position_vector);
+            XMStoreFloat4(
+                &rotation,
+                XMQuaternionRotationMatrix(world));
+
+            camera.init(
+                position,
+                rotation,
+                XM_PIDIV4,
+                aspect_ratio,
+                std::max(0.01f, radius * 0.001f),
+                std::max(100.0f, radius * 10.0f),
+                1.0f,
+                0.04f);
+        }
+
+        void initialize_camera(
+            Camera& camera,
+            const scene::StaticScene::Camera& source,
+            const math::AABB& bounds,
+            std::uint32_t width,
+            std::uint32_t height,
+            bool frame_entire_scene) noexcept {
+
+            const float aspect_ratio =
+                static_cast<float>(std::max(width, 1u)) /
+                static_cast<float>(std::max(height, 1u));
+
+            if (frame_entire_scene) {
+                frame_camera(camera, bounds, aspect_ratio);
+                return;
+            }
+
+            using namespace DirectX;
+
+            XMVECTOR scale;
+            XMVECTOR rotation_vector;
+            XMVECTOR translation;
+            const bool valid_transform = XMMatrixDecompose(
+                &scale,
+                &rotation_vector,
+                &translation,
+                XMLoadFloat4x4(&source.world_transform));
+
+            const bool valid_lens =
+                positive_finite(source.focal_length) &&
+                positive_finite(source.vertical_aperture) &&
+                positive_finite(source.clipping_range.x) &&
+                std::isfinite(source.clipping_range.y) &&
+                source.clipping_range.y > source.clipping_range.x;
+
+            if (!valid_transform || !valid_lens) {
+                frame_camera(camera, bounds, aspect_ratio);
+                return;
+            }
+
+            XMFLOAT3 position{};
+            XMFLOAT4 rotation{};
+            XMStoreFloat3(&position, translation);
+            XMStoreFloat4(&rotation, rotation_vector);
+
+            const float vertical_fov =
+                2.0f * std::atan(
+                    0.5f * source.vertical_aperture /
+                    source.focal_length);
+
+            camera.init(
+                position,
+                rotation,
+                vertical_fov,
+                aspect_ratio,
+                source.clipping_range.x,
+                source.clipping_range.y,
+                1.0f,
+                0.04f);
+        }
+
+        [[nodiscard]]
+        bool contains(
+            scene::StaticScene::IndexRange range,
+            std::uint32_t index) noexcept {
+
+            return index >= range.offset &&
+                index - range.offset < range.count;
+        }
+
+        [[nodiscard]]
+        bool category_enabled(
+            const data::DrawFinalGPUIndirect& draw,
+            const scene::StaticScene& scene,
+            const ObjectCategoryOptions& options) noexcept {
+
+            const auto& components = scene.components;
+
+            if (draw.instnace_class ==
+                data::EnumPointOrMatrix::POINT) {
+
+                const std::uint32_t batch_index =
+                    draw.offset_cbuf_transform;
+
+                if (contains(
+                    components.river_seedling.point_batches,
+                    batch_index)) {
+
+                    return options.river_seedling;
+                }
+
+                if (contains(
+                    components.river_forest.point_batches,
+                    batch_index)) {
+
+                    return options.river_forest;
+                }
+
+                if (contains(
+                    components.pyramid_moss.point_batches,
+                    batch_index)) {
+
+                    return options.pyramid_moss;
+                }
+
+                return options.other_foliage;
+            }
+
+            const std::uint32_t instance_index =
+                draw.constants.offset_instance;
+
+            const bool is_terrain =
+                contains(
+                    components.terrain.extended,
+                    instance_index) ||
+                contains(
+                    components.terrain.cinematic,
+                    instance_index);
+
+            return is_terrain
+                ? options.terrain
+                : options.other;
+        }
+
+        void filter_draw_categories(
+            data::SceneResourcesTemp& resources,
+            const scene::StaticScene& scene,
+            const ObjectCategoryOptions& options) {
+
+            std::erase_if(
+                resources.draw_items,
+                [&](const data::DrawFinalGPUIndirect& draw) {
+                    return !category_enabled(
+                        draw,
+                        scene,
+                        options);
+                });
+        }
+
+        void log_cpu_culled_draw_list(
+            std::span<const data::DrawFinalCPU> draws) {
+
+            std::uint64_t instance_references = 0;
+            std::uint64_t index_invocations = 0;
+
+            for (const auto& draw : draws) {
+                instance_references += draw.count_instance;
+                index_invocations +=
+                    static_cast<std::uint64_t>(
+                        draw.count_index) *
+                    draw.count_instance;
+            }
+
+            log::Logger::g_logger
+                << "CPU culled renderer draw list:\n"
+                << "  draws: " << draws.size() << '\n'
+                << "  instance references: "
+                << instance_references << '\n'
+                << "  index invocations: "
+                << index_invocations << '\n';
+        }
+
+    } // namespace
 
     RendererMain::RendererMain() = default;
 
@@ -23,35 +256,48 @@ namespace fjr::render {
         const scene::StaticScene& scene,
         const RendererOptions& options) {
 
-        // basic resource
-
         const HWND hwnd = static_cast<HWND>(window);
         options_ = options;
+        environment_light_ = scene.environment_light;
 
         const auto factory = dx::DeviceUtils::create_factory();
         device_ = dx::DeviceUtils::create_device(factory.Get());
 
         command_queue_.init(
-            device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT);
+            device_.Get(),
+            D3D12_COMMAND_LIST_TYPE_DIRECT);
 
         swap_chain_.init(
-            factory.Get(), command_queue_.get_command_queue(),
-            hwnd, width, height, FRAME_COUNT, true);
+            factory.Get(),
+            command_queue_.get_command_queue(),
+            hwnd,
+            width,
+            height,
+            FRAME_COUNT,
+            options_.vsync);
 
         auto& descriptor_heaps = dx::HeapManager::g_heap_manager;
         descriptor_heaps.init(
             device_.Get(),
-            1024, 128, 1, FRAME_COUNT);
-        desc_rtv_ = descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
-        desc_dsv_ = descriptor_heaps.heap_dsv.alloc();
+            1024,
+            128,
+            1,
+            FRAME_COUNT);
 
-        for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
-            command_contexts_[i].init(
-                device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, i);
-            frame_data_[i].init(device_.Get());
+        desc_rtv_ =
+            descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
+        desc_dsv_ =
+            descriptor_heaps.heap_dsv.alloc();
+
+        for (std::uint32_t frame = 0;
+            frame < FRAME_COUNT;
+            ++frame) {
+
+            command_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                frame);
         }
-
-        // build scene
 
         const auto bounds =
             SceneBoundsBuilder::build(scene);
@@ -74,72 +320,93 @@ namespace fjr::render {
                     scene,
                     *scene_resources_temp_));
 
-        camera_.set_scene_camera(scene.camera);
-        camera_.set_viewport(width, height);
+        filter_draw_categories(
+            *scene_resources_temp_,
+            scene,
+            options_.objects);
 
-        if (options.frame_entire_scene) {
-            camera_.frame_bounds(
-                scene_resources_temp_->world_bounds);
-        } else if (!camera_.has_valid_lens() ||
-            !camera_.has_valid_transform()) {
-
-            camera_.frame_bounds(
-                scene_resources_temp_->world_bounds);
-        }
+        initialize_camera(
+            camera,
+            scene.camera,
+            bounds.world_bounds,
+            width,
+            height,
+            options.frame_entire_scene);
 
         for (auto& frame : frame_const_data_) {
             SceneFrameConstDataBuilder::build(
                 frame,
                 device_.Get(),
-                camera_,
-                scene.environment_light);
+                camera,
+                environment_light_);
         }
 
         SceneDynamicDataBuilder::build(
             dynamic_scene_data_,
             *scene_resources_temp_,
-            camera_,
-            options.lod_selection);
+            camera,
+            options_.lod_selection);
 
-        // camera
-        camera_.set_scene_camera(scene.camera);
-        camera_.set_viewport(width, height);
-        if (options_.frame_entire_scene) {
-            camera_.frame_bounds(bounds.world_bounds);
-        } else if (!camera_.has_valid_lens() ||
-            !camera_.has_valid_transform()) {
-            camera_.frame_bounds(bounds.world_bounds);
-        }
+        log_cpu_culled_draw_list(
+            dynamic_scene_data_.visible_draws);
 
         forward_pass_.init(
             device_.Get(),
-            scene_resources_->texture_descriptors.get_count(),
-            scene_resources_->sampler_descriptors.get_count());
+            scene_resources_->materials
+                .texture_descriptors.get_count(),
+            scene_resources_->materials
+                .sampler_descriptors.get_count());
 
-        forward_pass_.views.view_vertices = scene_resources_->view_vertices;
-        forward_pass_.views.view_indices = scene_resources_->view_indices;
-        forward_pass_.views.cbuf_transform_matrix =
-            scene_resources_->view_cbuf_transform_matrix;
-        forward_pass_.views.cbuf_transform_point =
-            scene_resources_->view_cbuf_transform_point;
-        if (scene_resources_->buf_instances_matrix) {
-            forward_pass_.views.desc_instnaces_matrix =
-                scene_resources_->buf_instances_matrix
+        auto& pass_views = forward_pass_.views;
+        pass_views.view_vertices =
+            scene_resources_->geometry.vertex_view;
+        pass_views.view_indices =
+            scene_resources_->geometry.index_view;
+
+        if (scene_resources_->instances.matrix_draw_constants) {
+            pass_views.cbuf_transform_matrix = dx::CBufferArrayView{
+                scene_resources_->instances.matrix_draw_constants
+                    ->GetGPUVirtualAddress(),
+                data::Consts::CBUF_ALIGN
+            };
+        }
+
+        if (scene_resources_->instances.point_draw_constants) {
+            pass_views.cbuf_transform_point = dx::CBufferArrayView{
+                scene_resources_->instances.point_draw_constants
+                    ->GetGPUVirtualAddress(),
+                data::Consts::CBUF_ALIGN
+            };
+        }
+
+        if (scene_resources_->instances.matrix_instances) {
+            pass_views.desc_instnaces_matrix =
+                scene_resources_->instances.matrix_instances
                     ->GetGPUVirtualAddress();
         }
-        if (scene_resources_->buf_instances_point) {
-            forward_pass_.views.desc_instances_point =
-                scene_resources_->buf_instances_point
+
+        if (scene_resources_->instances.point_instances) {
+            pass_views.desc_instances_point =
+                scene_resources_->instances.point_instances
                     ->GetGPUVirtualAddress();
         }
-        forward_pass_.views.desc_materials =
-            scene_resources_->buf_materials->GetGPUVirtualAddress();
-        forward_pass_.views.desc_texture_bindings =
-            scene_resources_->buf_texture_bindings->GetGPUVirtualAddress();
-        forward_pass_.views.descs_textures =
-            scene_resources_->texture_descriptors;
-        forward_pass_.views.descs_samplers =
-            scene_resources_->sampler_descriptors;
+
+        if (scene_resources_->materials.materials) {
+            pass_views.desc_materials =
+                scene_resources_->materials.materials
+                    ->GetGPUVirtualAddress();
+        }
+
+        if (scene_resources_->materials.texture_bindings) {
+            pass_views.desc_texture_bindings =
+                scene_resources_->materials.texture_bindings
+                    ->GetGPUVirtualAddress();
+        }
+
+        pass_views.descs_textures =
+            scene_resources_->materials.texture_descriptors;
+        pass_views.descs_samplers =
+            scene_resources_->materials.sampler_descriptors;
 
         create_size_dependent_resources(width, height);
     }
@@ -157,46 +424,49 @@ namespace fjr::render {
         std::uint32_t width,
         std::uint32_t height) {
 
-        camera_.set_viewport(width, height);
-        scene_viewer_.update_visibility(camera_, options_.lod_selection);
+        camera.set_aspect_ratio(
+            static_cast<float>(width) /
+            static_cast<float>(height));
 
-        // Render Target
+        for (std::uint32_t frame = 0;
+            frame < FRAME_COUNT;
+            ++frame) {
 
-        for (uint32_t i = 0; i < FRAME_COUNT; ++i) {
-            swap_chain_.get_buffer(i).create_rtv(
+            swap_chain_.get_buffer(frame).create_rtv(
                 device_.Get(),
-                desc_rtv_.get_cpu(i),
+                desc_rtv_.get_cpu(frame),
                 0,
                 0,
                 1,
                 DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
         }
 
-        // Depth Stencil
-
         buffer_depth_.reset();
 
-        constexpr DXGI_FORMAT DEPTH_FORMAT = DXGI_FORMAT_D32_FLOAT;
+        constexpr DXGI_FORMAT DEPTH_FORMAT =
+            DXGI_FORMAT_D32_FLOAT;
 
-        D3D12_RESOURCE_DESC desc_depthbuf{};
-        desc_depthbuf.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        desc_depthbuf.Width = width;
-        desc_depthbuf.Height = height;
-        desc_depthbuf.DepthOrArraySize = 1;
-        desc_depthbuf.MipLevels = 1;
-        desc_depthbuf.Format = DEPTH_FORMAT;
-        desc_depthbuf.SampleDesc.Count = 1;
-        desc_depthbuf.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-        desc_depthbuf.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+        D3D12_RESOURCE_DESC depth_description{};
+        depth_description.Dimension =
+            D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        depth_description.Width = width;
+        depth_description.Height = height;
+        depth_description.DepthOrArraySize = 1;
+        depth_description.MipLevels = 1;
+        depth_description.Format = DEPTH_FORMAT;
+        depth_description.SampleDesc.Count = 1;
+        depth_description.Layout =
+            D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        depth_description.Flags =
+            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
         D3D12_CLEAR_VALUE clear_value{};
         clear_value.Format = DEPTH_FORMAT;
         clear_value.DepthStencil.Depth = 1.0f;
-        clear_value.DepthStencil.Stencil = 0;
 
         buffer_depth_.init(
             device_.Get(),
-            desc_depthbuf,
+            depth_description,
             dx::TextureType::texture2d,
             D3D12_RESOURCE_STATE_DEPTH_WRITE,
             &clear_value);
@@ -210,69 +480,65 @@ namespace fjr::render {
             DEPTH_FORMAT,
             D3D12_DSV_FLAG_NONE);
 
-        forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
+        forward_pass_.views.desc_dsv =
+            desc_dsv_.get_cpu();
         forward_pass_.views.width = width;
         forward_pass_.views.height = height;
     }
 
     void RendererMain::render() {
 
-        camera_controller_->update(camera_);
-
-        const int frame =
+        const std::uint32_t frame =
             swap_chain_.get_current_frame();
+
+        auto& context = command_contexts_[frame];
+        command_queue_.wait(
+            context.get_fence_value());
 
         SceneDynamicDataBuilder::build(
             dynamic_scene_data_,
             *scene_resources_temp_,
-            camera_,
+            camera,
             options_.lod_selection);
 
         SceneFrameConstDataBuilder::build(
             frame_const_data_[frame],
             device_.Get(),
-            camera_,
+            camera,
             environment_light_);
 
-        const auto camera_buffer =
-            frame_const_data_[frame]
-            .camera_constants
-            .get_address();
-
-        const auto draws =
-            std::span<
-            const data::DrawFinalCPU>{
-            dynamic_scene_data_.visible_draws };
-
-
-        const int frame = swap_chain_.get_current_frame();
-        auto& context = command_contexts_[frame];
-        command_queue_.wait(context.get_fence_value());
-        frame_data_[frame].upload_camera_data(camera_, environment_light_);
         context.reset();
 
         swap_chain_.get_current_buffer().transition(
-            context.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-        context.SetDescriptorHeaps(
-            dx::HeapManager::g_heap_manager.heap_sampler.get(),
-            dx::HeapManager::g_heap_manager.heap_srv_cbv_uav.get()
-        );
+            context.get(),
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-        forward_pass_.views.desc_rtv = desc_rtv_.get_cpu(frame);
-        forward_pass_.views.cbuf_camera = frame_data_[frame].get_camera_buffer();
+        context.SetDescriptorHeaps(
+            dx::HeapManager::g_heap_manager
+                .heap_sampler.get(),
+            dx::HeapManager::g_heap_manager
+                .heap_srv_cbv_uav.get());
+
+        forward_pass_.views.desc_rtv =
+            desc_rtv_.get_cpu(frame);
+        forward_pass_.views.cbuf_camera =
+            frame_const_data_[frame]
+                .camera_constants.get_address();
+
         forward_pass_.record(
             context,
-            *scene_resources_,
-            draws,
-            camera_buffer);
+            std::span<const data::DrawFinalCPU>{
+                dynamic_scene_data_.visible_draws});
 
         swap_chain_.get_current_buffer().transition(
-            context.get(), D3D12_RESOURCE_STATE_PRESENT);
+            context.get(),
+            D3D12_RESOURCE_STATE_PRESENT);
 
         context.close();
         command_queue_.execute(context.get());
-        context.set_fence_value(command_queue_.signal());
+        context.set_fence_value(
+            command_queue_.signal());
         swap_chain_.present();
     }
 
-} // namespace fjr
+} // namespace fjr::render
