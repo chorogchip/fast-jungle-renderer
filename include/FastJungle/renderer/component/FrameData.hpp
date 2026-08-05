@@ -9,6 +9,9 @@
 #include "FastJungle/dx12/MappedCBuffer.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
+#pragma warning(push)
+#pragma warning(disable: 4324)
+
 namespace fjr::render {
 
     class Camera;
@@ -50,3 +53,5 @@ namespace fjr::render {
     };
 
 } // namespace fjr::render
+
+#pragma warning(pop)

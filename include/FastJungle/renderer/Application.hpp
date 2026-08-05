@@ -1,45 +1,31 @@
 #pragma once
 
-#include "FastJungle/renderer/RendererMain.hpp"
-
 #include <cstdint>
+#include <functional>
+
+#include "FastJungle/renderer/RendererMain.hpp"
 
 namespace fjr {
 
-    struct RunLoop {
-        void* context = nullptr;
-        bool (*pump_messages)(void* context) = nullptr;
-    };
-
     class Application {
+
     public:
         Application() = default;
-
         Application(const Application&) = delete;
         Application& operator=(const Application&) = delete;
-
         Application(Application&&) = delete;
         Application& operator=(Application&&) = delete;
 
         void init(
-            void* native_window,
-            std::uint32_t width,
-            std::uint32_t height,
+            void* native_window, uint32_t width, uint32_t height,
             const scene::StaticScene& scene,
             const render::RendererOptions& options = {});
 
-        [[nodiscard]]
-        int run(const RunLoop& run_loop);
-
-        void request_resize(
-            std::uint32_t width,
-            std::uint32_t height) noexcept;
-
-        void handle_key_down(std::uint32_t virtual_key) noexcept;
+        void run(std::function<bool()> pump_messages);
+        void resize(uint32_t width, uint32_t height);
+        void handle_key_down(uint32_t virtual_key);
 
     private:
-        bool minimized_ = false;
-
         render::RendererMain renderer_;
     };
 

@@ -1,10 +1,9 @@
 #pragma once
 
 #include <cstdint>
-
 #include <DirectXTex.h>
 
-#include "TextureCompression.hpp"
+#include "FastJungle/cooker/TextureCompression.hpp"
 
 namespace fjr::cooker {
 

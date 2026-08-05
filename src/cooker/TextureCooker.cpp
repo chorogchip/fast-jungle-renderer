@@ -1,16 +1,12 @@
 #include "FastJungle/cooker/TextureCooker.hpp"
 
-#include "CookerCommon.hpp"
-
 #include <DirectXTex.h>
-
 #if defined(FASTJUNGLE_HAS_OPENEXR)
 #include <DirectXTexEXR.h>
 #endif
 
 #include <Windows.h>
 #include <objbase.h>
-
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -22,7 +18,8 @@
 #include <system_error>
 #include <utility>
 
-#include "TextureImageProcessing.hpp"
+#include "FastJungle/cooker/CookerCommon.hpp"
+#include "FastJungle/cooker/TextureImageProcessing.hpp"
 
 namespace fjr::cooker {
     namespace {
@@ -236,9 +233,9 @@ namespace fjr::cooker {
         const ComScope com_scope;
         const auto compression_plans =
             resolve_texture_compression(scene);
-        auto cooked_textures = scene.textures;
+        std::vector<fjr::scene::StaticScene::Texture> cooked_textures = scene.textures;
         std::vector<scene::StaticScene::TextureMip> cooked_mips;
-        auto cooked_bindings = scene.texture_bindings;
+        std::vector<fjr::scene::StaticScene::TextureBinding> cooked_bindings = scene.texture_bindings;
         for (auto& binding : cooked_bindings) {
             if (binding.texture >= compression_plans.size()) {
                 throw std::runtime_error(

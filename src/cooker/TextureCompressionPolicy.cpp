@@ -1,10 +1,10 @@
-#include "TextureCompression.hpp"
 
 #include <dxgiformat.h>
-
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+
+#include "FastJungle/cooker/TextureCompression.hpp"
 
 namespace fjr::cooker {
     namespace {
@@ -51,24 +51,20 @@ namespace fjr::cooker {
                     "Texture compression texture index is invalid.");
             }
 
+            auto usage_i = static_cast<uint32_t>(usage);
             auto& record = usages[binding.texture];
-            record.usage |= static_cast<std::uint32_t>(usage);
-            record.srgb = record.srgb ||
-                binding.flags ==
-                    scene::StaticScene::EnumTextureBindingFlag::SRGB;
-            if (usage == TextureUsage::Scalar) {
+            record.usage |= usage_i;
+            record.srgb = record.srgb || binding.flags == scene::StaticScene::EnumTextureBindingFlag::SRGB;
+            if (usage_i & static_cast<uint32_t>(TextureUsage::Scalar)) {
                 record.scalar_channels[channel_index(binding.channel)] = true;
             }
         }
 
         [[nodiscard]] scene::StaticScene::EnumTextureChannel scalar_channel(
             const UsageRecord& usage) noexcept {
-            for (std::size_t index = 0;
-                 index < usage.scalar_channels.size();
-                 ++index) {
+            for (size_t index = 0; index < usage.scalar_channels.size(); ++index) {
                 if (usage.scalar_channels[index]) {
-                    return static_cast<
-                        scene::StaticScene::EnumTextureChannel>(index);
+                    return static_cast<scene::StaticScene::EnumTextureChannel>(index);
                 }
             }
             return scene::StaticScene::EnumTextureChannel::R;

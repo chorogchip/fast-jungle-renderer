@@ -13,6 +13,9 @@
 #include "FastJungle/dx12/View.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
+#pragma warning(push)
+#pragma warning(disable: 4324)
+
 namespace fjr::render {
 
     class SceneResources {
@@ -140,3 +143,5 @@ namespace fjr::render {
     static_assert(std::is_trivially_copyable_v<SceneResources::Material>);
 
 } // namespace fjr::render
+
+#pragma warning(pop)

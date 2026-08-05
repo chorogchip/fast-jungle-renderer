@@ -1,66 +1,28 @@
 #include "FastJungle/renderer/Application.hpp"
 
-#include "FastJungle/core/util/Logger.hpp"
-
 namespace fjr {
 
     void Application::init(
-        void* native_window,
-        std::uint32_t width,
-        std::uint32_t height,
+        void* native_window, uint32_t width, uint32_t height,
         const scene::StaticScene& scene,
         const render::RendererOptions& options) {
 
-        if (native_window == nullptr ||
-            width == 0 ||
-            height == 0) {
-            log::Logger::g_logger
-                << "Renderer application requires a valid window and size."
-                << log::abrt();
-        }
-
-        minimized_ = false;
-
         renderer_.init(
-            native_window,
-            width,
-            height,
-            scene,
-            options);
+            native_window, width, height,
+            scene, options);
     }
 
-    int Application::run(
-        const RunLoop& run_loop) {
-
-        if (run_loop.pump_messages == nullptr) {
-            return 1;
-        }
-
-        while (run_loop.pump_messages(
-            run_loop.context)) {
-
-            if (minimized_) {
-                continue;
-            }
-
+    void Application::run(std::function<bool()> pump_messages) {
+        while (pump_messages())
             renderer_.render();
-        }
-
-        return 0;
     }
 
-    void Application::request_resize(
-        std::uint32_t width,
-        std::uint32_t height) noexcept {
-
-        minimized_ = width == 0 || height == 0;
-        if (!minimized_) {
+    void Application::resize(uint32_t width, uint32_t height) {
+        if (width != 0 && height != 0)
             renderer_.resize(width, height);
-        }
     }
 
-    void Application::handle_key_down(
-        std::uint32_t virtual_key) noexcept {
+    void Application::handle_key_down(uint32_t virtual_key) {
         renderer_.handle_key_down(virtual_key);
     }
 
