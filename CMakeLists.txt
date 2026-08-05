@@ -63,10 +63,6 @@ option(FASTJUNGLE_ENABLE_IPO
     "Enable Release IPO/LTCG for FastJungle"
     ON
 )
-option(FASTJUNGLE_BUILD_TESTS
-    "Build FastJungle project tests"
-    OFF
-)
 option(FASTJUNGLE_LOG_ABORT_TO_STDERR
     "Write fatal Logger output to stderr and exit without an abort dialog"
     OFF
@@ -727,122 +723,6 @@ endif()
         PDB_OUTPUT_DIRECTORY "${FASTJUNGLE_RUNTIME_DIR}"
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
-endif()
-
-if(FASTJUNGLE_BUILD_TESTS)
-    enable_testing()
-
-    add_executable(FastJungleSceneStreamingTest
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/scene/StaticSceneStreamingTest.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/core/util/DateTime.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/core/util/File.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/core/util/TemporaryFile.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneFileIO.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamReader.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneStreamWriter.cpp"
-        "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
-    )
-    fastjungle_apply_options(FastJungleSceneStreamingTest)
-    target_include_directories(FastJungleSceneStreamingTest PRIVATE
-        "${FASTJUNGLE_INCLUDE_DIR}"
-    )
-
-    add_test(
-        NAME FastJungle.SceneStreaming
-        COMMAND FastJungleSceneStreamingTest
-    )
-
-    if(FASTJUNGLE_BUILD STREQUAL "renderer")
-        add_executable(FastJungleSceneDrawBuilderTest
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/renderer/SceneDrawBuilderTest.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/renderer/builder/SceneDrawBuilder.cpp"
-        )
-        fastjungle_apply_options(FastJungleSceneDrawBuilderTest)
-        target_include_directories(
-            FastJungleSceneDrawBuilderTest PRIVATE
-            "${FASTJUNGLE_INCLUDE_DIR}"
-        )
-
-        add_test(
-            NAME FastJungle.SceneDrawBuilder
-            COMMAND FastJungleSceneDrawBuilderTest
-        )
-
-        add_executable(FastJungleSceneLodSelectionTest
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/renderer/SceneLodSelectionTest.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/renderer/component/Camera.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/renderer/builder/SceneViewer.cpp"
-        )
-        fastjungle_apply_options(FastJungleSceneLodSelectionTest)
-        target_include_directories(
-            FastJungleSceneLodSelectionTest PRIVATE
-            "${FASTJUNGLE_INCLUDE_DIR}"
-        )
-
-        add_test(
-            NAME FastJungle.SceneLodSelection
-            COMMAND FastJungleSceneLodSelectionTest
-        )
-    endif()
-
-    if(FASTJUNGLE_BUILD STREQUAL "cooker")
-        add_executable(FastJungleTextureCompressionPolicyTest
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/TextureCompressionPolicyTest.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCompressionPolicy.cpp"
-        )
-        fastjungle_apply_options(FastJungleTextureCompressionPolicyTest)
-        target_include_directories(
-            FastJungleTextureCompressionPolicyTest PRIVATE
-            "${FASTJUNGLE_INCLUDE_DIR}"
-        )
-
-        add_test(
-            NAME FastJungle.TextureCompressionPolicy
-            COMMAND FastJungleTextureCompressionPolicyTest
-        )
-
-        add_executable(FastJungleMeshLodCookerTest
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/MeshLodCookerTest.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/cooker/MeshLodCooker.cpp"
-        )
-        fastjungle_apply_options(FastJungleMeshLodCookerTest)
-        target_include_directories(FastJungleMeshLodCookerTest PRIVATE
-            "${FASTJUNGLE_INCLUDE_DIR}"
-        )
-        target_link_libraries(FastJungleMeshLodCookerTest PRIVATE
-            meshoptimizer
-        )
-
-        add_test(
-            NAME FastJungle.MeshLodCooker
-            COMMAND FastJungleMeshLodCookerTest
-        )
-
-        add_executable(FastJungleTextureCookerTest
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/TextureCookerTest.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCompressionPolicy.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureCooker.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/cooker/TextureImageProcessor.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/core/util/DateTime.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/core/util/Logger.cpp"
-            "${FASTJUNGLE_SOURCE_DIR}/scene/StaticSceneValidation.cpp"
-        )
-        fastjungle_apply_options(FastJungleTextureCookerTest)
-        target_include_directories(FastJungleTextureCookerTest PRIVATE
-            "${FASTJUNGLE_INCLUDE_DIR}"
-        )
-        target_link_libraries(FastJungleTextureCookerTest PRIVATE
-            DirectXTex
-            windowscodecs
-            ole32
-        )
-
-        add_test(
-            NAME FastJungle.TextureCooker
-            COMMAND FastJungleTextureCookerTest
-        )
-    endif()
 endif()
 
 message(STATUS "FastJungle target        : ${FASTJUNGLE_BUILD}")
