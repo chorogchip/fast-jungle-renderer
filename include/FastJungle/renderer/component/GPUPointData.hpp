@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <array>
+#include <vector>
 
 namespace fjr::render {
 

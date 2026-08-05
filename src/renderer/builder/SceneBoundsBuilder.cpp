@@ -104,6 +104,9 @@ namespace fjr::render {
 
             result.instanced_definition_max_scale[definition_index] =
                 maximum_scale(definition_local);
+
+            result.instanced_definition_max_scale.resize(
+                scene.instanced_mesh_definitions.size());
         }
 
         result.point_batch_cluster_ranges.resize(
@@ -144,7 +147,7 @@ namespace fjr::render {
                 result.point_clusters.size());
 
             // temp
-            static constexpr uint32_t point_cluster_size = 65535;
+            static constexpr uint32_t point_cluster_size = 256;
 
             for (std::uint32_t local_begin = 0;
                 local_begin < batch.instance_count;
