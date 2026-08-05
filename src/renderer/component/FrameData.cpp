@@ -1,6 +1,6 @@
 #include "FastJungle/renderer/component/FrameData.hpp"
 
-#include "FastJungle/renderer/component/Camera.hpp"
+#include "FastJungle/renderer/Camera.hpp"
 
 #include <cmath>
 

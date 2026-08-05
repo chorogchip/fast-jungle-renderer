@@ -1,11 +1,10 @@
 #include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
 
-#include <DirectXMath.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <algorithm>
 #include <cmath>
+#include <DirectXMath.h>
 
 namespace fjr::render {
     namespace {
@@ -36,7 +35,7 @@ namespace fjr::render {
 
     } // namespace
 
-    SceneBoundsBuilder SceneBoundsBuilder::build(
+    data::SceneBounds SceneBoundsBuilder::build(
         const scene::StaticScene& scene) {
 
         SceneBoundsBuilder result;

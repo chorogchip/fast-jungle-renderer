@@ -13,7 +13,7 @@
 #include "FastJungle/renderer/component/Camera.hpp"
 #include "FastJungle/renderer/component/FrameData.hpp"
 #include "FastJungle/renderer/RendererOptions.hpp"
-#include "FastJungle/renderer/SceneResources.hpp"
+#include "FastJungle/renderer/data/SceneResources.hpp"
 #include "FastJungle/renderer/builder/SceneViewer.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
