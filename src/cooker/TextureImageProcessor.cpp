@@ -82,6 +82,7 @@ namespace fjr::cooker {
                 return DirectX::XMVectorSplatZ(value);
             case scene::StaticScene::EnumTextureChannel::A:
                 return DirectX::XMVectorSplatW(value);
+			case scene::StaticScene::EnumTextureChannel::RGB:
             case scene::StaticScene::EnumTextureChannel::RGBA:
                 return value;
             }

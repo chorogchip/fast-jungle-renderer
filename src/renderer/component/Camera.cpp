@@ -1,4 +1,4 @@
-#include "FastJungle/renderer/Camera.hpp"
+#include "FastJungle/renderer/component/Camera.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -14,88 +14,9 @@ namespace fjr::render {
         constexpr float DEFAULT_FAR_PLANE = 100000.0f;
         constexpr float MINIMUM_VALUE = 1.0e-6f;
 
-        // Scene-specific presentation offset: raise the authored camera,
-        // move it into the ruins, then keep looking along its authored path.
-        constexpr float SCENE_CAMERA_HEIGHT_OFFSET = 750.0f;
-        constexpr float SCENE_CAMERA_DOLLY_OFFSET = 1100.0f;
-        constexpr float SCENE_CAMERA_LATERAL_OFFSET = 450.0f;
-        constexpr float SCENE_CAMERA_LOOK_AHEAD = 950.0f;
-
         [[nodiscard]]
         bool positive_finite(float value) noexcept {
             return std::isfinite(value) && value > MINIMUM_VALUE;
-        }
-
-        [[nodiscard]]
-        scene::StaticScene::Camera renderer_camera(
-            const scene::StaticScene::Camera& source) noexcept {
-
-            auto result = source;
-
-            // UsdGeomCamera uses +X right, +Y up, and -Z forward. The
-            // cooked scene swaps the source Y/Z world axes, so rebuild the
-            // camera-local basis as renderer +X right, +Y up, +Z forward.
-            const DirectX::XMMATRIX camera_basis = DirectX::XMMatrixSet(
-                1.0f,  0.0f, 0.0f, 0.0f,
-                0.0f,  0.0f, 1.0f, 0.0f,
-                0.0f, -1.0f, 0.0f, 0.0f,
-                0.0f,  0.0f, 0.0f, 1.0f);
-            const DirectX::XMMATRIX authored_world =
-                DirectX::XMMatrixMultiply(
-                    camera_basis,
-                    DirectX::XMLoadFloat4x4(&source.world_transform));
-
-            const DirectX::XMVECTOR right = DirectX::XMVector3Normalize(
-                authored_world.r[0]);
-            const DirectX::XMVECTOR forward = DirectX::XMVector3Normalize(
-                authored_world.r[2]);
-            const DirectX::XMVECTOR world_up = DirectX::XMVectorSet(
-                0.0f, 1.0f, 0.0f, 0.0f);
-            const DirectX::XMVECTOR authored_position =
-                authored_world.r[3];
-            const DirectX::XMVECTOR position = DirectX::XMVectorAdd(
-                DirectX::XMVectorAdd(
-                    authored_position,
-                    DirectX::XMVectorScale(
-                        forward,
-                        SCENE_CAMERA_DOLLY_OFFSET)),
-                DirectX::XMVectorAdd(
-                    DirectX::XMVectorScale(
-                        right,
-                        SCENE_CAMERA_LATERAL_OFFSET),
-                    DirectX::XMVectorScale(
-                        world_up,
-                        SCENE_CAMERA_HEIGHT_OFFSET)));
-            const DirectX::XMVECTOR target = DirectX::XMVectorAdd(
-                authored_position,
-                DirectX::XMVectorScale(
-                    forward,
-                    SCENE_CAMERA_DOLLY_OFFSET +
-                    SCENE_CAMERA_LOOK_AHEAD));
-
-            DirectX::XMMATRIX adjusted_world = DirectX::XMMatrixInverse(
-                nullptr,
-                DirectX::XMMatrixLookAtLH(
-                    position,
-                    target,
-                    world_up));
-            adjusted_world.r[0] = DirectX::XMVectorScale(
-                adjusted_world.r[0],
-                DirectX::XMVectorGetX(
-                    DirectX::XMVector3Length(authored_world.r[0])));
-            adjusted_world.r[1] = DirectX::XMVectorScale(
-                adjusted_world.r[1],
-                DirectX::XMVectorGetX(
-                    DirectX::XMVector3Length(authored_world.r[1])));
-            adjusted_world.r[2] = DirectX::XMVectorScale(
-                adjusted_world.r[2],
-                DirectX::XMVectorGetX(
-                    DirectX::XMVector3Length(authored_world.r[2])));
-
-            DirectX::XMStoreFloat4x4(
-                &result.world_transform,
-                adjusted_world);
-            return result;
         }
 
     } // namespace
@@ -111,7 +32,7 @@ namespace fjr::render {
 
     void Camera::set_scene_camera(
         const scene::StaticScene::Camera& source) noexcept {
-        source_ = renderer_camera(source);
+        source_ = source;
         update();
     }
 

@@ -51,7 +51,7 @@ JungleRuins.fjscene + JungleRuins.fjtex
 GPU renderer
 ```
 
-The cooker writes a version 2 `JungleRuins.fjscene` containing geometry,
+The cooker writes a version 4 `JungleRuins.fjscene` containing geometry,
 materials, instances, and flat source provenance, plus a companion
 `JungleRuins.fjtex` containing texture pixels. The runtime renderer reads both
 without linking OpenUSD. Run the Release cooker preset once to create both
@@ -62,11 +62,15 @@ releases the OpenUSD stage before decoding textures, generates mip chains and
 role-appropriate BC4, BC5, BC6H, or BC7 data one texture at a time, and writes
 that data through a temporary payload. The final writer streams it into the
 companion texture file without allocating a second file-sized memory buffer.
+Before texture cooking, meshoptimizer generates 100%, 40%, 15%, and 4% mesh
+LODs that share LOD0 vertices and add index ranges only. The runtime selects a
+level using a 1-pixel projected-error threshold; static instances are selected
+individually and PointBatch selection is currently conservative per batch.
 The scene records preserve the root USDA sublayer and group that owns every
 point or matrix batch, along with its authored prim path. Spatial bounds are
 not cooked as authoritative data: the renderer derives submesh, mesh,
 prototype, batch, and scene bounds from the preserved static data before VFC.
-The v2 files do not yet apply instance compression or GPU-oriented geometry
+The v4 files do not yet apply instance compression or GPU-oriented vertex
 packing.
 
 The offline cooker will handle:
@@ -77,10 +81,27 @@ The offline cooker will handle:
 * scene chunking
 * GPU-oriented vertex and index layouts
 * texture resolution profiles and streaming layout
-* meshlet and LOD generation
+* meshlet generation and per-point-instance GPU LOD selection
 * compact runtime scene serialization
 
 The runtime renderer will load only the cooked data and will not depend on OpenUSD.
+
+## Camera controls
+
+The renderer uses the camera authored in the cooked `StaticScene` without an
+extra scene-specific pose offset. Use `W/A/S/D` to move, `Q/E` to descend or
+ascend, the arrow keys to look, and hold Shift to move faster.
+
+Pass `--force-lod0` to render an interactive LOD0 preview. Because the full
+Jungle scene expands to millions of instances, this mode keeps only LOD0 draws,
+orders them nearest-first, and caps one frame's index invocations to avoid a
+Windows GPU timeout. Normal runs retain projected-error LOD selection without
+that preview budget.
+
+Pass `--force-coarsest-lod --overview` to select each mesh's last, least
+detailed LOD and frame the complete cooked world bounds. This overview includes
+both point-instanced vegetation and all static scene objects; it does not alter
+the authored camera used by normal runs.
 
 The current importer boundary and the facts verified from the distributed scene
 are documented in [docs/JungleSceneImport.md](docs/JungleSceneImport.md).

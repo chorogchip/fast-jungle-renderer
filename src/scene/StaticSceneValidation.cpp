@@ -2,7 +2,7 @@
 
 #include "FastJungle/core/util/Logger.hpp"
 
-#include <algorithm>
+#include <cmath>
 
 namespace fjr::scene {
 
@@ -20,20 +20,7 @@ namespace fjr::scene {
             log::Logger::g_logger.abort();
         }
 
-        for (const auto& group : scene.source_groups) {
-            require_string(scene, group.name, "source group name");
-        }
-        for (const auto& layer : scene.source_layers) {
-            require_string(scene, layer.name, "source layer name");
-            require_string(scene, layer.path, "source layer path");
-            require_index(
-                layer.group,
-                scene.source_groups.size(),
-                "source layer group");
-        }
-
         for (const auto& texture : scene.textures) {
-            require_string(scene, texture.name, "texture name");
             require_range(
                 texture.mip_offset,
                 texture.mip_count,
@@ -82,7 +69,6 @@ namespace fjr::scene {
             }
         };
         for (const auto& material : scene.materials) {
-            require_string(scene, material.name, "material name");
             validate_optional_binding(
                 material.texture_binding_base_color,
                 "material base-color binding");
@@ -92,6 +78,9 @@ namespace fjr::scene {
             validate_optional_binding(
                 material.texture_binding_roughness,
                 "material roughness binding");
+			validate_optional_binding(
+				material.texture_binding_metallic,
+				"material metallic binding");
             validate_optional_binding(
                 material.texture_binding_opacity,
                 "material opacity binding");
@@ -101,7 +90,6 @@ namespace fjr::scene {
         }
 
         for (const auto& submesh : scene.submeshes) {
-            require_string(scene, submesh.name, "submesh name");
             require_range(
                 submesh.vertex_offset,
                 submesh.vertex_count,
@@ -112,50 +100,170 @@ namespace fjr::scene {
                 submesh.index_count,
                 scene.indices.size(),
                 "submesh index");
-            require_index(
-                submesh.material,
-                scene.materials.size(),
-                "submesh material");
+            if (submesh.material != StaticScene::INVALID_INDEX) {
+                require_index(
+                    submesh.material,
+                    scene.materials.size(),
+                    "submesh material");
+            }
+            if (submesh.index_count == 0 || submesh.index_count % 3 != 0) {
+                log::Logger::g_logger
+                    << "Invalid StaticScene submesh triangle count.\n";
+                log::Logger::g_logger.abort();
+            }
+            for (std::uint32_t local_index = 0;
+                 local_index < submesh.index_count;
+                 ++local_index) {
+                if (scene.indices[submesh.index_offset + local_index] >=
+                    submesh.vertex_count) {
+                    log::Logger::g_logger
+                        << "Invalid StaticScene submesh local index.\n";
+                    log::Logger::g_logger.abort();
+                }
+            }
         }
 
         for (const auto& mesh : scene.meshes) {
-            require_string(scene, mesh.name, "mesh name");
             require_range(
-                mesh.submesh_offset,
-                mesh.submesh_count,
+                mesh.lod_offset,
+                mesh.lod_count,
+                scene.mesh_lods.size(),
+                "mesh LOD");
+            if (mesh.lod_count == 0) {
+                log::Logger::g_logger
+                    << "Invalid StaticScene empty mesh LOD range.\n";
+                log::Logger::g_logger.abort();
+            }
+
+            const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
+            require_range(
+                lod0.submesh_offset,
+                lod0.submesh_count,
                 scene.submeshes.size(),
-                "mesh submesh");
+                "mesh LOD0 submesh");
+            if (lod0.submesh_count == 0 || lod0.max_deviation != 0.0f) {
+                log::Logger::g_logger
+                    << "Invalid StaticScene mesh LOD0.\n";
+                log::Logger::g_logger.abort();
+            }
+
+            float previous_deviation = 0.0f;
+            for (std::uint32_t local_lod = 0;
+                 local_lod < mesh.lod_count;
+                 ++local_lod) {
+                const auto& lod = scene.mesh_lods[mesh.lod_offset + local_lod];
+                require_range(
+                    lod.submesh_offset,
+                    lod.submesh_count,
+                    scene.submeshes.size(),
+                    "mesh LOD submesh");
+                if (lod.submesh_count != lod0.submesh_count ||
+                    !std::isfinite(lod.max_deviation) ||
+                    lod.max_deviation < previous_deviation ||
+					lod.reserved != 0) {
+                    log::Logger::g_logger
+                        << "Invalid StaticScene mesh LOD contract.\n";
+                    log::Logger::g_logger.abort();
+                }
+
+                for (std::uint32_t local_submesh = 0;
+                     local_submesh < lod.submesh_count;
+                     ++local_submesh) {
+                    const auto& base = scene.submeshes[
+                        lod0.submesh_offset + local_submesh];
+                    const auto& candidate = scene.submeshes[
+                        lod.submesh_offset + local_submesh];
+                    if (candidate.name != base.name ||
+                        candidate.vertex_offset != base.vertex_offset ||
+                        candidate.vertex_count != base.vertex_count ||
+                        candidate.material != base.material ||
+                        candidate.flags != base.flags) {
+                        log::Logger::g_logger
+                            << "Invalid StaticScene mesh LOD submesh contract.\n";
+                        log::Logger::g_logger.abort();
+                    }
+					if (local_lod > 0) {
+						const auto& previous_lod = scene.mesh_lods[
+							mesh.lod_offset + local_lod - 1];
+						const auto& previous_submesh = scene.submeshes[
+							previous_lod.submesh_offset + local_submesh];
+						if (candidate.index_count > previous_submesh.index_count) {
+							log::Logger::g_logger
+								<< "Invalid StaticScene increasing LOD index count.\n";
+							log::Logger::g_logger.abort();
+						}
+					}
+                }
+                previous_deviation = lod.max_deviation;
+            }
         }
 
-        for (const auto& part : scene.prototype_parts) {
-            require_index(
-                part.mesh,
-                scene.meshes.size(),
-                "prototype part mesh");
-        }
-        for (const auto& prototype : scene.prototypes) {
-            require_string(scene, prototype.name, "prototype name");
-            require_range(
-                prototype.part_offset,
-                prototype.part_count,
-                scene.prototype_parts.size(),
-                "prototype part");
+		const auto lod0_corner_count = [&scene](std::uint32_t mesh_index) {
+			const auto& mesh = scene.meshes[mesh_index];
+			const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
+			std::uint64_t count = 0;
+			for (std::uint32_t local = 0; local < lod0.submesh_count; ++local) {
+				count += scene.submeshes[lod0.submesh_offset + local].index_count;
+			}
+			return count;
+		};
+
+		for (const auto& stream : scene.triangle_bool_streams) {
+			require_index(stream.mesh, scene.meshes.size(), "triangle bool mesh");
+			require_range(
+				stream.value_offset,
+				stream.value_count,
+				scene.triangle_bool_values.size(),
+				"triangle bool value");
+			if (stream.value_count != lod0_corner_count(stream.mesh) / 3) {
+				log::Logger::g_logger
+					<< "Invalid StaticScene LOD0 triangle bool count.\n";
+				log::Logger::g_logger.abort();
+			}
+		}
+
+		auto validate_corner_stream = [&scene, &lod0_corner_count](
+			const auto& stream,
+			std::uint64_t value_size,
+			std::string_view subject) {
+
+			require_index(stream.mesh, scene.meshes.size(), subject);
+			require_range(
+				stream.value_offset,
+				stream.value_count,
+				value_size,
+				subject);
+			if (stream.value_count != lod0_corner_count(stream.mesh)) {
+				log::Logger::g_logger
+					<< "Invalid StaticScene LOD0 corner stream count.\n";
+				log::Logger::g_logger.abort();
+			}
+		};
+		for (const auto& stream : scene.corner_float_streams) {
+			validate_corner_stream(
+				stream, scene.corner_float_values.size(), "corner float stream");
+		}
+		for (const auto& stream : scene.corner_color3_streams) {
+			validate_corner_stream(
+				stream, scene.corner_color3_values.size(), "corner color stream");
+		}
+		for (const auto& stream : scene.corner_texcoord2_streams) {
+			validate_corner_stream(
+				stream, scene.corner_texcoord2_values.size(), "corner texcoord stream");
+		}
+
+		for (const auto& definition : scene.instanced_mesh_definitions) {
+			require_index(
+				definition.mesh,
+				scene.meshes.size(),
+				"instanced mesh definition");
         }
 
         for (const auto& batch : scene.point_batches) {
-            require_string(scene, batch.name, "point batch name");
-            require_string(
-                scene,
-                batch.source_prim_path,
-                "point batch source prim path");
             require_index(
-                batch.source_layer,
-                scene.source_layers.size(),
-                "point batch source layer");
-            require_index(
-                batch.prototype,
-                scene.prototypes.size(),
-                "point batch prototype");
+				batch.definition,
+				scene.instanced_mesh_definitions.size(),
+				"point batch definition");
             require_range(
                 batch.instance_offset,
                 batch.instance_count,
@@ -163,36 +271,9 @@ namespace fjr::scene {
                 "point batch instance");
         }
 
-        for (const auto& batch : scene.matrix_batches) {
-            require_string(scene, batch.name, "matrix batch name");
-            require_string(
-                scene,
-                batch.source_prim_path,
-                "matrix batch source prim path");
-            require_index(
-                batch.source_layer,
-                scene.source_layers.size(),
-                "matrix batch source layer");
-            require_index(
-                batch.prototype,
-                scene.prototypes.size(),
-                "matrix batch prototype");
-            require_range(
-                batch.instance_offset,
-                batch.instance_count,
-                scene.matrix_instances.size(),
-                "matrix batch instance");
-        }
-
-        if (scene.camera.name != StaticScene::INVALID_INDEX) {
-            require_string(scene, scene.camera.name, "camera name");
-        }
-        if (scene.environment_light.name != StaticScene::INVALID_INDEX) {
-            require_string(
-                scene,
-                scene.environment_light.name,
-                "environment light name");
-        }
+		for (const auto& instance : scene.static_mesh_instances) {
+			require_index(instance.mesh, scene.meshes.size(), "static mesh instance");
+		}
         if (scene.environment_light.texture != StaticScene::INVALID_INDEX) {
             require_index(
                 scene.environment_light.texture,
@@ -212,24 +293,6 @@ namespace fjr::scene {
         log::Logger::g_logger
             << "Invalid StaticScene " << subject
             << " index.\n";
-        log::Logger::g_logger.abort();
-    }
-
-    void StaticSceneValidator::require_string(
-        const StaticScene& scene,
-        std::uint32_t offset,
-        std::string_view subject) {
-
-        if (offset < scene.strings.size() &&
-            std::find(
-                scene.strings.begin() + offset,
-                scene.strings.end(),
-                '\0') != scene.strings.end()) {
-            return;
-        }
-        log::Logger::g_logger
-            << "Invalid StaticScene " << subject
-            << " string.\n";
         log::Logger::g_logger.abort();
     }
 

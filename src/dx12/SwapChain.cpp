@@ -2,6 +2,10 @@
 
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
+#include <iomanip>
+#include <sstream>
+#include <stdexcept>
+
 namespace fjr::dx {
 
     void SwapChain::init(
@@ -18,6 +22,17 @@ namespace fjr::dx {
         frame_count_ = frame_count;
         vsync_ = vsync;
 
+        Microsoft::WRL::ComPtr<IDXGIFactory5> factory5;
+        BOOL allow_tearing = FALSE;
+        tearing_supported_ =
+            SUCCEEDED(factory->QueryInterface(
+                IID_PPV_ARGS(factory5.ReleaseAndGetAddressOf()))) &&
+            SUCCEEDED(factory5->CheckFeatureSupport(
+                DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+                &allow_tearing,
+                sizeof(allow_tearing))) &&
+            allow_tearing == TRUE;
+
         DXGI_SWAP_CHAIN_DESC1 description{};
         description.Width = width_;
         description.Height = height_;
@@ -26,7 +41,9 @@ namespace fjr::dx {
         description.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         description.BufferCount = frame_count_;
         description.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        description.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+        description.Flags = tearing_supported_
+            ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING
+            : 0;
 
         Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain;
 
@@ -61,9 +78,21 @@ namespace fjr::dx {
 
     void SwapChain::present() {
         const UINT sync_interval = vsync_ ? 1 : 0;
-        const UINT flags = vsync_ ? 0 : DXGI_PRESENT_ALLOW_TEARING;
+        const UINT flags = !vsync_ && tearing_supported_
+            ? DXGI_PRESENT_ALLOW_TEARING
+            : 0;
 
-        abort_failed(swap_chain_->Present(sync_interval, flags));
+        // Preserve the original HRESULT location for actionable DX failures.
+        const HRESULT result = swap_chain_->Present(sync_interval, flags);
+        if (FAILED(result)) {
+            std::ostringstream message;
+            message << "DXGI Present failed with HRESULT 0x"
+                << std::uppercase << std::hex << std::setw(8)
+                << std::setfill('0')
+                << static_cast<std::uint32_t>(result);
+            message << ".";
+            throw std::runtime_error(message.str());
+        }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();
     }
@@ -77,7 +106,9 @@ namespace fjr::dx {
             width,
             height,
             DXGI_FORMAT_R8G8B8A8_UNORM,
-            DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING));
+            tearing_supported_
+                ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING
+                : 0));
 
         width_ = width;
         height_ = height;

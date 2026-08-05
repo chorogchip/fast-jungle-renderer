@@ -20,6 +20,7 @@ struct Material {
     float4 base_color;
     float4 emissive_roughness;
     float4 surface;
+    float4 optical;
     uint4 texture_bindings_0;
     uint4 texture_bindings_1;
 };
@@ -38,6 +39,7 @@ SamplerState scene_samplers[] : register(s0);
 
 static const uint INVALID_INDEX = 0xffffffff;
 static const uint TEXTURE_BINDING_SRGB = 1;
+static const uint TEXTURE_CHANNEL_RGB = 5;
 
 struct PixelInput {
     float4 position : SV_POSITION;
@@ -121,9 +123,13 @@ float4 main(PixelInput input) : SV_TARGET {
 
     float4 albedo = material.base_color;
     if (material.texture_bindings_0.x != INVALID_INDEX) {
-        albedo *= sample_binding(
-            material.texture_bindings_0.x,
-            uv);
+        const uint binding_id = material.texture_bindings_0.x;
+        const TextureBinding binding = texture_bindings[binding_id];
+        const float4 sample = sample_binding(binding_id, uv);
+        albedo.rgb *= sample.rgb;
+        if (binding.channel != TEXTURE_CHANNEL_RGB) {
+            albedo.a *= sample.a;
+        }
     }
 
     float opacity = material.surface.y * albedo.a;
@@ -186,7 +192,15 @@ float4 main(PixelInput input) : SV_TARGET {
                 environment_uv(normal)).rgb;
     }
 
-    const float metallic = saturate(material.surface.x);
+    float metallic = material.surface.x;
+    if (material.texture_bindings_1.y != INVALID_INDEX) {
+        const uint binding_id = material.texture_bindings_1.y;
+        const TextureBinding binding = texture_bindings[binding_id];
+        metallic = select_channel(
+            sample_binding(binding_id, uv),
+            binding.channel);
+    }
+    metallic = saturate(metallic);
     const float3 view_direction = normalize(
         camera_world_position - input.world_position);
     const float3 light_direction = normalize(float3(0.45, 0.75, -0.55));

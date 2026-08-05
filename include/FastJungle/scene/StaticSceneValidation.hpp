@@ -23,11 +23,6 @@ namespace fjr::scene {
             std::uint64_t size,
             std::string_view subject);
 
-        static void require_string(
-            const StaticScene& scene,
-            std::uint32_t offset,
-            std::string_view subject);
-
         static void require_range(
             std::uint64_t offset,
             std::uint64_t count,

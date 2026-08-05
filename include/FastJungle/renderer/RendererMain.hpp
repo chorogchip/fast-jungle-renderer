@@ -3,7 +3,6 @@
 #include <array>
 #include <cstdint>
 #include <memory>
-#include <optional>
 
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/CommandQueue.hpp"
@@ -11,20 +10,25 @@
 #include "FastJungle/dx12/DeviceUtils.hpp"
 #include "FastJungle/dx12/SwapChain.hpp"
 #include "FastJungle/dx12/Texture.hpp"
-#include "FastJungle/renderer/Camera.hpp"
-#include "FastJungle/renderer/FrameData.hpp"
+#include "FastJungle/renderer/component/Camera.hpp"
+#include "FastJungle/renderer/component/FrameData.hpp"
+#include "FastJungle/renderer/RendererOptions.hpp"
 #include "FastJungle/renderer/SceneResources.hpp"
-#include "FastJungle/renderer/SceneViewer.hpp"
+#include "FastJungle/renderer/builder/SceneViewer.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
 
+    namespace internal {
+        class CameraController;
+    }
+
     class RendererMain {
 
     public:
 
-        RendererMain() = default;
+        RendererMain();
         ~RendererMain();
 
         RendererMain(const RendererMain&) = delete;
@@ -37,7 +41,7 @@ namespace fjr::render {
             std::uint32_t width,
             std::uint32_t height,
             const scene::StaticScene& scene,
-            std::optional<SceneResources::Component> component = std::nullopt);
+            const RendererOptions& options = {});
 
         void resize(
             std::uint32_t width,
@@ -45,7 +49,13 @@ namespace fjr::render {
 
         void render();
 
+        void handle_key_down(std::uint32_t virtual_key) noexcept;
+
     private:
+        void create_size_dependent_resources(
+            std::uint32_t width,
+            std::uint32_t height);
+
         static constexpr std::uint32_t FRAME_COUNT = 2;
 
         Microsoft::WRL::ComPtr<ID3D12Device> device_;
@@ -62,8 +72,12 @@ namespace fjr::render {
         ForwardPass forward_pass_;
 
         Camera camera_;
+        std::unique_ptr<internal::CameraController> camera_controller_;
+        RendererOptions options_;
+        bool redraw_requested_ = true;
         std::array<FrameData, FRAME_COUNT> frame_data_;
 
+        scene::StaticScene::EnvironmentLight environment_light_;
         std::unique_ptr<SceneResources> scene_resources_;
         SceneViewer scene_viewer_;
     };

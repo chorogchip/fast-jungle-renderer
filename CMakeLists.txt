@@ -345,6 +345,27 @@ else()
         "v3.4.12"
         CACHE STRING "Pinned OpenEXR tag"
     )
+    set(FASTJUNGLE_MESHOPTIMIZER_TAG
+        "v1.2"
+        CACHE STRING "Pinned meshoptimizer tag"
+    )
+
+    set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "" FORCE)
+    set(MESHOPT_BUILD_GLTFPACK OFF CACHE BOOL "" FORCE)
+    set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        meshoptimizer
+        GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+        GIT_TAG "${FASTJUNGLE_MESHOPTIMIZER_TAG}"
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(meshoptimizer)
+
+    if(NOT TARGET meshoptimizer)
+        message(FATAL_ERROR
+            "meshoptimizer did not create the expected target."
+        )
+    endif()
 
     # DirectXTex is built in this build tree, so it automatically inherits
     # /MDd for Debug and /MD for Release from CMAKE_MSVC_RUNTIME_LIBRARY.
@@ -636,6 +657,7 @@ endif()
     )
     target_link_libraries(FastJungleCooker PRIVATE
         DirectXTex
+        meshoptimizer
         FastJungle::OpenUSD
         FastJungle::OneTBB
         windowscodecs
@@ -731,6 +753,39 @@ if(FASTJUNGLE_BUILD_TESTS)
         COMMAND FastJungleSceneStreamingTest
     )
 
+    if(FASTJUNGLE_BUILD STREQUAL "renderer")
+        add_executable(FastJungleSceneDrawBuilderTest
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/renderer/SceneDrawBuilderTest.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/renderer/builder/SceneDrawBuilder.cpp"
+        )
+        fastjungle_apply_options(FastJungleSceneDrawBuilderTest)
+        target_include_directories(
+            FastJungleSceneDrawBuilderTest PRIVATE
+            "${FASTJUNGLE_INCLUDE_DIR}"
+        )
+
+        add_test(
+            NAME FastJungle.SceneDrawBuilder
+            COMMAND FastJungleSceneDrawBuilderTest
+        )
+
+        add_executable(FastJungleSceneLodSelectionTest
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/renderer/SceneLodSelectionTest.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/renderer/component/Camera.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/renderer/builder/SceneViewer.cpp"
+        )
+        fastjungle_apply_options(FastJungleSceneLodSelectionTest)
+        target_include_directories(
+            FastJungleSceneLodSelectionTest PRIVATE
+            "${FASTJUNGLE_INCLUDE_DIR}"
+        )
+
+        add_test(
+            NAME FastJungle.SceneLodSelection
+            COMMAND FastJungleSceneLodSelectionTest
+        )
+    endif()
+
     if(FASTJUNGLE_BUILD STREQUAL "cooker")
         add_executable(FastJungleTextureCompressionPolicyTest
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/TextureCompressionPolicyTest.cpp"
@@ -745,6 +800,23 @@ if(FASTJUNGLE_BUILD_TESTS)
         add_test(
             NAME FastJungle.TextureCompressionPolicy
             COMMAND FastJungleTextureCompressionPolicyTest
+        )
+
+        add_executable(FastJungleMeshLodCookerTest
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/cooker/MeshLodCookerTest.cpp"
+            "${FASTJUNGLE_SOURCE_DIR}/cooker/MeshLodCooker.cpp"
+        )
+        fastjungle_apply_options(FastJungleMeshLodCookerTest)
+        target_include_directories(FastJungleMeshLodCookerTest PRIVATE
+            "${FASTJUNGLE_INCLUDE_DIR}"
+        )
+        target_link_libraries(FastJungleMeshLodCookerTest PRIVATE
+            meshoptimizer
+        )
+
+        add_test(
+            NAME FastJungle.MeshLodCooker
+            COMMAND FastJungleMeshLodCookerTest
         )
 
         add_executable(FastJungleTextureCookerTest
@@ -786,6 +858,7 @@ if(FASTJUNGLE_BUILD STREQUAL "cooker")
     message(STATUS "OpenUSD tag              : ${FASTJUNGLE_OPENUSD_TAG}")
     message(STATUS "oneTBB tag               : ${FASTJUNGLE_ONETBB_TAG}")
     message(STATUS "OpenEXR support          : ${FASTJUNGLE_ENABLE_OPENEXR}")
+    message(STATUS "meshoptimizer tag        : ${FASTJUNGLE_MESHOPTIMIZER_TAG}")
     if(FASTJUNGLE_ENABLE_OPENEXR)
         message(STATUS "OpenEXR tag              : ${FASTJUNGLE_OPENEXR_TAG}")
     endif()

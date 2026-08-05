@@ -1,5 +1,6 @@
 
 #include <cstdlib>
+#include <array>
 #include <exception>
 #include <filesystem>
 #include <iomanip>
@@ -7,7 +8,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #ifndef FASTJUNGLE_DEFAULT_SCENE_USD
 #define FASTJUNGLE_DEFAULT_SCENE_USD ""
@@ -18,6 +18,7 @@
 #endif
 
 #include "FastJungle/cooker/StaticSceneBuilder.hpp"
+#include "FastJungle/cooker/MeshLodCooker.hpp"
 #include "FastJungle/cooker/TextureCooker.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/core/util/ProcessMemory.hpp"
@@ -33,7 +34,8 @@ namespace {
         std::wcerr
             << L"Usage: FastJungleCooker.exe [input.usd[a|c|z]] "
             << L"[output.fjscene]\n"
-            << L"       FastJungleCooker.exe --verify-scene input.fjscene\n";
+            << L"       FastJungleCooker.exe --verify-scene input.fjscene\n"
+			<< L"       FastJungleCooker.exe --analyze-lods input.fjscene\n";
     }
 
     void print_memory_usage(std::wstring_view stage) {
@@ -53,62 +55,39 @@ namespace {
             << L" MiB\n";
     }
 
-    [[nodiscard]] std::wstring scene_string(
-        const fjr::scene::StaticScene& scene,
-        std::uint32_t offset) {
+	void print_component_summary(const fjr::scene::StaticScene& scene) {
+		auto print_points = [&scene](
+			std::wstring_view name,
+			fjr::scene::StaticScene::IndexRange range) {
 
-        if (offset >= scene.strings.size()) {
-            return L"<invalid>";
-        }
-        const char* value = scene.strings.data() + offset;
-        std::wstring result;
-        while (*value != '\0') {
-            result.push_back(static_cast<unsigned char>(*value));
-            ++value;
-        }
-        return result;
-    }
+			std::uint64_t instances = 0;
+			for (std::uint32_t local = 0; local < range.count; ++local) {
+				instances += scene.point_batches[
+					static_cast<std::size_t>(range.offset) + local]
+					.instance_count;
+			}
+			std::wcout << L"    " << name << L": "
+				<< range.count << L" point batches / "
+				<< instances << L" instances\n";
+		};
 
-    void print_source_summary(const fjr::scene::StaticScene& scene) {
-        struct Counts final {
-            std::uint64_t layers = 0;
-            std::uint64_t point_batches = 0;
-            std::uint64_t point_instances = 0;
-            std::uint64_t matrix_batches = 0;
-            std::uint64_t matrix_instances = 0;
-        };
-
-        std::vector<Counts> counts(scene.source_groups.size());
-        for (const auto& layer : scene.source_layers) {
-            ++counts[layer.group].layers;
-        }
-        for (const auto& batch : scene.point_batches) {
-            const auto group =
-                scene.source_layers[batch.source_layer].group;
-            ++counts[group].point_batches;
-            counts[group].point_instances += batch.instance_count;
-        }
-        for (const auto& batch : scene.matrix_batches) {
-            const auto group =
-                scene.source_layers[batch.source_layer].group;
-            ++counts[group].matrix_batches;
-            counts[group].matrix_instances += batch.instance_count;
-        }
-
-        std::wcout << L"  authored source groups:\n";
-        for (std::size_t index = 0;
-             index < scene.source_groups.size();
-             ++index) {
-            const auto& count = counts[index];
-            std::wcout
-                << L"    "
-                << scene_string(scene, scene.source_groups[index].name)
-                << L": " << count.layers << L" layers, "
-                << count.point_batches << L" point batches / "
-                << count.point_instances << L" instances, "
-                << count.matrix_batches << L" matrix batches / "
-                << count.matrix_instances << L" instances\n";
-        }
+		std::wcout << L"  compiler-known components:\n";
+		std::wcout << L"    Pyramid, River, Creek, Banyan: one static instance each\n";
+		std::wcout << L"    Terrain: "
+			<< scene.components.terrain.extended.count << L" extended / "
+			<< scene.components.terrain.cinematic.count << L" cinematic\n";
+		print_points(L"Anthurium", scene.components.anthurium.point_batches);
+		print_points(L"Nettle", scene.components.nettle.point_batches);
+		print_points(L"ShrubSorrel", scene.components.shrub_sorrel.point_batches);
+		print_points(L"Shrub", scene.components.shrub.point_batches);
+		print_points(L"Grass_B", scene.components.grass_b.point_batches);
+		print_points(L"Grass_A", scene.components.grass_a.point_batches);
+		print_points(L"Pyramid_Grass_B", scene.components.pyramid_grass_b.point_batches);
+		print_points(L"Pyramid_Moss", scene.components.pyramid_moss.point_batches);
+		print_points(L"QueenForest", scene.components.queen_forest.point_batches);
+		print_points(L"RiverForest", scene.components.river_forest.point_batches);
+		print_points(L"RiverSapling", scene.components.river_sapling.point_batches);
+		print_points(L"RiverSeedling", scene.components.river_seedling.point_batches);
     }
 
     void print_scene_summary(const fjr::scene::StaticScene& scene) {
@@ -125,6 +104,24 @@ namespace {
             before * sizeof(fjr::scene::StaticScene::Vertex);
         const auto indexed_no_tangent_bytes =
             after * sizeof(fjr::scene::StaticScene::Vertex);
+		std::array<std::uint64_t, 4> lod_index_counts{};
+		bool has_four_lods = !scene.meshes.empty();
+		for (const auto& mesh : scene.meshes) {
+			has_four_lods &= mesh.lod_count ==
+				static_cast<std::uint32_t>(lod_index_counts.size());
+			for (std::uint32_t local_lod = 0;
+				 local_lod < mesh.lod_count &&
+				 local_lod < static_cast<std::uint32_t>(lod_index_counts.size());
+				 ++local_lod) {
+				const auto& lod = scene.mesh_lods[mesh.lod_offset + local_lod];
+				for (std::uint32_t local_submesh = 0;
+					 local_submesh < lod.submesh_count;
+					 ++local_submesh) {
+					lod_index_counts[local_lod] += scene.submeshes[
+						lod.submesh_offset + local_submesh].index_count;
+				}
+			}
+		}
 
         std::wcout
             << L"  vertices before indexing: " << before << L'\n'
@@ -143,15 +140,22 @@ namespace {
             << L"  indices: " << scene.indices.size() << L'\n'
             << L"  textures: " << scene.textures.size() << L'\n'
             << L"  materials: " << scene.materials.size() << L'\n'
-            << L"  source groups: " << scene.source_groups.size() << L'\n'
-            << L"  source layers: " << scene.source_layers.size() << L'\n'
-            << L"  meshes: " << scene.meshes.size() << L'\n'
-            << L"  prototypes: " << scene.prototypes.size() << L'\n'
-            << L"  point batches: " << scene.point_batches.size() << L'\n'
-            << L"  point instances: " << scene.point_instances.size() << L'\n'
-            << L"  matrix batches: " << scene.matrix_batches.size() << L'\n'
-            << L"  matrix instances: " << scene.matrix_instances.size() << L'\n';
-        print_source_summary(scene);
+			<< L"  meshes: " << scene.meshes.size() << L'\n'
+			<< L"  instanced mesh definitions: "
+			<< scene.instanced_mesh_definitions.size() << L'\n'
+			<< L"  point batches: " << scene.point_batches.size() << L'\n'
+			<< L"  point instances: " << scene.point_instances.size() << L'\n'
+			<< L"  static mesh instances: "
+			<< scene.static_mesh_instances.size() << L'\n';
+		if (has_four_lods) {
+			std::wcout
+				<< L"  LOD logical indices (100/40/15/4): "
+				<< lod_index_counts[0] << L" / "
+				<< lod_index_counts[1] << L" / "
+				<< lod_index_counts[2] << L" / "
+				<< lod_index_counts[3] << L'\n';
+		}
+		print_component_summary(scene);
     }
 
     [[nodiscard]] int run_cooker(int argc, wchar_t** argv) {
@@ -174,6 +178,29 @@ namespace {
                 << L" MiB\n";
             return EXIT_SUCCESS;
         }
+		if (argc >= 2 && std::wstring_view{argv[1]} == L"--analyze-lods") {
+			if (argc != 3) {
+				print_usage();
+				return EXIT_FAILURE;
+			}
+
+			const std::filesystem::path input_path{argv[2]};
+			auto metadata =
+				fjr::scene::StaticSceneReader::load_metadata(input_path);
+			const auto stats = fjr::cooker::MeshLodCooker::cook(
+				*metadata.scene);
+			std::wcout
+				<< L"LOD analysis complete: " << input_path << L'\n'
+				<< L"  generated index storage: "
+				<< stats.generated_index_count << L" indices\n"
+				<< L"  simplified/reused submesh levels: "
+				<< stats.simplified_submeshes << L" / "
+				<< stats.reused_submeshes << L'\n'
+				<< L"  sloppy fallback submesh levels: "
+				<< stats.sloppy_fallback_submeshes << L'\n';
+			print_scene_summary(*metadata.scene);
+			return EXIT_SUCCESS;
+		}
 
         if (argc > 3) {
             print_usage();
@@ -214,6 +241,25 @@ namespace {
         std::wcout
             << L"StaticScene metadata built; OpenUSD stage released\n";
         print_memory_usage(L"scene metadata");
+
+        std::wcout
+            << L"Cooking mesh LODs at 100% / 40% / 15% / 4%...\n"
+            << std::flush;
+        const auto lod_stats = fjr::cooker::MeshLodCooker::cook(*scene);
+        std::wcout
+            << L"Mesh LOD logical index counts: "
+            << lod_stats.logical_index_counts[0] << L" / "
+            << lod_stats.logical_index_counts[1] << L" / "
+            << lod_stats.logical_index_counts[2] << L" / "
+            << lod_stats.logical_index_counts[3] << L'\n'
+            << L"  generated index storage: "
+            << lod_stats.generated_index_count << L" indices\n"
+            << L"  simplified/reused submesh levels: "
+            << lod_stats.simplified_submeshes << L" / "
+            << lod_stats.reused_submeshes << L'\n'
+            << L"  sloppy fallback submesh levels: "
+            << lod_stats.sloppy_fallback_submeshes << L'\n';
+        print_memory_usage(L"mesh LOD cook");
         print_scene_summary(*scene);
         std::wcout << std::flush;
 

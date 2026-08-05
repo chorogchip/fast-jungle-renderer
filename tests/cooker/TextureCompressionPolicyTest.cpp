@@ -27,13 +27,13 @@ namespace {
 
     [[nodiscard]] Scene make_scene() {
         Scene scene;
-        scene.textures.resize(6);
+        scene.textures.resize(7);
 
         Scene::Material color;
         color.texture_binding_base_color = add_binding(
             scene,
             0,
-            Scene::EnumTextureChannel::RGBA,
+            Scene::EnumTextureChannel::RGB,
             Scene::EnumTextureBindingFlag::SRGB);
         color.texture_binding_opacity = add_binding(
             scene,
@@ -83,6 +83,25 @@ namespace {
             Scene::EnumTextureChannel::G,
             Scene::EnumTextureBindingFlag::LINEAR);
         scene.materials.push_back(mixed_green);
+
+		// The Jungle terrain packs roughness in G and metallic in B. Both
+		// consumers must keep the shared texture multi-channel instead of
+		// destructively isolating whichever scalar happens to be visited first.
+		Scene::Material packed_roughness;
+		packed_roughness.texture_binding_roughness = add_binding(
+			scene,
+			6,
+			Scene::EnumTextureChannel::G,
+			Scene::EnumTextureBindingFlag::LINEAR);
+		scene.materials.push_back(packed_roughness);
+
+		Scene::Material packed_metallic;
+		packed_metallic.texture_binding_metallic = add_binding(
+			scene,
+			6,
+			Scene::EnumTextureChannel::B,
+			Scene::EnumTextureBindingFlag::LINEAR);
+		scene.materials.push_back(packed_metallic);
         return scene;
     }
 
@@ -103,7 +122,9 @@ int main() {
         plans[3].dxgi_format != DXGI_FORMAT_BC4_UNORM ||
         plans[4].dxgi_format != DXGI_FORMAT_BC6H_UF16 ||
         plans[5].dxgi_format != DXGI_FORMAT_BC7_UNORM ||
-        plans[5].isolate_source_channel) {
+		plans[5].isolate_source_channel ||
+		plans[6].dxgi_format != DXGI_FORMAT_BC7_UNORM ||
+		plans[6].isolate_source_channel) {
         throw std::runtime_error(
             "Texture compression policy selection failed.");
     }
@@ -118,7 +139,11 @@ int main() {
         scene.texture_bindings[3].flags !=
             Scene::EnumTextureBindingFlag::LINEAR ||
         scene.texture_bindings[6].channel !=
-            Scene::EnumTextureChannel::G) {
+			Scene::EnumTextureChannel::G ||
+		scene.texture_bindings[7].channel !=
+			Scene::EnumTextureChannel::G ||
+		scene.texture_bindings[8].channel !=
+			Scene::EnumTextureChannel::B) {
         throw std::runtime_error(
             "Texture compression binding normalization failed.");
     }

@@ -2,12 +2,16 @@
 
 #include "FastJungle/dx12/WindowsUtils.hpp"
 #include "FastJungle/dx12/HeapManager.hpp"
-#include "FastJungle/renderer/SceneDerivedData.hpp"
-#include "FastJungle/renderer/SceneResourcesBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
+#include "internal/CameraController.hpp"
 
 #include <cstdint>
+#include <utility>
 
 namespace fjr::render {
+
+    RendererMain::RendererMain() = default;
 
     RendererMain::~RendererMain() {
         command_queue_.flush();
@@ -18,11 +22,14 @@ namespace fjr::render {
         std::uint32_t width,
         std::uint32_t height,
         const scene::StaticScene& scene,
-        std::optional<SceneResources::Component> component) {
+        const RendererOptions& options) {
 
         // basic resource
 
         const HWND hwnd = static_cast<HWND>(window);
+        options_ = options;
+        camera_controller_ =
+            std::make_unique<internal::CameraController>(window);
 
         const auto factory = dx::DeviceUtils::create_factory();
         device_ = dx::DeviceUtils::create_device(factory.Get());
@@ -32,7 +39,7 @@ namespace fjr::render {
 
         swap_chain_.init(
             factory.Get(), command_queue_.get_command_queue(),
-            hwnd, width, height, FRAME_COUNT, false);
+            hwnd, width, height, FRAME_COUNT, true);
 
         auto& descriptor_heaps = dx::HeapManager::g_heap_manager;
         descriptor_heaps.init(
@@ -49,37 +56,28 @@ namespace fjr::render {
 
         // build scene
 
-        const auto derived_data = SceneDerivedData::build(scene);
-
-        dx::CommandContext upload_context;
-        upload_context.init(
-            device_.Get(), D3D12_COMMAND_LIST_TYPE_DIRECT, 0);
-        upload_context.reset();
+        const auto bounds = SceneBoundsBuilder::build(scene);
 
         SceneResourcesBuilder::BuildContexts build_contexts{};
         build_contexts.device = device_.Get();
-        build_contexts.context = upload_context.get();
-        scene_resources_ = render::SceneResourcesBuilder::build(
+        build_contexts.command_queue = &command_queue_;
+        auto scene_build = render::SceneResourcesBuilder::build(
             build_contexts, scene);
-        upload_context.close();
-        command_queue_.execute(upload_context.get());
-        command_queue_.flush();
+        scene_resources_ = std::move(scene_build.resources);
+        environment_light_ = scene.environment_light;
 
         scene_viewer_.init(
-            scene,
-            *scene_resources_,
-            derived_data,
-            component);
+            scene_build.draw_items,
+            bounds);
 
         // camera
         camera_.set_scene_camera(scene.camera);
         camera_.set_viewport(width, height);
-        if (component) {
-            camera_.frame_bounds(scene_viewer_.get_world_bounds());
-        }
-        else if (!camera_.has_valid_lens() ||
-                 !camera_.has_valid_transform()) {
-            camera_.frame_bounds(derived_data.world_bounds);
+        if (options_.frame_entire_scene) {
+            camera_.frame_bounds(bounds.world_bounds);
+        } else if (!camera_.has_valid_lens() ||
+            !camera_.has_valid_transform()) {
+            camera_.frame_bounds(bounds.world_bounds);
         }
 
         forward_pass_.init(
@@ -93,10 +91,16 @@ namespace fjr::render {
             scene_resources_->view_cbuf_transform_matrix;
         forward_pass_.views.cbuf_transform_point =
             scene_resources_->view_cbuf_transform_point;
-        forward_pass_.views.desc_instnaces_matrix =
-            scene_resources_->buf_instances_matrix->GetGPUVirtualAddress();
-        forward_pass_.views.desc_instances_point =
-            scene_resources_->buf_instances_point->GetGPUVirtualAddress();
+        if (scene_resources_->buf_instances_matrix) {
+            forward_pass_.views.desc_instnaces_matrix =
+                scene_resources_->buf_instances_matrix
+                    ->GetGPUVirtualAddress();
+        }
+        if (scene_resources_->buf_instances_point) {
+            forward_pass_.views.desc_instances_point =
+                scene_resources_->buf_instances_point
+                    ->GetGPUVirtualAddress();
+        }
         forward_pass_.views.desc_materials =
             scene_resources_->buf_materials->GetGPUVirtualAddress();
         forward_pass_.views.desc_texture_bindings =
@@ -106,7 +110,7 @@ namespace fjr::render {
         forward_pass_.views.descs_samplers =
             scene_resources_->sampler_descriptors;
 
-        this->resize(width, height);
+        create_size_dependent_resources(width, height);
     }
 
     void RendererMain::resize(
@@ -115,8 +119,16 @@ namespace fjr::render {
 
         command_queue_.flush();
         swap_chain_.resize(width, height);
+        create_size_dependent_resources(width, height);
+    }
+
+    void RendererMain::create_size_dependent_resources(
+        std::uint32_t width,
+        std::uint32_t height) {
+
         camera_.set_viewport(width, height);
-        scene_viewer_.update_visibility(camera_);
+        scene_viewer_.update_visibility(camera_, options_.lod_selection);
+        redraw_requested_ = true;
 
         // Render Target
 
@@ -175,12 +187,20 @@ namespace fjr::render {
 
     void RendererMain::render() {
 
+        if (camera_controller_ && camera_controller_->update(camera_)) {
+            scene_viewer_.update_visibility(camera_, options_.lod_selection);
+            redraw_requested_ = true;
+        }
+        if (!redraw_requested_) {
+            return;
+        }
+
         const int frame = swap_chain_.get_current_frame();
 
 
         auto& context = command_contexts_[frame];
         command_queue_.wait(context.get_fence_value());
-        frame_data_[frame].upload_camera_data(camera_, scene_resources_->environment_light);
+        frame_data_[frame].upload_camera_data(camera_, environment_light_);
         context.reset();
 
         swap_chain_.get_current_buffer().transition(
@@ -201,6 +221,18 @@ namespace fjr::render {
         command_queue_.execute(context.get());
         context.set_fence_value(command_queue_.signal());
         swap_chain_.present();
+        redraw_requested_ = false;
+    }
+
+    void RendererMain::handle_key_down(
+        std::uint32_t virtual_key) noexcept {
+
+        if (camera_controller_ &&
+            camera_controller_->step(
+                camera_, virtual_key, options_.lod_selection)) {
+            scene_viewer_.update_visibility(camera_, options_.lod_selection);
+            redraw_requested_ = true;
+        }
     }
 
 } // namespace fjr

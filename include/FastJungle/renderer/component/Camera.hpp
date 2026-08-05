@@ -86,6 +86,11 @@ namespace fjr::render {
         [[nodiscard]]
         float get_aspect_ratio() const noexcept;
 
+        [[nodiscard]]
+        std::uint32_t get_viewport_height() const noexcept {
+            return viewport_height_;
+        }
+
     private:
         void update() noexcept;
         void update_view() noexcept;

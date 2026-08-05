@@ -12,6 +12,7 @@ struct Material {
     float4 base_color;
     float4 emissive_roughness;
     float4 surface;
+    float4 optical;
     uint4 texture_bindings_0;
     uint4 texture_bindings_1;
 };

@@ -5,8 +5,9 @@
 #include <vector>
 
 #include "FastJungle/scene/StaticScene.hpp"
-#include "FastJungle/renderer/SceneDerivedData.hpp"
-#include "FastJungle/renderer/SceneResources.hpp"
+#include "FastJungle/renderer/RendererOptions.hpp"
+#include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
+#include "FastJungle/renderer/SceneRenderData.hpp"
 #include "FastJungle/renderer/structs/Draw.hpp"
 
 namespace fjr::render {
@@ -16,10 +17,12 @@ namespace fjr::render {
 
 	public:
 		void init(
-			const scene::StaticScene& scene,
-			SceneResources& scene_resources,
-			const SceneDerivedData& derived_data);
-		void update_visibility(const Camera& camera);
+			std::span<const SceneDrawItem> draw_items,
+			const SceneBoundsBuilder& bounds);
+		void update_visibility(
+			const Camera& camera,
+			LodSelectionMode lod_selection =
+				LodSelectionMode::AUTOMATIC);
 
 		std::span<const Draw::DrawDataCpu> get_draw_data() const noexcept;
 
@@ -27,6 +30,9 @@ namespace fjr::render {
 		struct DrawSource {
 			Draw::DrawDataCpu draw;
 			math::AABB world_bounds;
+			float lod_error = 0.0f;
+			float next_lod_error = 0.0f;
+			float world_scale = 1.0f;
 		};
 
 		std::vector<DrawSource> draw_sources_;

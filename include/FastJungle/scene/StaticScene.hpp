@@ -44,11 +44,15 @@ namespace fjr::scene {
 		uv: origin: top-left / +X: right / +Y: down
 
 		Final mesh transform:
-		PrototypePart::local_transform * PointInstanceTRS * PointBatch::local_to_world
+		InstancedMeshDefinition::local_transform * PointInstanceTRS * PointBatch::local_to_world
 		
-		MatrixInstance::transform is already a world transform:
-		PrototypePart::local_transform * MatrixInstance::transform
+		StaticMeshInstance::world_transform is the final world transform.
 		*/
+
+		struct IndexRange {
+			uint32_t offset = INVALID_INDEX;
+			uint32_t count = 0;
+		};
 
 		struct Vertex {
 			DirectX::XMFLOAT3 position{};
@@ -120,6 +124,7 @@ namespace fjr::scene {
 			G,
 			B,
 			A,
+			RGB,
 		};
 
 		enum class EnumTextureBindingFlag : uint32_t {
@@ -134,18 +139,6 @@ namespace fjr::scene {
 			EnumTextureBindingFlag flags = EnumTextureBindingFlag::LINEAR;
 		};
 
-		// Flat provenance from the root USDA composition. This intentionally
-		// preserves authored layer/group identity without storing a node tree.
-		struct SourceGroup {
-			uint32_t name = INVALID_INDEX;
-		};
-
-		struct SourceLayer {
-			uint32_t name = INVALID_INDEX;
-			uint32_t path = INVALID_INDEX;
-			uint32_t group = INVALID_INDEX;
-		};
-
 		struct Material {
 			uint32_t name = INVALID_INDEX;
 			DirectX::XMFLOAT4 base_color{ 0.18f, 0.18f, 0.18f, 1.0f };
@@ -154,13 +147,19 @@ namespace fjr::scene {
 			float metallic = 0.0f;
 			float opacity = 1.0f;
 			float opacity_threshold = 0.0f;
+			float ior = 1.5f;
+			float specular = 0.5f;
+			float clearcoat = 0.0f;
+			float clearcoat_roughness = 0.01f;
 
 			uint32_t texture_binding_base_color = INVALID_INDEX;
 			uint32_t texture_binding_normal = INVALID_INDEX;
 			uint32_t texture_binding_roughness = INVALID_INDEX;
+			uint32_t texture_binding_metallic = INVALID_INDEX;
 			uint32_t texture_binding_opacity = INVALID_INDEX;
 			uint32_t texture_binding_emissive = INVALID_INDEX;
 		};
+		static_assert(sizeof(Material) == 88);
 
 		enum class EnumSubmeshFlag : uint32_t {
 			DEFAULT = 0,
@@ -185,43 +184,68 @@ namespace fjr::scene {
 			EnumSubmeshFlag flags = EnumSubmeshFlag::DEFAULT;
 		};
 
-		struct Mesh {
-			uint32_t name = INVALID_INDEX;
+		struct MeshLod {
 			uint32_t submesh_offset = INVALID_INDEX;
 			uint32_t submesh_count = 0;
+			// Accumulated maximum deviation from LOD0 in mesh-local meters.
+			float max_deviation = 0.0f;
+			uint32_t reserved = 0;
 		};
 
-		struct PrototypePart {
+		struct Mesh {
+			uint32_t name = INVALID_INDEX;
+			uint32_t lod_offset = INVALID_INDEX;
+			uint32_t lod_count = 0;
+		};
+
+		enum class EnumAttributeInterpolation : uint32_t {
+			CONSTANT,
+			UNIFORM,
+			VERTEX,
+			VARYING,
+			FACE_VARYING,
+		};
+
+		// Auxiliary primvars are expanded by the Cooker into the final triangle
+		// order. This preserves values without retaining USD topology or asking a
+		// later compiler to resolve interpolation.
+		struct TriangleBoolStream {
+			uint32_t mesh = INVALID_INDEX;
+			uint32_t name = INVALID_INDEX;
+			uint32_t value_offset = INVALID_INDEX;
+			uint32_t value_count = 0;
+		};
+
+		struct CornerFloatStream {
+			uint32_t mesh = INVALID_INDEX;
+			uint32_t name = INVALID_INDEX;
+			EnumAttributeInterpolation source_interpolation =
+				EnumAttributeInterpolation::CONSTANT;
+			uint32_t value_offset = INVALID_INDEX;
+			uint32_t value_count = 0;
+		};
+
+		struct CornerColor3Stream {
+			uint32_t mesh = INVALID_INDEX;
+			uint32_t name = INVALID_INDEX;
+			EnumAttributeInterpolation source_interpolation =
+				EnumAttributeInterpolation::CONSTANT;
+			uint32_t value_offset = INVALID_INDEX;
+			uint32_t value_count = 0;
+		};
+
+		struct CornerTexcoord2Stream {
+			uint32_t mesh = INVALID_INDEX;
+			uint32_t name = INVALID_INDEX;
+			EnumAttributeInterpolation source_interpolation =
+				EnumAttributeInterpolation::CONSTANT;
+			uint32_t value_offset = INVALID_INDEX;
+			uint32_t value_count = 0;
+		};
+
+		struct InstancedMeshDefinition {
 			uint32_t mesh = INVALID_INDEX;
 			DirectX::XMFLOAT4X4 local_transform = IDENTITY_TRANSFORM;
-		};
-
-		enum class EnumObjectKind : uint32_t {
-			UNKNOWN,
-			PYRAMID,
-			RIVER,
-			CREEK,
-			TERRAIN,
-			BANYAN,
-			ANTHURIUM,
-			GRASS_A,
-			GRASS_B,
-			PYRAMID_GRASS_B,
-			PYRAMID_MOSS,
-			QUEEN_FOREST,
-			RIVER_FOREST,
-			RIVER_SAPLING,
-			RIVER_SEEDLING,
-			SHRUB,
-			SHRUB_SORREL,
-			NETTLE,
-		};
-
-		struct Prototype {
-			uint32_t name = INVALID_INDEX;
-			EnumObjectKind object_kind = EnumObjectKind::UNKNOWN;
-			uint32_t part_offset = INVALID_INDEX;
-			uint32_t part_count = 0;
 		};
 
 		struct PointInstance {
@@ -233,25 +257,61 @@ namespace fjr::scene {
 
 		struct PointBatch {
 			uint32_t name = INVALID_INDEX;
-			uint32_t source_prim_path = INVALID_INDEX;
-			uint32_t source_layer = INVALID_INDEX;
-			uint32_t prototype = INVALID_INDEX;
+			uint32_t definition = INVALID_INDEX;
 			uint32_t instance_offset = INVALID_INDEX;
 			uint32_t instance_count = 0;
 			DirectX::XMFLOAT4X4 local_to_world = IDENTITY_TRANSFORM;
 		};
 
-		struct MatrixInstance {
-			DirectX::XMFLOAT4X4 transform = IDENTITY_TRANSFORM;
+		struct StaticMeshInstance {
+			uint32_t name = INVALID_INDEX;
+			uint32_t mesh = INVALID_INDEX;
+			DirectX::XMFLOAT4X4 world_transform = IDENTITY_TRANSFORM;
 		};
 
-		struct MatrixBatch {
-			uint32_t name = INVALID_INDEX;
-			uint32_t source_prim_path = INVALID_INDEX;
-			uint32_t source_layer = INVALID_INDEX;
-			uint32_t prototype = INVALID_INDEX;
-			uint32_t instance_offset = INVALID_INDEX;
-			uint32_t instance_count = 0;
+		struct Pyramid { uint32_t instance = INVALID_INDEX; };
+		struct River { uint32_t instance = INVALID_INDEX; };
+		struct Creek { uint32_t instance = INVALID_INDEX; };
+		struct Banyan { uint32_t instance = INVALID_INDEX; };
+		struct Terrain {
+			IndexRange extended;
+			IndexRange cinematic;
+		};
+
+		struct Anthurium { IndexRange point_batches; };
+		struct Nettle { IndexRange point_batches; };
+		struct ShrubSorrel { IndexRange point_batches; };
+		struct Shrub { IndexRange point_batches; };
+		struct GrassB { IndexRange point_batches; };
+		struct GrassA { IndexRange point_batches; };
+		struct PyramidGrassB { IndexRange point_batches; };
+		struct PyramidMoss { IndexRange point_batches; };
+		struct QueenForest { IndexRange point_batches; };
+		struct RiverForest { IndexRange point_batches; };
+		struct RiverSapling { IndexRange point_batches; };
+		struct RiverSeedling { IndexRange point_batches; };
+
+		// These members are the compiler-visible contract of the Jungle root
+		// USDA. Counts inside a component remain data; component identity and
+		// storage shape do not.
+		struct Components {
+			Pyramid pyramid;
+			River river;
+			Creek creek;
+			Banyan banyan;
+			Terrain terrain;
+			Anthurium anthurium;
+			Nettle nettle;
+			ShrubSorrel shrub_sorrel;
+			Shrub shrub;
+			GrassB grass_b;
+			GrassA grass_a;
+			PyramidGrassB pyramid_grass_b;
+			PyramidMoss pyramid_moss;
+			QueenForest queen_forest;
+			RiverForest river_forest;
+			RiverSapling river_sapling;
+			RiverSeedling river_seedling;
 		};
 
 		struct Camera {
@@ -293,12 +353,14 @@ namespace fjr::scene {
 
 		using Char = char;
 		using Uint32_t = uint32_t;
+		using Uint8_t = uint8_t;
+		using Float = float;
+		using Float2 = DirectX::XMFLOAT2;
+		using Float3 = DirectX::XMFLOAT3;
 		using Byte = std::byte;
 
 #define SceneDataBeforeTexture_MACRO \
     X(Char, strings) \
-    X(SourceGroup, source_groups) \
-    X(SourceLayer, source_layers) \
     X(Vertex, vertices) \
     X(Uint32_t, indices) \
     \
@@ -311,14 +373,21 @@ namespace fjr::scene {
     X(Material, materials) \
     \
     X(Submesh, submeshes) \
+    X(MeshLod, mesh_lods) \
     X(Mesh, meshes) \
-    X(PrototypePart, prototype_parts) \
-    X(Prototype, prototypes) \
+    X(TriangleBoolStream, triangle_bool_streams) \
+    X(Uint8_t, triangle_bool_values) \
+    X(CornerFloatStream, corner_float_streams) \
+    X(Float, corner_float_values) \
+    X(CornerColor3Stream, corner_color3_streams) \
+    X(Float3, corner_color3_values) \
+    X(CornerTexcoord2Stream, corner_texcoord2_streams) \
+    X(Float2, corner_texcoord2_values) \
+    X(InstancedMeshDefinition, instanced_mesh_definitions) \
     \
     X(PointInstance, point_instances) \
     X(PointBatch, point_batches) \
-    X(MatrixInstance, matrix_instances) \
-    X(MatrixBatch, matrix_batches)
+    X(StaticMeshInstance, static_mesh_instances)
 
 #define SceneData_MACRO \
     SceneDataBeforeTexture_MACRO \
@@ -329,6 +398,7 @@ namespace fjr::scene {
 #undef X
 		std::vector<Byte> texture_data;
 
+		Components components;
 		Camera camera;
 		EnvironmentLight environment_light;
 		SceneInfo info;
@@ -339,19 +409,21 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<TextureMip>);
 		static_assert(std::is_trivially_copyable_v<Texture>);
 		static_assert(std::is_trivially_copyable_v<TextureBinding>);
-		static_assert(std::is_trivially_copyable_v<SourceGroup>);
-		static_assert(std::is_trivially_copyable_v<SourceLayer>);
 		static_assert(std::is_trivially_copyable_v<Material>);
 
 		static_assert(std::is_trivially_copyable_v<Submesh>);
+		static_assert(std::is_trivially_copyable_v<MeshLod>);
 		static_assert(std::is_trivially_copyable_v<Mesh>);
-		static_assert(std::is_trivially_copyable_v<PrototypePart>);
-		static_assert(std::is_trivially_copyable_v<Prototype>);
+		static_assert(std::is_trivially_copyable_v<TriangleBoolStream>);
+		static_assert(std::is_trivially_copyable_v<CornerFloatStream>);
+		static_assert(std::is_trivially_copyable_v<CornerColor3Stream>);
+		static_assert(std::is_trivially_copyable_v<CornerTexcoord2Stream>);
+		static_assert(std::is_trivially_copyable_v<InstancedMeshDefinition>);
 
 		static_assert(std::is_trivially_copyable_v<PointInstance>);
 		static_assert(std::is_trivially_copyable_v<PointBatch>);
-		static_assert(std::is_trivially_copyable_v<MatrixInstance>);
-		static_assert(std::is_trivially_copyable_v<MatrixBatch>);
+		static_assert(std::is_trivially_copyable_v<StaticMeshInstance>);
+		static_assert(std::is_trivially_copyable_v<Components>);
 
 		static_assert(std::is_trivially_copyable_v<Camera>);
 		static_assert(std::is_trivially_copyable_v<EnvironmentLight>);
@@ -363,19 +435,21 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<TextureMip>);
 		static_assert(std::is_standard_layout_v<Texture>);
 		static_assert(std::is_standard_layout_v<TextureBinding>);
-		static_assert(std::is_standard_layout_v<SourceGroup>);
-		static_assert(std::is_standard_layout_v<SourceLayer>);
 		static_assert(std::is_standard_layout_v<Material>);
 
 		static_assert(std::is_standard_layout_v<Submesh>);
+		static_assert(std::is_standard_layout_v<MeshLod>);
 		static_assert(std::is_standard_layout_v<Mesh>);
-		static_assert(std::is_standard_layout_v<PrototypePart>);
-		static_assert(std::is_standard_layout_v<Prototype>);
+		static_assert(std::is_standard_layout_v<TriangleBoolStream>);
+		static_assert(std::is_standard_layout_v<CornerFloatStream>);
+		static_assert(std::is_standard_layout_v<CornerColor3Stream>);
+		static_assert(std::is_standard_layout_v<CornerTexcoord2Stream>);
+		static_assert(std::is_standard_layout_v<InstancedMeshDefinition>);
 
 		static_assert(std::is_standard_layout_v<PointInstance>);
 		static_assert(std::is_standard_layout_v<PointBatch>);
-		static_assert(std::is_standard_layout_v<MatrixInstance>);
-		static_assert(std::is_standard_layout_v<MatrixBatch>);
+		static_assert(std::is_standard_layout_v<StaticMeshInstance>);
+		static_assert(std::is_standard_layout_v<Components>);
 
 		static_assert(std::is_standard_layout_v<Camera>);
 		static_assert(std::is_standard_layout_v<EnvironmentLight>);

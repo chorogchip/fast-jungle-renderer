@@ -88,6 +88,7 @@ namespace fjr::dx {
         UINT current_frame_ = 0;
 
         bool vsync_ = true;
+        bool tearing_supported_ = false;
     };
 
 } // namespace fjr::dx

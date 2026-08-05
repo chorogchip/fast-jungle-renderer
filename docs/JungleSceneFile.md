@@ -1,4 +1,4 @@
-# Jungle scene file version 2
+# Jungle scene file version 4
 
 ## Purpose
 
@@ -11,8 +11,9 @@ The cooked runtime scene is split into two files:
 The renderer does not link OpenUSD. A scene and texture file are one validated
 pair and must be deployed together with the same basename.
 
-`FastJungleCooker` imports the USD scene, releases OpenUSD, cooks textures, and
-streams the file without allocating another file-sized buffer.
+`FastJungleCooker` imports the USD scene, releases OpenUSD, generates mesh
+LODs, cooks textures, and streams the file without allocating another
+file-sized buffer.
 `FastJungle.exe` uses only the runtime reader and does not link or deploy
 OpenUSD.
 
@@ -22,7 +23,7 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`2`) |
+| 8 | 4 | format version (`4`) |
 | 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
@@ -48,6 +49,32 @@ Each `TextureMip::data_byte_offset_local` is relative to its owning texture.
 The reader requires the `.fjscene` expected texture size, `.fjtex` declared
 size, and physical file size to agree.
 
+## Mesh LOD contract
+
+Every `Mesh` owns four `MeshLod` records targeting 100%, 40%, 15%, and 4% of
+its original triangle count. A LOD owns the same ordered set of `Submesh`
+records as LOD0. All levels share LOD0 vertex ranges, material IDs, names, and
+flags; generated levels add only index ranges. Small submeshes below 128
+triangles reuse the preceding index range. Triangle alignment, small meshes,
+and border-locked terrain can make aggregate counts differ slightly from the
+nominal ratios.
+
+The cooker uses pinned meshoptimizer v1.2 and simplifies from the preceding
+level. Its primary path permits seam collapses while measuring position,
+normal, and UV error. If disconnected non-terrain geometry still misses its
+target, a position-only sloppy pass bounded by the level's remaining error
+budget (and capped at 0.1) supplies the lower level. Terrain never uses that
+fallback and keeps borders locked.
+`MeshLod::max_deviation` stores
+the accumulated maximum object-space deviation in meters and is finite and
+monotonic. Auxiliary triangle and corner primvars remain defined against LOD0
+topology only.
+
+At runtime a 1-pixel projected-error threshold selects one LOD. Static meshes
+use their individual bounds and scale. The current PointBatch draw path uses
+the batch's nearest bound distance and maximum instance scale, which is safe
+but conservative until GPU instance compaction can select LOD per instance.
+
 ## Preserved flat source structure
 
 The cooker records the root USDA and all authored root sublayers as
@@ -67,8 +94,8 @@ retained.
 AABBs are deliberately absent from the cooked contract. At load time the
 renderer derives bounds in this order:
 
-1. submesh bounds from vertex positions;
-2. mesh bounds from submeshes;
+1. LOD0 submesh bounds from vertex positions;
+2. mesh bounds from LOD0 submeshes;
 3. prototype bounds from mesh parts and local transforms;
 4. point and matrix batch bounds from instances;
 5. the complete scene bound from all batches.
@@ -80,8 +107,9 @@ the source-oriented cooked representation.
 ## Bounded-memory cooker path
 
 OpenUSD first builds static scene data and a deduplicated texture path list.
-After the stage is released, the cooker decodes and compresses one texture at a
-time into a temporary payload. The writer creates and atomically replaces
+After the stage is released, the cooker generates index-only mesh LODs, then
+decodes and compresses one texture at a time into a temporary payload. The
+writer creates and atomically replaces
 `.fjtex` first, then creates and replaces `.fjscene` last. A failed cook cannot
 publish a new scene header that points at an incomplete new texture file.
 
@@ -95,7 +123,7 @@ companion payload into `texture_data` for the current renderer upload path.
   resolution cap or platform quality profile.
 - The files have no chunk table or memory mapping.
 - The full runtime loader still materializes texture bytes before GPU upload.
-- Instance compression, GPU-oriented packing, meshlets, and LOD generation
-  remain future work.
+- Instance compression, GPU-oriented packing, meshlets, and per-point-instance
+  GPU LOD selection remain future work.
 - The format is tied to the current Windows x64 ABI. Serialized type or member
   layout changes require another scene format version.

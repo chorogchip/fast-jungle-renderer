@@ -25,7 +25,8 @@ namespace fjr {
             void* native_window,
             std::uint32_t width,
             std::uint32_t height,
-            const scene::StaticScene& scene);
+            const scene::StaticScene& scene,
+            const render::RendererOptions& options = {});
 
         [[nodiscard]]
         int run(const RunLoop& run_loop);
@@ -33,6 +34,8 @@ namespace fjr {
         void request_resize(
             std::uint32_t width,
             std::uint32_t height) noexcept;
+
+        void handle_key_down(std::uint32_t virtual_key) noexcept;
 
     private:
         bool minimized_ = false;

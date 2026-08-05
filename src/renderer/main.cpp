@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -20,7 +21,22 @@ namespace {
             std::filesystem::path{FASTJUNGLE_DEFAULT_COOKED_DIR} /
             "JungleRuins.fjscene";
         std::optional<std::uint32_t> smoke_test_frames;
+        fjr::render::RendererOptions renderer;
     };
+
+    void write_smoke_error(
+        const RendererLaunchOptions& options,
+        std::string_view message) noexcept {
+
+        if (!options.smoke_test_frames) {
+            return;
+        }
+        std::ofstream{
+            std::filesystem::temp_directory_path() /
+            "FastJungle-smoke-error.txt",
+            std::ios::trunc}
+            << message;
+    }
 
     RendererLaunchOptions get_renderer_launch_options() noexcept {
         RendererLaunchOptions options;
@@ -51,6 +67,14 @@ namespace {
                 options.smoke_test_frames =
                     static_cast<std::uint32_t>(
                         std::wcstoul(argv[++index], nullptr, 10));
+            } else if (argument == L"--force-lod0") {
+                options.renderer.lod_selection =
+                    fjr::render::LodSelectionMode::FINEST;
+            } else if (argument == L"--force-coarsest-lod") {
+                options.renderer.lod_selection =
+                    fjr::render::LodSelectionMode::COARSEST;
+            } else if (argument == L"--overview") {
+                options.renderer.frame_entire_scene = true;
             }
         }
 
@@ -148,6 +172,14 @@ namespace {
                 }
             }
 
+            return 0;
+
+        case WM_KEYDOWN:
+            if (state != nullptr && state->application != nullptr &&
+                (lparam & (1ll << 30)) == 0) {
+                state->application->handle_key_down(
+                    static_cast<std::uint32_t>(wparam));
+            }
             return 0;
 
         case WM_CLOSE:
@@ -289,6 +321,10 @@ int WINAPI wWinMain(
         initial_height);
 
     if (hwnd == nullptr) {
+        write_smoke_error(
+            launch_options,
+            "Unable to create renderer window (Win32 error " +
+                std::to_string(GetLastError()) + ").");
         return 1;
     }
 
@@ -297,6 +333,10 @@ int WINAPI wWinMain(
     if (!GetClientRect(
         hwnd,
         &client_rectangle)) {
+        write_smoke_error(
+            launch_options,
+            "Unable to read renderer client area (Win32 error " +
+                std::to_string(GetLastError()) + ").");
         return 1;
     }
 
@@ -310,7 +350,23 @@ int WINAPI wWinMain(
             client_rectangle.bottom -
             client_rectangle.top);
 
-    SetWindowTextW(hwnd, L"Fast Jungle Renderer");
+    std::wstring window_title = L"Fast Jungle Renderer - ";
+    switch (launch_options.renderer.lod_selection) {
+    case fjr::render::LodSelectionMode::FINEST:
+        window_title += L"LOD Finest";
+        break;
+    case fjr::render::LodSelectionMode::COARSEST:
+        window_title += L"LOD Coarsest";
+        break;
+    default:
+        window_title += L"Auto LOD";
+        break;
+    }
+    if (launch_options.renderer.frame_entire_scene) {
+        window_title += L" - Overview";
+    }
+    window_title += L" - WASD/QE + Arrow Keys";
+    SetWindowTextW(hwnd, window_title.c_str());
 
     try {
 
@@ -319,11 +375,13 @@ int WINAPI wWinMain(
             hwnd,
             client_width,
             client_height,
-            *scene);
+            *scene,
+            launch_options.renderer);
     }
     catch (const std::exception& exception) {
         if (launch_options.smoke_test_frames) {
             OutputDebugStringA(exception.what());
+            write_smoke_error(launch_options, exception.what());
         } else {
             MessageBoxA(
                 nullptr,
@@ -348,7 +406,21 @@ int WINAPI wWinMain(
         .pump_messages = pump_messages
     };
 
-    const int exit_code = application.run(run_loop);
+    int exit_code = EXIT_FAILURE;
+    try {
+        exit_code = application.run(run_loop);
+    }
+    catch (const std::exception& exception) {
+        write_smoke_error(launch_options, exception.what());
+        if (!launch_options.smoke_test_frames) {
+            MessageBoxA(
+                nullptr,
+                exception.what(),
+                "Fast Jungle",
+                MB_OK | MB_ICONERROR);
+        }
+        DestroyWindow(hwnd);
+    }
     // The window procedure must not retain the stack object past run().
     state.application = nullptr;
     return exit_code;

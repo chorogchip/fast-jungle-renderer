@@ -8,7 +8,8 @@ namespace fjr {
         void* native_window,
         std::uint32_t width,
         std::uint32_t height,
-        const scene::StaticScene& scene) {
+        const scene::StaticScene& scene,
+        const render::RendererOptions& options) {
 
         if (native_window == nullptr ||
             width == 0 ||
@@ -24,7 +25,8 @@ namespace fjr {
             native_window,
             width,
             height,
-            scene);
+            scene,
+            options);
     }
 
     int Application::run(
@@ -55,6 +57,11 @@ namespace fjr {
         if (!minimized_) {
             renderer_.resize(width, height);
         }
+    }
+
+    void Application::handle_key_down(
+        std::uint32_t virtual_key) noexcept {
+        renderer_.handle_key_down(virtual_key);
     }
 
 } // namespace fjr

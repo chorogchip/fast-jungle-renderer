@@ -94,6 +94,12 @@ namespace {
             actual.texture_data,
             "texture_data");
 
+		require(
+			std::memcmp(
+				&expected.components,
+				&actual.components,
+				sizeof(expected.components)) == 0,
+			"StaticScene components changed.");
         require(
             std::memcmp(
                 &expected.camera,
@@ -126,9 +132,6 @@ namespace {
             'p', '\0',
             't', 'e', 'x', '\0'
         };
-        scene.source_groups.push_back({1});
-        scene.source_layers.push_back({3, 5, 0});
-
         StaticScene::TextureMip mip;
         mip.width = 1;
         mip.height = 1;
@@ -147,6 +150,130 @@ namespace {
         texture.data_byte_offset = 0;
         texture.data_size = 4;
         scene.textures.push_back(texture);
+
+		scene.samplers.emplace_back();
+		scene.texture_bindings.push_back({
+			.texture = 0,
+			.sampler = 0,
+			.channel = StaticScene::EnumTextureChannel::RGB,
+			.flags = StaticScene::EnumTextureBindingFlag::SRGB,
+		});
+
+        StaticScene::Material material;
+        material.name = 1;
+        material.ior = 1.45f;
+        material.specular = 0.355f;
+        material.clearcoat = 0.25f;
+        material.clearcoat_roughness = 0.03f;
+		material.texture_binding_base_color = 0;
+        scene.materials.push_back(material);
+
+        scene.vertices = {
+            {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+            {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+            {{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+        };
+        scene.indices = {0, 1, 2};
+        scene.submeshes.push_back({
+            .name = 1,
+            .vertex_offset = 0,
+            .vertex_count = 3,
+            .index_offset = 0,
+            .index_count = 3,
+            .material = 0,
+        });
+        scene.mesh_lods.push_back({
+            .submesh_offset = 0,
+            .submesh_count = 1,
+        });
+        scene.meshes.push_back({
+            .name = 1,
+            .lod_offset = 0,
+            .lod_count = 1,
+        });
+
+        scene.triangle_bool_streams.push_back({
+            .mesh = 0,
+            .name = 1,
+            .value_offset = 0,
+            .value_count = 1,
+        });
+        scene.triangle_bool_values.push_back(1);
+        scene.corner_float_streams.push_back({
+            .mesh = 0,
+            .name = 1,
+            .source_interpolation =
+                StaticScene::EnumAttributeInterpolation::VERTEX,
+            .value_offset = 0,
+            .value_count = 3,
+        });
+        scene.corner_float_values = {0.0f, 0.5f, 1.0f};
+        scene.corner_color3_streams.push_back({
+            .mesh = 0,
+            .name = 1,
+            .source_interpolation =
+                StaticScene::EnumAttributeInterpolation::FACE_VARYING,
+            .value_offset = 0,
+            .value_count = 3,
+        });
+        scene.corner_color3_values = {
+            {1.0f, 0.0f, 0.0f},
+            {0.0f, 1.0f, 0.0f},
+            {0.0f, 0.0f, 1.0f},
+        };
+        scene.corner_texcoord2_streams.push_back({
+            .mesh = 0,
+            .name = 1,
+            .source_interpolation =
+                StaticScene::EnumAttributeInterpolation::FACE_VARYING,
+            .value_offset = 0,
+            .value_count = 3,
+        });
+        scene.corner_texcoord2_values = {
+            {0.0f, 0.0f},
+            {1.0f, 0.0f},
+            {0.0f, 1.0f},
+        };
+
+        scene.instanced_mesh_definitions.push_back({.mesh = 0});
+        for (std::uint32_t index = 0; index < 12; ++index) {
+            scene.point_instances.emplace_back();
+            scene.point_batches.push_back({
+                .name = 1,
+                .definition = 0,
+                .instance_offset = index,
+                .instance_count = 1,
+            });
+        }
+        scene.components.anthurium.point_batches = {0, 1};
+        scene.components.nettle.point_batches = {1, 1};
+        scene.components.shrub_sorrel.point_batches = {2, 1};
+        scene.components.shrub.point_batches = {3, 1};
+        scene.components.grass_b.point_batches = {4, 1};
+        scene.components.grass_a.point_batches = {5, 1};
+        scene.components.pyramid_grass_b.point_batches = {6, 1};
+        scene.components.pyramid_moss.point_batches = {7, 1};
+        scene.components.queen_forest.point_batches = {8, 1};
+        scene.components.river_forest.point_batches = {9, 1};
+        scene.components.river_sapling.point_batches = {10, 1};
+        scene.components.river_seedling.point_batches = {11, 1};
+
+        for (std::uint32_t index = 0; index < 6; ++index) {
+            scene.static_mesh_instances.push_back({
+                .name = 1,
+                .mesh = 0,
+            });
+        }
+        scene.components.pyramid.instance = 0;
+        scene.components.river.instance = 1;
+        scene.components.creek.instance = 2;
+        scene.components.banyan.instance = 3;
+        scene.components.terrain.extended = {4, 1};
+        scene.components.terrain.cinematic = {5, 1};
+        scene.camera.name = 1;
+        scene.environment_light.name = 1;
+        scene.info.vertex_count_before_indexing = 3;
+        scene.info.vertex_count_after_indexing = 3;
         return scene;
     }
 
@@ -203,6 +330,9 @@ int main(int argc, char** argv) {
     fjr::util::File::finish(payload_output, payload_path);
 
     auto scene = make_scene();
+	require(
+		scene.texture_data.empty(),
+		"Fresh test scene unexpectedly contains texture data.");
     fjr::scene::StaticSceneWriter::save(
         streamed_path,
         scene,

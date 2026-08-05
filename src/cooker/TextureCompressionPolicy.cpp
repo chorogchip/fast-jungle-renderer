@@ -127,6 +127,11 @@ namespace fjr::cooker {
                 usages,
                 material.texture_binding_roughness,
                 TextureUsage::Scalar);
+			add_usage(
+				scene,
+				usages,
+				material.texture_binding_metallic,
+				TextureUsage::Scalar);
             add_usage(
                 scene,
                 usages,
