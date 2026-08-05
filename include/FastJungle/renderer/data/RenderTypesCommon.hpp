@@ -40,12 +40,14 @@ namespace fjr::render::data {
         DirectX::XMFLOAT4 surface{ 0.0f, 1.0f, 0.0f, 0.0f };
         DirectX::XMFLOAT4 optical{ 0.5f, 0.0f, 0.01f, 0.0f };
 
-        // base color, normal, roughness, opacity
-        DirectX::XMUINT4 texture_bindings_0{
-            Consts::IND_ERR, Consts::IND_ERR, Consts::IND_ERR, Consts::IND_ERR };
-        // emissive, metallic, reserved, reserved
-        DirectX::XMUINT4 texture_bindings_1{
-            Consts::IND_ERR, Consts::IND_ERR, Consts::IND_ERR, Consts::IND_ERR };
+        uint32_t texture_binding_basecolor = Consts::IND_ERR;
+        uint32_t texture_binding_normal = Consts::IND_ERR;
+        uint32_t texture_binding_roughness = Consts::IND_ERR;
+        uint32_t texture_binding_opacity = Consts::IND_ERR;
+        uint32_t texture_binding_emissive = Consts::IND_ERR;
+        uint32_t texture_binding_metallic = Consts::IND_ERR;
+        uint32_t texture_binding_reserved0 = Consts::IND_ERR;
+        uint32_t texture_binding_reserved1 = Consts::IND_ERR;
     };
 
     struct StbufTextureBinding {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <DirectXMath.h>
 
+#include "FastJungle/dx12/MappedCBuffer.hpp"
 #include "FastJungle/renderer/data/FrameConstData.hpp"
 
 namespace fjr::render::data {
@@ -26,6 +27,7 @@ namespace fjr::render::data {
         static_assert(sizeof(CameraConstants) == Consts::CBUF_ALIGN);
         static_assert(std::is_trivially_copyable_v<CameraConstants>);
 
-        CameraConstants camera_constants;
+        dx::MappedCBuffer<CameraConstants> camera_constants;
     };
+
 }  // namespace fjr::render::data

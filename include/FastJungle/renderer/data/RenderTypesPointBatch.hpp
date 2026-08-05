@@ -64,6 +64,18 @@ namespace fjr::render::data {
         static inline constexpr uint32_t CONSTANT_COUNT = 3;
     };
 
+    struct IndirectCommandLayout {
+
+        struct IndirectCommandRange {
+            uint32_t first_command = 0;
+            uint32_t max_command_count = 0;
+        };
+
+        std::array<IndirectCommandRange, Consts::PNT_PIPELINE_CNT>
+            class_ranges{};
+        uint32_t total_command_capacity = 0;
+    };
+
     static_assert(sizeof(StbufPointCluster) == 48);
     static_assert(sizeof(StbufPointBatch) == 160);
     static_assert(sizeof(StbufPointDef) == 48);
