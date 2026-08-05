@@ -1,6 +1,7 @@
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/core/util/DateTime.hpp"
 
+#include <Windows.h>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -11,6 +12,7 @@
 namespace fjr::log {
 
     Logger Logger::g_logger;
+    Logger Logger::g_logger_debug_out;
 
     void Logger::flush_unlocked() {
         const std::string log = logging_stream_.str();
@@ -99,9 +101,19 @@ namespace fjr::log {
         }
     }
 
+    void Logger::flush_debug_string_unlocked() {
+        OutputDebugStringA(logging_stream_.str().c_str());
+        logging_stream_.clear();
+    }
+
     void Logger::flush() {
         std::lock_guard lock(mutex_);
         flush_unlocked();
+    }
+
+    void Logger::flush_debug_string() {
+        std::lock_guard lock(mutex_);
+        flush_debug_string_unlocked();
     }
 
     [[noreturn]]

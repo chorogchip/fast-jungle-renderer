@@ -27,6 +27,7 @@ namespace fjr {
 
     private:
         render::RendererMain renderer_;
+        double frame_time_ema_;
     };
 
 } // namespace fjr

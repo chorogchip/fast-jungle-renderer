@@ -27,6 +27,7 @@ namespace fjr::log {
         Logger& operator=(Logger&&) = delete;
 
         void flush();
+        void flush_debug_string();
 
         [[noreturn]]
         void abort(std::source_location loc = std::source_location::current());
@@ -43,9 +44,11 @@ namespace fjr::log {
         Logger& operator<<(const DoAssert& assertion);
 
         static Logger g_logger;
+        static Logger g_logger_debug_out;
 
     private:
         void flush_unlocked();
+        void flush_debug_string_unlocked();
 
         [[noreturn]]
         void abort_unlocked(std::source_location loc = std::source_location::current());
