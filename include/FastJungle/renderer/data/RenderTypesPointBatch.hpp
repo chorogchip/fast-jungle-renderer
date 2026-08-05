@@ -46,7 +46,7 @@ namespace fjr::render::data {
         uint32_t bin_index = Consts::IND_ERR;
         uint32_t point_batch_index = 0;
         uint32_t material_id = 0;
-        EnumPointPSOClsas pipeline_class = EnumPointPSOClsas::SINGLE_SIDED;
+        EnumPSOClass pipeline_class = EnumPSOClass::SINGLE_SIDED;
 
         uint32_t index_count = 0;
         uint32_t first_index = 0;
@@ -71,7 +71,7 @@ namespace fjr::render::data {
             uint32_t max_command_count = 0;
         };
 
-        std::array<IndirectCommandRange, Consts::PNT_PIPELINE_CNT>
+        std::array<IndirectCommandRange, Consts::PIPELINE_CNT>
             class_ranges{};
         uint32_t total_command_capacity = 0;
     };

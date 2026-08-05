@@ -2,19 +2,24 @@
 
 #include <span>
 
-#include "FastJungle/renderer/SceneRenderData.hpp"
-#include "FastJungle/renderer/component/GPUPointData.hpp"
+#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
+#include "FastJungle/renderer/data/SceneBounds.hpp"
+#include "FastJungle/renderer/data/SceneResourcesTemp.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
-#include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
 
 namespace fjr::render {
 
-	class ScenePointResourceBuilder {
+    class ScenePointResourceBuilder final {
+    public:
+        ScenePointResourceBuilder() = delete;
 
-	public:
-		static ScenePointResources build(
-			const scene::StaticScene& scene,
-			const SceneBoundsBuilder& bounds,
-			std::span<const SceneDrawItem> draw_items);
-	};
-}
+        [[nodiscard]]
+        static data::SceneResourcesTemp::PointRenderPlan build(
+            const scene::StaticScene& scene,
+            const data::SceneBounds& bounds,
+            std::span<
+            const data::DrawFinalGPUIndirect>
+            draw_items);
+    };
+
+} // namespace fjr::render

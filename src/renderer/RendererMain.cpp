@@ -4,7 +4,6 @@
 #include "FastJungle/dx12/HeapManager.hpp"
 #include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
-#include "internal/CameraController.hpp"
 
 #include <cstdint>
 #include <utility>
@@ -28,8 +27,6 @@ namespace fjr::render {
 
         const HWND hwnd = static_cast<HWND>(window);
         options_ = options;
-        camera_controller_ =
-            std::make_unique<internal::CameraController>(window);
 
         const auto factory = dx::DeviceUtils::create_factory();
         device_ = dx::DeviceUtils::create_device(factory.Get());
@@ -56,20 +53,53 @@ namespace fjr::render {
 
         // build scene
 
-        environment_light_ = scene.environment_light;
+        const auto bounds =
+            SceneBoundsBuilder::build(scene);
 
-        SceneResourcesBuilder::BuildContexts build_contexts{};
-        build_contexts.device = device_.Get();
-        build_contexts.command_queue = &command_queue_;
+        scene_resources_temp_ =
+            std::make_unique<data::SceneResourcesTemp>(
+                SceneResourcesTempBuilder::build(
+                    scene,
+                    bounds,
+                    options));
 
-        const auto bounds = SceneBoundsBuilder::build(scene);
+        SceneResourcesBuilder::Context build_context;
+        build_context.device = device_.Get();
+        build_context.command_queue = &command_queue_;
 
-        auto scene_build = render::SceneResourcesBuilder::build(
-            build_contexts, scene, bounds, options);
-        scene_resources_ = std::move(scene_build.resources);
+        scene_resources_ =
+            std::make_unique<data::SceneResources>(
+                SceneResourcesBuilder::build(
+                    build_context,
+                    scene,
+                    *scene_resources_temp_));
 
+        camera_.set_scene_camera(scene.camera);
+        camera_.set_viewport(width, height);
 
-        scene_viewer_.init(scene_build.draw_items, bounds);
+        if (options.frame_entire_scene) {
+            camera_.frame_bounds(
+                scene_resources_temp_->world_bounds);
+        } else if (!camera_.has_valid_lens() ||
+            !camera_.has_valid_transform()) {
+
+            camera_.frame_bounds(
+                scene_resources_temp_->world_bounds);
+        }
+
+        for (auto& frame : frame_const_data_) {
+            SceneFrameConstDataBuilder::build(
+                frame,
+                device_.Get(),
+                camera_,
+                scene.environment_light);
+        }
+
+        SceneDynamicDataBuilder::build(
+            dynamic_scene_data_,
+            *scene_resources_temp_,
+            camera_,
+            options.lod_selection);
 
         // camera
         camera_.set_scene_camera(scene.camera);
@@ -188,7 +218,32 @@ namespace fjr::render {
     void RendererMain::render() {
 
         camera_controller_->update(camera_);
-        scene_viewer_.update_visibility(camera_, options_.lod_selection);
+
+        const int frame =
+            swap_chain_.get_current_frame();
+
+        SceneDynamicDataBuilder::build(
+            dynamic_scene_data_,
+            *scene_resources_temp_,
+            camera_,
+            options_.lod_selection);
+
+        SceneFrameConstDataBuilder::build(
+            frame_const_data_[frame],
+            device_.Get(),
+            camera_,
+            environment_light_);
+
+        const auto camera_buffer =
+            frame_const_data_[frame]
+            .camera_constants
+            .get_address();
+
+        const auto draws =
+            std::span<
+            const data::DrawFinalCPU>{
+            dynamic_scene_data_.visible_draws };
+
 
         const int frame = swap_chain_.get_current_frame();
         auto& context = command_contexts_[frame];
@@ -205,7 +260,11 @@ namespace fjr::render {
 
         forward_pass_.views.desc_rtv = desc_rtv_.get_cpu(frame);
         forward_pass_.views.cbuf_camera = frame_data_[frame].get_camera_buffer();
-        forward_pass_.record(context, scene_viewer_.get_draw_data());
+        forward_pass_.record(
+            context,
+            *scene_resources_,
+            draws,
+            camera_buffer);
 
         swap_chain_.get_current_buffer().transition(
             context.get(), D3D12_RESOURCE_STATE_PRESENT);
@@ -214,10 +273,6 @@ namespace fjr::render {
         command_queue_.execute(context.get());
         context.set_fence_value(command_queue_.signal());
         swap_chain_.present();
-    }
-
-    void RendererMain::handle_key_down(uint32_t virtual_key) {
-        camera_controller_->step(camera_, virtual_key, options_.lod_selection);
     }
 
 } // namespace fjr

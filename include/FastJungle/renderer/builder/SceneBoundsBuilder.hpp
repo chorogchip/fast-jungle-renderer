@@ -1,15 +1,17 @@
 #pragma once
 
-#include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/SceneBounds.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
 
-    class SceneBoundsBuilder {
-
+    class SceneBoundsBuilder final {
     public:
+        SceneBoundsBuilder() = delete;
+
         [[nodiscard]]
-        static data::SceneBounds build(const scene::StaticScene& scene);
+        static data::SceneBounds build(
+            const scene::StaticScene& scene);
     };
 
 } // namespace fjr::render

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "FastJungle/renderer/CameraController.hpp"
 #include "FastJungle/renderer/RendererMain.hpp"
 
 namespace fjr {
@@ -26,6 +27,7 @@ namespace fjr {
         void handle_key_down(uint32_t virtual_key);
 
     private:
+        render::CameraController camera_controller_;
         render::RendererMain renderer_;
         double frame_time_ema_;
     };

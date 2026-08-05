@@ -23,8 +23,7 @@ namespace fjr::render::data {
         normal 변환까지 이 행렬로 처리함. (uniform scale 가정)
     */
     struct alignas(Consts::CBUF_ALIGN) CbufMatrixDraw {
-        DirectX::XMFLOAT4X4 part_local_transform =
-            scene::StaticScene::IDENTITY_TRANSFORM;
+        DirectX::XMFLOAT4X4 part_local_transform = Consts::I_MAT;
     };
 
     /*
@@ -51,8 +50,8 @@ namespace fjr::render::data {
     };
 
     struct StbufTextureBinding {
-        uint32_t texture_id = scene::StaticScene::INVALID_INDEX;
-        uint32_t sampler_id = scene::StaticScene::INVALID_INDEX;
+        uint32_t texture_id = Consts::IND_ERR;
+        uint32_t sampler_id = Consts::IND_ERR;
         uint32_t channel = 0;
         uint32_t flags = 0;  // not used
     };

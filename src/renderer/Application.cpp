@@ -28,6 +28,9 @@ namespace fjr {
         renderer_.init(
             native_window, width, height,
             scene, options);
+
+        camera_controller_.bind(&renderer_.camera);
+        camera_controller_.set_speed(1.0f);
     }
 
     void Application::run(std::function<bool()> pump_messages) {
@@ -59,7 +62,7 @@ namespace fjr {
     }
 
     void Application::handle_key_down(uint32_t virtual_key) {
-        renderer_.handle_key_down(virtual_key);
+        camera_controller_.move(virtual_key);
     }
 
 } // namespace fjr

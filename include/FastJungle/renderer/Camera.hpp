@@ -1,120 +1,108 @@
 #pragma once
 
-#include "FastJungle/core/math/AABB.hpp"
-#include "FastJungle/scene/StaticScene.hpp"
-
+#include <cmath>
 #include <DirectXMath.h>
-
-#include <cstdint>
 
 namespace fjr::render {
 
     class Camera {
     public:
-        enum class ApertureFit : std::uint32_t {
-            HORIZONTAL,
-            VERTICAL,
-            OVERSCAN,
-            FILL,
-        };
+        Camera() noexcept;
 
-        Camera();
-        explicit Camera(const scene::StaticScene::Camera& source);
+        Camera(
+            const DirectX::XMFLOAT3& position,
+            const DirectX::XMFLOAT4& rotation,
+            float vertical_fov,
+            float aspect_ratio,
+            float near_plane,
+            float far_plane,
+            float move_speed,
+            float rotate_speed) noexcept;
 
-        void set_scene_camera(
-            const scene::StaticScene::Camera& source) noexcept;
-        void set_world_transform(
-            const DirectX::XMFLOAT4X4& world_transform) noexcept;
-        void set_viewport(
-            std::uint32_t width,
-            std::uint32_t height) noexcept;
-        void set_aperture_fit(ApertureFit fit) noexcept;
+        void init(
+            const DirectX::XMFLOAT3& position,
+            const DirectX::XMFLOAT4& rotation,
+            float vertical_fov,
+            float aspect_ratio,
+            float near_plane,
+            float far_plane,
+            float move_speed,
+            float rotate_speed) noexcept;
 
-        // Replaces the pose and invalid lens values with a camera that frames
-        // the supplied bounds. This is an explicit renderer fallback, not an
-        // implicit correction of a valid scene camera.
-        void frame_bounds(const math::AABB& bounds) noexcept;
+        void set_position(
+            const DirectX::XMFLOAT3& position) noexcept;
+
+        void set_rotation(
+            const DirectX::XMFLOAT4& rotation) noexcept;
+
+        void move_up(float delta_time) noexcept;
+        void move_forward(float delta_time) noexcept;
+        void rotate_right(float delta_time) noexcept;
+        void rotate_up(float delta_time) noexcept;
 
         [[nodiscard]]
-        bool has_valid_lens() const noexcept;
-
-        [[nodiscard]]
-        bool has_valid_transform() const noexcept {
-            return valid_transform_;
+        const DirectX::XMFLOAT3& get_position() const noexcept {
+            return position_;
         }
 
         [[nodiscard]]
-        const scene::StaticScene::Camera& get_scene_camera() const noexcept {
-            return source_;
+        const DirectX::XMFLOAT4& get_rotation() const noexcept {
+            return rotation_;
         }
 
         [[nodiscard]]
-        const DirectX::XMFLOAT4X4& get_world() const noexcept {
+        const DirectX::XMFLOAT4X4& get_world_mat() const noexcept {
             return world_;
         }
 
         [[nodiscard]]
-        const DirectX::XMFLOAT4X4& get_view() const noexcept {
+        const DirectX::XMFLOAT4X4& get_view_mat() const noexcept {
             return view_;
         }
 
         [[nodiscard]]
-        const DirectX::XMFLOAT4X4& get_projection() const noexcept {
+        const DirectX::XMFLOAT4X4& get_projection_mat() const noexcept {
             return projection_;
         }
 
         [[nodiscard]]
-        const DirectX::XMFLOAT4X4& get_view_projection() const noexcept {
+        float get_viewport_height() const noexcept {
+            return 2.0f * near_plane_ *
+                std::tan(vertical_fov_ * 0.5f);;
+        }
+
+        [[nodiscard]]
+        const DirectX::XMFLOAT4X4&
+            get_view_projection_mat() const noexcept {
             return view_projection_;
         }
 
-        [[nodiscard]]
-        const DirectX::XMFLOAT3& get_world_position() const noexcept {
-            return world_position_;
-        }
-
-        [[nodiscard]]
-        float get_near_plane() const noexcept {
-            return near_plane_;
-        }
-
-        [[nodiscard]]
-        float get_far_plane() const noexcept {
-            return far_plane_;
-        }
-
-        [[nodiscard]]
-        float get_aspect_ratio() const noexcept;
-
-        [[nodiscard]]
-        std::uint32_t get_viewport_height() const noexcept {
-            return viewport_height_;
-        }
-
     private:
-        void update() noexcept;
-        void update_view() noexcept;
-        void update_projection() noexcept;
+        void calc_matrix() noexcept;
 
-        scene::StaticScene::Camera source_{};
+        DirectX::XMFLOAT3 position_{};
+        DirectX::XMFLOAT4 rotation_{
+            0.0f,
+            0.0f,
+            0.0f,
+            1.0f,
+        };
 
-        std::uint32_t viewport_width_ = 1;
-        std::uint32_t viewport_height_ = 1;
-        ApertureFit aperture_fit_ = ApertureFit::OVERSCAN;
+        float yaw_ = 0.0f;
+        float pitch_ = 0.0f;
 
-        DirectX::XMFLOAT4X4 world_ =
-            scene::StaticScene::IDENTITY_TRANSFORM;
-        DirectX::XMFLOAT4X4 view_ =
-            scene::StaticScene::IDENTITY_TRANSFORM;
-        DirectX::XMFLOAT4X4 projection_ =
-            scene::StaticScene::IDENTITY_TRANSFORM;
-        DirectX::XMFLOAT4X4 view_projection_ =
-            scene::StaticScene::IDENTITY_TRANSFORM;
-        DirectX::XMFLOAT3 world_position_{};
-
+        float vertical_fov_ = DirectX::XM_PIDIV4;
+        float aspect_ratio_ = 1.0f;
         float near_plane_ = 0.1f;
         float far_plane_ = 100000.0f;
-        bool valid_transform_ = true;
+
+        float move_speed_ = 1.0f;
+        float rotate_speed_ = 1.0f;
+
+        DirectX::XMFLOAT4X4 world_{};
+        DirectX::XMFLOAT4X4 view_{};
+        DirectX::XMFLOAT4X4 projection_{};
+        DirectX::XMFLOAT4X4 view_projection_{};
     };
 
 } // namespace fjr::render

@@ -1,97 +1,114 @@
-
 #include "FastJungle/renderer/builder/ScenePointResourceBuilder.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
 
 namespace fjr::render {
 
     namespace {
 
-        PointClusterGpu convert_cluster(
-            const PointClusterCpu& source) {
+        [[nodiscard]]
+        bool is_alpha_blended(
+            data::EnumDrawCpuFlag flags) noexcept {
 
-            const auto center = source.world_bounds.get_center();
-            const auto size = source.world_bounds.get_size();
+            return (
+                static_cast<std::uint32_t>(flags) &
+                static_cast<std::uint32_t>(
+                    data::EnumDrawCpuFlag::
+                    ALPHA_BLENDED)) != 0;
+        }
 
-            PointClusterGpu result;
-            result.bounds_center = center;
+        [[nodiscard]]
+        data::StbufPointCluster convert_cluster(
+            const data::SceneBounds::
+            PointClusterBounds& source) {
+
+            const auto center =
+                source.world_bounds.get_center();
+
+            const auto size =
+                source.world_bounds.get_size();
+
+            data::StbufPointCluster result;
+
+            result.bounds_center =
+                center;
+
             result.bounds_extent = {
                 size.x * 0.5f,
                 size.y * 0.5f,
                 size.z * 0.5f
             };
+
             result.point_batch_index =
                 source.point_batch_index;
+
             result.instance_offset =
-                source.instance_offset;
+                source.instances.offset;
+
             result.instance_count =
-                source.instance_count;
+                source.instances.count;
+
             return result;
         }
 
-        bool is_alpha_blended(
-            scene::StaticScene::EnumSubmeshFlag flags) {
+    } // namespace
 
-            return (
-                static_cast<std::uint32_t>(flags) &
-                static_cast<std::uint32_t>(
-                    scene::StaticScene::EnumSubmeshFlag::
-                    ALPHA_BLENDED)) != 0;
-        }
+    data::SceneResourcesTemp::PointRenderPlan
+        ScenePointResourceBuilder::build(
+            const scene::StaticScene& scene,
+            const data::SceneBounds& bounds,
+            std::span<
+            const data::DrawFinalGPUIndirect>
+            draw_items) {
 
-        std::uint32_t pipeline_class(
-            scene::StaticScene::EnumSubmeshFlag flags) {
-
-            const bool double_sided =
-                (static_cast<std::uint32_t>(flags) &
-                    static_cast<std::uint32_t>(
-                        scene::StaticScene::EnumSubmeshFlag::
-                        DOUBLE_SIDED)) != 0;
-
-            return double_sided ? 1u : 0u;
-        }
-
-    }
-
-	ScenePointResources ScenePointResourceBuilder::build(
-		const scene::StaticScene& scene,
-		const SceneBoundsBuilder& bounds,
-		std::span<const SceneDrawItem> draw_items) {
-
-        ScenePointResources result;
+        data::SceneResourcesTemp::PointRenderPlan result;
 
         result.bin_count =
             static_cast<std::uint32_t>(
                 scene.point_batches.size()) *
-            POINT_LOD_COUNT;
+            data::Consts::LOD_CNT;
 
-        // Definitions
+        // Point definitions
         result.definitions.resize(
             scene.instanced_mesh_definitions.size());
 
-        for (std::size_t index = 0;
-            index < result.definitions.size();
-            ++index) {
+        for (std::size_t definition_index = 0;
+            definition_index <
+            scene.instanced_mesh_definitions.size();
+            ++definition_index) {
 
             const auto& definition =
-                scene.instanced_mesh_definitions[index];
+                scene.instanced_mesh_definitions[
+                    definition_index];
+
             const auto& mesh =
                 scene.meshes[definition.mesh];
-            const auto& aabb =
-                bounds.instanced_definition_bounds[index];
 
-            auto& destination =
-                result.definitions[index];
+            const auto& definition_bounds =
+                bounds.geometry.definition_bounds[
+                    definition_index];
 
-            const auto center = aabb.get_center();
-            const auto size = aabb.get_size();
+            const auto center =
+                definition_bounds.get_center();
 
-            destination.bounds_center_scale = {
+            const auto size =
+                definition_bounds.get_size();
+
+            auto& output =
+                result.definitions[
+                    definition_index];
+
+            output.bounds_center_scale = {
                 center.x,
                 center.y,
                 center.z,
-                bounds.instanced_definition_max_scale[index]
+                bounds.geometry.definition_max_scale[
+                    definition_index]
             };
 
-            destination.bounds_extent = {
+            output.bounds_extent = {
                 size.x * 0.5f,
                 size.y * 0.5f,
                 size.z * 0.5f,
@@ -99,101 +116,164 @@ namespace fjr::render {
             };
 
             float* errors =
-                &destination.lod_errors.x;
+                &output.lod_errors.x;
 
-            for (std::uint32_t lod = 0;
-                lod < POINT_LOD_COUNT;
-                ++lod) {
-                errors[lod] =
+            for (std::uint32_t lod_index = 0;
+                lod_index < data::Consts::LOD_CNT;
+                ++lod_index) {
+
+                errors[lod_index] =
                     scene.mesh_lods[
-                        mesh.lod_offset + lod].max_deviation;
+                        static_cast<std::size_t>(
+                            mesh.lod_offset) +
+                            lod_index]
+                    .max_deviation;
             }
         }
 
-        // Batches
+        // Point batches
         result.batches.resize(
             scene.point_batches.size());
 
-        for (std::size_t index = 0;
-            index < result.batches.size();
-            ++index) {
+        for (std::size_t batch_index = 0;
+            batch_index < scene.point_batches.size();
+            ++batch_index) {
 
             const auto& source =
-                scene.point_batches[index];
+                scene.point_batches[batch_index];
+
             const auto& definition =
                 scene.instanced_mesh_definitions[
                     source.definition];
+
             const auto& cluster_range =
-                bounds.point_batch_cluster_ranges[index];
+                bounds.points.batch_cluster_ranges[
+                    batch_index];
 
-            auto& destination =
-                result.batches[index];
+            auto& output =
+                result.batches[batch_index];
 
-            destination.part_local_transform =
+            output.part_local_transform =
                 definition.local_transform;
-            destination.batch_local_to_world =
+
+            output.batch_local_to_world =
                 source.local_to_world;
 
-            destination.indices = {
-                source.definition,
-                static_cast<std::uint32_t>(index) *
-                    POINT_LOD_COUNT,
-                cluster_range.offset,
-                cluster_range.count
-            };
+            output.definition_index =
+                source.definition;
 
-            destination.culling.x =
-                bounds.point_batch_transform_max_scale[index];
+            output.first_bin =
+                static_cast<std::uint32_t>(
+                    batch_index) *
+                data::Consts::LOD_CNT;
+
+            output.first_cluster =
+                cluster_range.offset;
+
+            output.cluster_count =
+                cluster_range.count;
+
+            output.transform_max_scale =
+                bounds.points
+                .batch_transform_max_scale[
+                    batch_index];
         }
 
-        // Clusters
+        // Point clusters
         result.clusters.reserve(
-            bounds.point_clusters.size());
+            bounds.points.clusters.size());
 
-        for (const auto& source : bounds.point_clusters) {
+        for (const auto& cluster :
+            bounds.points.clusters) {
+
             result.clusters.push_back(
-                convert_cluster(source));
+                convert_cluster(cluster));
         }
 
-        // Draw templates
+        // Static point draw templates
+        std::array<
+            std::uint32_t,
+            data::Consts::PIPELINE_CNT>
+            command_counts{};
+
         for (const auto& draw : draw_items) {
-            if (draw.instance_kind !=
-                SceneResources::InstanceKind::POINT) {
+
+            if (draw.instnace_class !=
+                data::EnumPointOrMatrix::POINT) {
+
                 continue;
             }
 
-            // M1에서는 alpha blend를 기존 CPU direct path에 남긴다.
+            // Alpha blend는 현재 direct path에 남긴다.
             if (is_alpha_blended(draw.flags)) {
                 continue;
             }
 
-            PointDrawTemplateGpu destination;
-            destination.bin_index =
-                draw.instance_bin_index;
-            destination.point_batch_index =
-                draw.bounds_index;
-            destination.material_id =
-                draw.constants.material_id;
-            destination.pipeline_class =
-                pipeline_class(draw.flags);
+            data::StbufPointDraw output;
 
-            destination.index_count =
-                draw.index_count;
-            destination.first_index =
-                draw.first_index;
-            destination.base_vertex =
-                draw.base_vertex;
+            const auto point_batch_index =
+                draw.offset_cbuf_transform;
 
-            ++result.command_class_capacities[
-                destination.pipeline_class];
+            output.bin_index =
+                point_batch_index *
+                data::Consts::LOD_CNT +
+                draw.lod_index;
 
-            result.draw_templates.push_back(destination);
+            output.point_batch_index =
+                point_batch_index;
+
+            output.material_id =
+                draw.constants.offset_material;
+
+            output.pipeline_class =
+                draw.pso_class;
+
+            output.index_count =
+                draw.count_index;
+
+            output.first_index =
+                draw.offset_index;
+
+            output.base_vertex =
+                static_cast<std::int32_t>(
+                    draw.offset_vertex);
+
+            const auto class_index =
+                static_cast<std::size_t>(
+                    output.pipeline_class);
+
+            ++command_counts[class_index];
+
+            result.draw_templates.push_back(output);
         }
 
-        result.command_class_bases[0] = 0;
-        result.command_class_bases[1] = result.command_class_capacities[0];
+        // Pipeline class별 indirect command 구간
+        std::uint32_t command_cursor = 0;
+
+        for (std::size_t class_index = 0;
+            class_index <
+            data::Consts::PIPELINE_CNT;
+            ++class_index) {
+
+            auto& range =
+                result.indirect_layout
+                .class_ranges[class_index];
+
+            range.first_command =
+                command_cursor;
+
+            range.max_command_count =
+                command_counts[class_index];
+
+            command_cursor +=
+                command_counts[class_index];
+        }
+
+        result.indirect_layout
+            .total_command_capacity =
+            command_cursor;
 
         return result;
+    }
 
-	}
-}
+} // namespace fjr::render

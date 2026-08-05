@@ -10,7 +10,6 @@
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/View.hpp"
-#include "FastJungle/renderer/structs/Draw.hpp"
 
 namespace fjr::render {
 

@@ -10,24 +10,20 @@
 #include "FastJungle/dx12/DeviceUtils.hpp"
 #include "FastJungle/dx12/SwapChain.hpp"
 #include "FastJungle/dx12/Texture.hpp"
-#include "FastJungle/renderer/component/Camera.hpp"
-#include "FastJungle/renderer/component/FrameData.hpp"
+#include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/renderer/RendererOptions.hpp"
-#include "FastJungle/renderer/data/SceneResources.hpp"
-#include "FastJungle/renderer/builder/SceneViewer.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
+#include "FastJungle/renderer/data/SceneResourcesTemp.hpp"
+#include "FastJungle/renderer/data/SceneResources.hpp"
+#include "FastJungle/renderer/data/DynamicSceneData.hpp"
+#include "FastJungle/renderer/data/FrameConstData.hpp"
 
 namespace fjr::render {
-
-    namespace internal {
-        class CameraController;
-    }
 
     class RendererMain {
 
     public:
-
         RendererMain();
         ~RendererMain();
 
@@ -49,14 +45,12 @@ namespace fjr::render {
 
         void render();
 
-        void handle_key_down(uint32_t virtual_key);
-
         bool to_close() const { return false; }
 
+        Camera camera;
     private:
         void create_size_dependent_resources(
-            std::uint32_t width,
-            std::uint32_t height);
+            uint32_t width, uint32_t height);
 
         static constexpr std::uint32_t FRAME_COUNT = 2;
 
@@ -73,14 +67,13 @@ namespace fjr::render {
 
         ForwardPass forward_pass_;
 
-        Camera camera_;
-        std::unique_ptr<internal::CameraController> camera_controller_;
-        std::array<FrameData, FRAME_COUNT> frame_data_;
-
         RendererOptions options_;
-        std::unique_ptr<SceneResources> scene_resources_;
         scene::StaticScene::EnvironmentLight environment_light_;
-        SceneViewer scene_viewer_;
+
+        std::unique_ptr<data::SceneResourcesTemp> scene_resources_temp_;
+        std::unique_ptr<data::SceneResources> scene_resources_;
+        data::DynamicSceneData dynamic_scene_data_;
+        std::array<data::FrameConstData, FRAME_COUNT> frame_const_data_;
     };
 
 } // namespace fjr

@@ -1,14 +1,14 @@
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 
-#include "FastJungle/dx12/PSOUtils.hpp"
-#include "FastJungle/dx12/RootSignatureBuilder.hpp"
-#include "FastJungle/dx12/Shader.hpp"
-#include "FastJungle/renderer/SceneResources.hpp"
-
 #include <array>
 #include <cstdint>
 #include <filesystem>
 #include <iterator>
+
+#include "FastJungle/dx12/PSOUtils.hpp"
+#include "FastJungle/dx12/RootSignatureBuilder.hpp"
+#include "FastJungle/dx12/Shader.hpp"
+#include "FastJungle/renderer/data/SceneResources.hpp"
 
 namespace fjr::render {
 

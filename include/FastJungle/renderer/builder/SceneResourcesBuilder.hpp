@@ -1,35 +1,28 @@
 #pragma once
 
 #include <d3d12.h>
-#include <cstdint>
-#include <memory>
-#include <vector>
 
-#include "FastJungle/scene/StaticScene.hpp"
-#include "FastJungle/renderer/SceneRenderData.hpp"
-#include "FastJungle/renderer/SceneResources.hpp"
-#include "FastJungle/renderer/RendererOptions.hpp"
 #include "FastJungle/dx12/CommandQueue.hpp"
+#include "FastJungle/renderer/data/SceneResources.hpp"
+#include "FastJungle/renderer/data/SceneResourcesTemp.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
 
-	class SceneResourcesBuilder {
+    class SceneResourcesBuilder final {
+    public:
+        SceneResourcesBuilder() = delete;
 
-	public:
-		struct BuildResult {
-			std::unique_ptr<SceneResources> resources;
-			std::vector<SceneDrawItem> draw_items;
-		};
+        struct Context {
+            ID3D12Device* device = nullptr;
+            dx::CommandQueue* command_queue = nullptr;
+        };
 
-		struct BuildContexts {
-			ID3D12Device* device;
-			dx::CommandQueue* command_queue;
-		};
+        [[nodiscard]]
+        static data::SceneResources build(
+            const Context& context,
+            const scene::StaticScene& scene,
+            const data::SceneResourcesTemp& source);
+    };
 
-		static BuildResult build(
-			BuildContexts& contexts,
-			const scene::StaticScene& scene,
-			const SceneBoundsBuilder& bounds,
-			const RendererOptions& options);
-	};
 } // namespace fjr::render
