@@ -142,7 +142,9 @@ int WINAPI wWinMain(
     _In_ PWSTR,
     _In_ int show_command) {
 
-    const auto options = get_renderer_launch_options();
+    auto options = get_renderer_launch_options();
+    options.renderer.lod_selection = fjr::render::LodSelectionMode::COARSEST;
+    options.renderer.object_selection = fjr::render::ObjectSelectionMode::DEFAULT_ALL;
 
     HWND hwnd = create_window(instance, 1280, 720);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
@@ -152,8 +154,8 @@ int WINAPI wWinMain(
     auto res_rect = GetClientRect(hwnd, &rect);
     fjr::log::Logger::g_logger << fjr::log::asrt(res_rect);
 
-    const auto width = rect.right - rect.left;
-    const auto height = rect.bottom - rect.top;
+    const uint32_t width = static_cast<uint32_t>(rect.right - rect.left);
+    const uint32_t height = static_cast<uint32_t>(rect.bottom - rect.top);
 
     SetWindowTextW(hwnd, L"Fast Jungle Renderer");
 

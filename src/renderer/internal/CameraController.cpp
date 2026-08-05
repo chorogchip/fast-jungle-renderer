@@ -14,12 +14,11 @@ namespace fjr::render::internal {
 
     namespace {
 
-        constexpr float WALK_SPEED_METERS_PER_SECOND = 180.0f;
-        constexpr float SPRINT_SPEED_METERS_PER_SECOND = 900.0f;
-        constexpr float LOOK_SPEED_RADIANS_PER_SECOND = 1.4f;
-        constexpr float TAP_MOVE_METERS = 12.0f;
-        constexpr float TAP_LOOK_RADIANS = 0.08f;
-        constexpr float MAX_FRAME_SECONDS = 0.1f;
+        constexpr float WALK_SPEED_METERS_PER_SECOND = 5.0f;
+        constexpr float SPRINT_SPEED_METERS_PER_SECOND = 100.0f;
+        constexpr float LOOK_SPEED_RADIANS_PER_SECOND = 0.04f;
+        constexpr float TAP_MOVE_METERS = 3.0f;
+        constexpr float TAP_LOOK_RADIANS = 0.04f;
         constexpr float MIN_FORWARD_UP_DOT = 0.985f;
 
         [[nodiscard]] bool key_down(int key) noexcept {
@@ -34,42 +33,33 @@ namespace fjr::render::internal {
     } // namespace
 
     CameraController::CameraController(void* native_window) noexcept
-        : native_window_(native_window),
-          previous_time_(std::chrono::steady_clock::now()) {}
+        : native_window_(native_window) {}
 
     bool CameraController::update(Camera& camera) noexcept {
-        const auto now = std::chrono::steady_clock::now();
-        const float elapsed = std::clamp(
-            std::chrono::duration<float>(now - previous_time_).count(),
-            0.0f,
-            MAX_FRAME_SECONDS);
-        previous_time_ = now;
 
         const auto window = static_cast<HWND>(native_window_);
-        if (elapsed <= 0.0f || window == nullptr ||
-            GetForegroundWindow() != window) {
-            return false;
-        }
+        if (GetForegroundWindow() != window) return false;
 
         const float speed = key_down(VK_SHIFT)
             ? SPRINT_SPEED_METERS_PER_SECOND
             : WALK_SPEED_METERS_PER_SECOND;
+
         return apply(
             camera,
             axis('D', 'A'),
             axis('E', 'Q'),
             axis('W', 'S'),
             axis(VK_RIGHT, VK_LEFT) *
-                LOOK_SPEED_RADIANS_PER_SECOND * elapsed,
+                LOOK_SPEED_RADIANS_PER_SECOND,
             axis(VK_UP, VK_DOWN) *
-                LOOK_SPEED_RADIANS_PER_SECOND * elapsed,
-            speed * elapsed);
+                LOOK_SPEED_RADIANS_PER_SECOND,
+            speed);
     }
 
-    bool CameraController::step(
+    void CameraController::step(
         Camera& camera,
         std::uint32_t virtual_key,
-        LodSelectionMode lod_selection) noexcept {
+        LodSelectionMode lod_selection) {
 
         float strafe = 0.0f;
         float lift = 0.0f;
@@ -87,7 +77,7 @@ namespace fjr::render::internal {
         case VK_RIGHT: yaw = TAP_LOOK_RADIANS; break;
         case VK_DOWN: pitch = -TAP_LOOK_RADIANS; break;
         case VK_UP: pitch = TAP_LOOK_RADIANS; break;
-        default: return false;
+        default: return;
         }
 
         const bool changed = apply(
@@ -101,7 +91,6 @@ namespace fjr::render::internal {
         if (changed) {
             update_caption(camera, lod_selection);
         }
-        return changed;
     }
 
     bool CameraController::apply(

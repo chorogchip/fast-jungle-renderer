@@ -16,7 +16,8 @@ namespace fjr::render {
 
         void append_material_data(
             CompileState& state,
-            const scene::StaticScene& scene) {
+            const scene::StaticScene& scene,
+            const RendererOptions& options) {
 
             auto& bindings = state.data.texture_bindings;
             bindings.reserve(scene.texture_bindings.size() + 1);
@@ -176,7 +177,12 @@ namespace fjr::render {
 
         void append_point_draws(
             CompileState& state,
-            const scene::StaticScene& scene) {
+            const scene::StaticScene& scene,
+            const RendererOptions& options) {
+
+            if (options.object_selection == ObjectSelectionMode::DEMO_PYRAMID ||
+                options.object_selection == ObjectSelectionMode::DEMO_BASIC)
+                return;
 
             const auto& components = scene.components;
             append_point_range(state, scene,
@@ -210,9 +216,9 @@ namespace fjr::render {
             const scene::StaticScene& scene,
             std::uint32_t instance_index) {
 
-            if (instance_index == scene::StaticScene::INVALID_INDEX) {
+            if (instance_index == scene::StaticScene::INVALID_INDEX)
                 return;
-            }
+
             const auto& instance =
                 scene.static_mesh_instances[instance_index];
             (void)append_mesh_draws(
@@ -243,7 +249,8 @@ namespace fjr::render {
 
         void append_static_draws(
             CompileState& state,
-            const scene::StaticScene& scene) {
+            const scene::StaticScene& scene,
+            const RendererOptions& options) {
 
             auto& matrix_instances = state.data.matrix_instances;
             matrix_instances.reserve(scene.static_mesh_instances.size());
@@ -277,12 +284,13 @@ namespace fjr::render {
     } // namespace
 
     SceneRenderData SceneDrawBuilder::build(
-        const scene::StaticScene& scene) {
+        const scene::StaticScene& scene,
+        const RendererOptions& options) {
 
         CompileState state;
-        append_material_data(state, scene);
-        append_point_draws(state, scene);
-        append_static_draws(state, scene);
+        append_material_data(state, scene, options);
+        append_point_draws(state, scene, options);
+        append_static_draws(state, scene, options);
         return std::move(state.data);
     }
 

@@ -8,6 +8,7 @@
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/SceneRenderData.hpp"
 #include "FastJungle/renderer/SceneResources.hpp"
+#include "FastJungle/renderer/RendererOptions.hpp"
 #include "FastJungle/dx12/CommandQueue.hpp"
 
 namespace fjr::render {
@@ -27,6 +28,7 @@ namespace fjr::render {
 
 		static BuildResult build(
 			BuildContexts& contexts,
-			const scene::StaticScene& scene);
+			const scene::StaticScene& scene,
+			const RendererOptions& options);
 	};
 } // namespace fjr::render

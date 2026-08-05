@@ -17,10 +17,10 @@ namespace fjr::render {
             explicit CameraController(void* native_window) noexcept;
 
             [[nodiscard]] bool update(Camera& camera) noexcept;
-            [[nodiscard]] bool step(
+            void step(
                 Camera& camera,
                 std::uint32_t virtual_key,
-                LodSelectionMode lod_selection) noexcept;
+                LodSelectionMode lod_selection);
 
         private:
             [[nodiscard]] static bool apply(
@@ -37,7 +37,6 @@ namespace fjr::render {
                 LodSelectionMode lod_selection) const noexcept;
 
             void* native_window_ = nullptr;
-            std::chrono::steady_clock::time_point previous_time_;
         };
 
     } // namespace internal

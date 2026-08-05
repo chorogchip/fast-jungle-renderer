@@ -49,7 +49,9 @@ namespace fjr::render {
 
         void render();
 
-        void handle_key_down(std::uint32_t virtual_key) noexcept;
+        void handle_key_down(uint32_t virtual_key);
+
+        bool to_close() const { return false; }
 
     private:
         void create_size_dependent_resources(
@@ -73,12 +75,11 @@ namespace fjr::render {
 
         Camera camera_;
         std::unique_ptr<internal::CameraController> camera_controller_;
-        RendererOptions options_;
-        bool redraw_requested_ = true;
         std::array<FrameData, FRAME_COUNT> frame_data_;
 
-        scene::StaticScene::EnvironmentLight environment_light_;
+        RendererOptions options_;
         std::unique_ptr<SceneResources> scene_resources_;
+        scene::StaticScene::EnvironmentLight environment_light_;
         SceneViewer scene_viewer_;
     };
 

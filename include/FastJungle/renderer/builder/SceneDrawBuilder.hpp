@@ -1,7 +1,8 @@
 #pragma once
 
-#include "FastJungle/renderer/SceneRenderData.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
+#include "FastJungle/renderer/SceneRenderData.hpp"
+#include "FastJungle/renderer/RendererOptions.hpp"
 
 namespace fjr::render {
 
@@ -10,7 +11,9 @@ namespace fjr::render {
         SceneDrawBuilder() = delete;
 
         [[nodiscard]]
-        static SceneRenderData build(const scene::StaticScene& scene);
+        static SceneRenderData build(
+            const scene::StaticScene& scene,
+            const RendererOptions& options);
     };
 
 } // namespace fjr::render

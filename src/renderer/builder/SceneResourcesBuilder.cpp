@@ -94,7 +94,8 @@ namespace fjr::render {
 
     SceneResourcesBuilder::BuildResult SceneResourcesBuilder::build(
         BuildContexts& context,
-        const scene::StaticScene& scene) {
+        const scene::StaticScene& scene,
+        const RendererOptions& options) {
 
         if (context.device == nullptr || context.command_queue == nullptr) {
             throw std::invalid_argument(
@@ -102,7 +103,7 @@ namespace fjr::render {
         }
 
         auto resources = std::make_unique<SceneResources>();
-        auto data = SceneDrawBuilder::build(scene);
+        auto data = SceneDrawBuilder::build(scene, options);
         dx::ResourceUploader uploader{
             context.device,
             *context.command_queue};

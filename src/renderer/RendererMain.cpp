@@ -56,19 +56,18 @@ namespace fjr::render {
 
         // build scene
 
-        const auto bounds = SceneBoundsBuilder::build(scene);
+        environment_light_ = scene.environment_light;
 
         SceneResourcesBuilder::BuildContexts build_contexts{};
         build_contexts.device = device_.Get();
         build_contexts.command_queue = &command_queue_;
-        auto scene_build = render::SceneResourcesBuilder::build(
-            build_contexts, scene);
-        scene_resources_ = std::move(scene_build.resources);
-        environment_light_ = scene.environment_light;
 
-        scene_viewer_.init(
-            scene_build.draw_items,
-            bounds);
+        auto scene_build = render::SceneResourcesBuilder::build(
+            build_contexts, scene, options);
+        scene_resources_ = std::move(scene_build.resources);
+
+        const auto bounds = SceneBoundsBuilder::build(scene);
+        scene_viewer_.init(scene_build.draw_items, bounds);
 
         // camera
         camera_.set_scene_camera(scene.camera);
@@ -128,7 +127,6 @@ namespace fjr::render {
 
         camera_.set_viewport(width, height);
         scene_viewer_.update_visibility(camera_, options_.lod_selection);
-        redraw_requested_ = true;
 
         // Render Target
 
@@ -187,17 +185,10 @@ namespace fjr::render {
 
     void RendererMain::render() {
 
-        if (camera_controller_ && camera_controller_->update(camera_)) {
-            scene_viewer_.update_visibility(camera_, options_.lod_selection);
-            redraw_requested_ = true;
-        }
-        if (!redraw_requested_) {
-            return;
-        }
+        camera_controller_->update(camera_);
+        scene_viewer_.update_visibility(camera_, options_.lod_selection);
 
         const int frame = swap_chain_.get_current_frame();
-
-
         auto& context = command_contexts_[frame];
         command_queue_.wait(context.get_fence_value());
         frame_data_[frame].upload_camera_data(camera_, environment_light_);
@@ -221,18 +212,10 @@ namespace fjr::render {
         command_queue_.execute(context.get());
         context.set_fence_value(command_queue_.signal());
         swap_chain_.present();
-        redraw_requested_ = false;
     }
 
-    void RendererMain::handle_key_down(
-        std::uint32_t virtual_key) noexcept {
-
-        if (camera_controller_ &&
-            camera_controller_->step(
-                camera_, virtual_key, options_.lod_selection)) {
-            scene_viewer_.update_visibility(camera_, options_.lod_selection);
-            redraw_requested_ = true;
-        }
+    void RendererMain::handle_key_down(uint32_t virtual_key) {
+        camera_controller_->step(camera_, virtual_key, options_.lod_selection);
     }
 
 } // namespace fjr

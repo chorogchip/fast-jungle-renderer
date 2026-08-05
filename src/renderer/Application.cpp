@@ -13,7 +13,7 @@ namespace fjr {
     }
 
     void Application::run(std::function<bool()> pump_messages) {
-        while (pump_messages())
+        while (!renderer_.to_close() && pump_messages())
             renderer_.render();
     }
 
