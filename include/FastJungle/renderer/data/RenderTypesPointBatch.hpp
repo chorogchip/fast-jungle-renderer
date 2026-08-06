@@ -1,6 +1,6 @@
 #pragma once
 
-
+#include <array>
 #include <cstdint>
 #include <type_traits>
 #include <d3d12.h>
@@ -18,7 +18,8 @@ namespace fjr::render::data {
         DirectX::XMFLOAT3 bounds_extent{};
         uint32_t instance_offset = 0;
         uint32_t instance_count = 0;
-        uint32_t padding[3]{};
+        float world_max_scale = 0.0f;
+        uint32_t padding[2]{};
     };
 
     struct StbufPointMeshBatch {
@@ -30,33 +31,26 @@ namespace fjr::render::data {
         uint32_t cluster_count = 0;
     };
 
-    // definition AABB
+    // PointBatch-local culling definition.
     struct StbufPointDef {
-        DirectX::XMFLOAT4 bounds_center_scale{};
-        DirectX::XMFLOAT4 bounds_extent{};
+        DirectX::XMFLOAT4 bounds_center_lod_scale{};
+        DirectX::XMFLOAT4 bounds_extent_radius{};
         DirectX::XMFLOAT4 lod_errors{};
     };
 
     struct StbufPointDraw {
         uint32_t bin_index = Consts::IND_ERR;
-        uint32_t point_mesh_batch_index = 0;
-        uint32_t material_id = 0;
-        EnumPSOClass pipeline_class = EnumPSOClass::SINGLE_SIDED;
-
-        uint32_t index_count = 0;
-        uint32_t first_index = 0;
-        int32_t base_vertex = 0;
+        uint32_t draw_id = Consts::IND_ERR;
+        EnumRasterClass raster_class =
+            EnumRasterClass::OPAQUE_SINGLE_SIDED;
         uint32_t padding = 0;
     };
 
-    // indirect root constant (3)
-    struct IndirectbufPointMeshBatch {
-        std::uint32_t visible_instance_offset = 0;
-        std::uint32_t material_id = 0;
-        std::uint32_t point_mesh_batch_index = 0;
+    struct IndirectDrawCommand {
+        std::uint32_t draw_id = Consts::IND_ERR;
         D3D12_DRAW_INDEXED_ARGUMENTS draw{};
 
-        static inline constexpr uint32_t CONSTANT_COUNT = 3;
+        static inline constexpr uint32_t CONSTANT_COUNT = 1;
     };
 
     struct IndirectCommandLayout {
@@ -66,7 +60,7 @@ namespace fjr::render::data {
             uint32_t max_command_count = 0;
         };
 
-        std::array<IndirectCommandRange, Consts::PIPELINE_CNT>
+        std::array<IndirectCommandRange, Consts::RASTER_CLASS_CNT>
             class_ranges{};
         uint32_t total_command_capacity = 0;
     };
@@ -74,11 +68,12 @@ namespace fjr::render::data {
     static_assert(sizeof(StbufPointCluster) == 48);
     static_assert(sizeof(StbufPointMeshBatch) == 80);
     static_assert(sizeof(StbufPointDef) == 48);
-    static_assert(sizeof(IndirectbufPointMeshBatch) == 32);
+    static_assert(sizeof(StbufPointDraw) == 16);
+    static_assert(sizeof(IndirectDrawCommand) == 24);
 
     static_assert(std::is_trivially_copyable_v<StbufPointCluster>);
     static_assert(std::is_trivially_copyable_v<StbufPointMeshBatch>);
     static_assert(std::is_trivially_copyable_v<StbufPointDef>);
-    static_assert(std::is_trivially_copyable_v<IndirectbufPointMeshBatch>);
+    static_assert(std::is_trivially_copyable_v<IndirectDrawCommand>);
 
 }

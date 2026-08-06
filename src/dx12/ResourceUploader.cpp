@@ -1,42 +1,50 @@
 #include "FastJungle/dx12/ResourceUploader.hpp"
 
-#include "FastJungle/core/util/Logger.hpp"
-#include "FastJungle/dx12/WindowsUtils.hpp"
-
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
-#include <vector>
+
+#include "FastJungle/dx12/WindowsUtils.hpp"
 
 namespace fjr::dx {
 
-    ResourceUploader::ResourceUploader(
+    void ResourceUploader::init(
         ID3D12Device* device,
         CommandQueue& command_queue,
-        std::array<
-            CommandContext*,
-            COMMAND_LIST_COUNT> command_lists)
-        : device_{device},
-        command_queue_{command_queue},
-        command_lists_{command_lists} {
+        std::size_t page_size,
+        std::size_t page_count) {
 
-        if (device_ == nullptr || !command_queue_) {
-            log::Logger::g_logger << log::abrt(
-                "ResourceUploader requires a device and command queue.");
-        }
+        command_queue_ = &command_queue;
+        page_size_ = static_cast<UINT64>(page_size);
+        contexts_.resize(page_count);
+        upload_buffers_.resize(page_count);
+        mapped_data_.resize(page_count);
+        cursors_.assign(page_count, 0);
 
-        for (const auto* command_list : command_lists_) {
-            if (command_list == nullptr || !*command_list ||
-                command_list->get_type() !=
-                    command_queue_.get_type()) {
+        for (std::size_t index = 0; index < page_count; ++index) {
+            contexts_[index].init(
+                device,
+                command_queue_->get_type(),
+                static_cast<UINT32>(index));
+            upload_buffers_[index].init(
+                device,
+                page_size_,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_FLAG_NONE,
+                D3D12_RESOURCE_STATE_GENERIC_READ);
 
-                log::Logger::g_logger << log::abrt(
-                    "ResourceUploader requires two compatible command lists.");
-            }
+            void* mapped = nullptr;
+            const D3D12_RANGE read_range{0, 0};
+            abort_failed(upload_buffers_[index]->Map(
+                0,
+                &read_range,
+                &mapped));
+            mapped_data_[index] = static_cast<std::byte*>(mapped);
         }
     }
 
-    void ResourceUploader::upload_buffer_bytes(
+    void ResourceUploader::upload_buffer(
         Buffer& destination,
         std::span<const std::byte> source,
         D3D12_RESOURCE_STATES final_state) {
@@ -46,38 +54,45 @@ namespace fjr::dx {
         }
 
         const UINT64 byte_size = static_cast<UINT64>(source.size());
-        destination.init(
-            device_,
-            byte_size,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_COPY_DEST);
+        UINT64 source_offset = 0;
+        while (source_offset < byte_size) {
+            if (!recording_) {
+                auto& context = contexts_[current_page_];
+                command_queue_->wait(context.get_fence_value());
+                context.reset();
+                cursors_[current_page_] = 0;
+                recording_ = true;
+            }
 
-        auto& upload = acquire(byte_size);
-        void* mapped = nullptr;
-        const D3D12_RANGE read_range{0, 0};
-        abort_failed(upload->Map(0, &read_range, &mapped));
-        std::memcpy(mapped, source.data(), source.size());
-        const D3D12_RANGE written_range{
-            0,
-            static_cast<SIZE_T>(byte_size),
-        };
-        upload->Unmap(0, &written_range);
+            const UINT64 remaining = page_size_ - cursors_[current_page_];
+            if (remaining == 0) {
+                flush();
+                continue;
+            }
 
-        auto& context =
-            *command_lists_[current_list_];
+            const UINT64 copy_size = std::min(
+                byte_size - source_offset,
+                remaining);
+            std::memcpy(
+                mapped_data_[current_page_] + cursors_[current_page_],
+                source.data() + static_cast<std::size_t>(source_offset),
+                static_cast<std::size_t>(copy_size));
+            contexts_[current_page_]->CopyBufferRegion(
+                destination.get(),
+                source_offset,
+                upload_buffers_[current_page_].get(),
+                cursors_[current_page_],
+                copy_size);
+            cursors_[current_page_] += copy_size;
+            source_offset += copy_size;
+        }
 
-        context->CopyBufferRegion(
-            destination.get(),
-            0,
-            upload.get(),
-            0,
-            byte_size);
-        destination.transition(context.get(), final_state);
-        submit_current();
+        destination.transition(
+            contexts_[current_page_].get(),
+            final_state);
     }
 
-    void ResourceUploader::upload_buffer_gathered_bytes(
+    void ResourceUploader::upload_buffer_gathered(
         Buffer& destination,
         std::span<const std::byte> source,
         std::size_t element_size,
@@ -87,167 +102,118 @@ namespace fjr::dx {
         if (source_order.empty()) {
             return;
         }
-        if (element_size == 0 ||
-            source.size() % element_size != 0) {
 
-            log::Logger::g_logger << log::abrt(
-                "Gathered buffer upload has an invalid element size.");
-        }
-        if (source_order.size() >
-            std::numeric_limits<UINT64>::max() / element_size) {
-
-            log::Logger::g_logger << log::abrt(
-                "Gathered buffer upload is too large.");
-        }
-
-        const auto source_count =
-            source.size() / element_size;
-
-        for (const auto source_index : source_order) {
-            if (source_index >= source_count) {
-                log::Logger::g_logger << log::abrt(
-                    "Gathered buffer upload has an invalid source index.");
+        std::size_t destination_index = 0;
+        while (destination_index < source_order.size()) {
+            if (!recording_) {
+                auto& context = contexts_[current_page_];
+                command_queue_->wait(context.get_fence_value());
+                context.reset();
+                cursors_[current_page_] = 0;
+                recording_ = true;
             }
+
+            const UINT64 remaining = page_size_ - cursors_[current_page_];
+            const std::size_t element_count = std::min(
+                source_order.size() - destination_index,
+                static_cast<std::size_t>(remaining / element_size));
+            if (element_count == 0) {
+                flush();
+                continue;
+            }
+
+            const UINT64 copy_size = static_cast<UINT64>(element_count) *
+                element_size;
+            auto* destination_data =
+                mapped_data_[current_page_] + cursors_[current_page_];
+            for (std::size_t index = 0; index < element_count; ++index) {
+                std::memcpy(
+                    destination_data + index * element_size,
+                    source.data() + static_cast<std::size_t>(
+                        source_order[destination_index + index]) *
+                        element_size,
+                    element_size);
+            }
+
+            contexts_[current_page_]->CopyBufferRegion(
+                destination.get(),
+                static_cast<UINT64>(destination_index) * element_size,
+                upload_buffers_[current_page_].get(),
+                cursors_[current_page_],
+                copy_size);
+            cursors_[current_page_] += copy_size;
+            destination_index += element_count;
         }
 
-        const UINT64 byte_size =
-            static_cast<UINT64>(source_order.size()) *
-            element_size;
-
-        destination.init(
-            device_,
-            byte_size,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_COPY_DEST);
-
-        auto& upload = acquire(byte_size);
-        void* mapped = nullptr;
-        const D3D12_RANGE read_range{0, 0};
-        abort_failed(upload->Map(0, &read_range, &mapped));
-
-        auto* destination_data =
-            static_cast<std::byte*>(mapped);
-
-        for (std::size_t destination_index = 0;
-            destination_index < source_order.size();
-            ++destination_index) {
-
-            std::memcpy(
-                destination_data +
-                    destination_index * element_size,
-                source.data() +
-                    static_cast<std::size_t>(
-                        source_order[destination_index]) *
-                    element_size,
-                element_size);
-        }
-
-        const D3D12_RANGE written_range{
-            0,
-            static_cast<SIZE_T>(byte_size),
-        };
-        upload->Unmap(0, &written_range);
-
-        auto& context =
-            *command_lists_[current_list_];
-
-        context->CopyBufferRegion(
-            destination.get(),
-            0,
-            upload.get(),
-            0,
-            byte_size);
-        destination.transition(context.get(), final_state);
-        submit_current();
+        destination.transition(
+            contexts_[current_page_].get(),
+            final_state);
     }
 
     void ResourceUploader::upload_texture(
         Texture& destination,
-        std::span<const TextureSubresourceData> source,
+        const TextureUploadDesc& source,
         D3D12_RESOURCE_STATES final_state) {
 
-        if (source.empty()) {
+        if (source.subresources.empty()) {
             return;
         }
-        if (!destination) {
-            log::Logger::g_logger << log::abrt(
-                "Texture upload requires a destination resource.");
-        }
-        if (source.size() > std::numeric_limits<UINT>::max()) {
-            log::Logger::g_logger << log::abrt(
-                "Texture upload has too many subresources.");
-        }
 
-        const UINT subresource_count = static_cast<UINT>(source.size());
-        const auto description = destination->GetDesc();
-        std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(
-            subresource_count);
-        std::vector<UINT> row_counts(subresource_count);
-        std::vector<UINT64> row_sizes(subresource_count);
-        UINT64 upload_size = 0;
-        device_->GetCopyableFootprints(
-            &description,
-            0,
-            subresource_count,
-            0,
-            footprints.data(),
-            row_counts.data(),
-            row_sizes.data(),
-            &upload_size);
-
-        for (UINT index = 0; index < subresource_count; ++index) {
-            const auto minimum_slice_pitch =
-                source[index].row_pitch * row_counts[index];
-            if (source[index].data == nullptr ||
-                source[index].row_pitch < row_sizes[index] ||
-                source[index].slice_pitch < minimum_slice_pitch) {
-                log::Logger::g_logger << log::abrt(
-                    "Texture subresource layout is incompatible with D3D12.");
+        UINT64 upload_offset = 0;
+        for (;;) {
+            if (!recording_) {
+                auto& context = contexts_[current_page_];
+                command_queue_->wait(context.get_fence_value());
+                context.reset();
+                cursors_[current_page_] = 0;
+                recording_ = true;
             }
+
+            const UINT64 remainder =
+                cursors_[current_page_] %
+                D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT;
+            upload_offset = remainder == 0
+                ? cursors_[current_page_]
+                : cursors_[current_page_] +
+                    D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - remainder;
+            if (upload_offset <= page_size_ &&
+                source.required_upload_size <= page_size_ - upload_offset) {
+                break;
+            }
+            flush();
         }
 
-        auto& upload = acquire(upload_size);
-        void* mapped = nullptr;
-        const D3D12_RANGE read_range{0, 0};
-        abort_failed(upload->Map(0, &read_range, &mapped));
-
-        for (UINT index = 0; index < subresource_count; ++index) {
-            const auto& source_data = source[index];
-            const auto& footprint = footprints[index];
-            auto* destination_data = static_cast<std::byte*>(mapped) +
-                footprint.Offset;
+        for (UINT index = 0;
+             index < static_cast<UINT>(source.subresources.size());
+             ++index) {
+            const auto& source_data = source.subresources[index];
+            auto footprint = source_data.base_footprint;
+            footprint.Offset += upload_offset;
+            auto* destination_data =
+                mapped_data_[current_page_] + footprint.Offset;
             const UINT64 destination_slice_pitch =
                 static_cast<UINT64>(footprint.Footprint.RowPitch) *
-                row_counts[index];
+                source_data.row_count;
 
             for (UINT depth = 0;
-                depth < footprint.Footprint.Depth;
-                ++depth) {
-                for (UINT row = 0; row < row_counts[index]; ++row) {
+                 depth < footprint.Footprint.Depth;
+                 ++depth) {
+                for (UINT row = 0; row < source_data.row_count; ++row) {
                     std::memcpy(
                         destination_data +
                             static_cast<std::size_t>(depth) *
                                 destination_slice_pitch +
                             static_cast<std::size_t>(row) *
                                 footprint.Footprint.RowPitch,
-                        source_data.data +
+                        source_data.source +
                             static_cast<std::size_t>(depth) *
-                                source_data.slice_pitch +
+                                source_data.source_slice_pitch +
                             static_cast<std::size_t>(row) *
-                                source_data.row_pitch,
-                        static_cast<std::size_t>(row_sizes[index]));
+                                source_data.source_row_pitch,
+                        static_cast<std::size_t>(source_data.row_size));
                 }
             }
-        }
 
-        const D3D12_RANGE written_range{
-            0,
-            static_cast<SIZE_T>(upload_size),
-        };
-        upload->Unmap(0, &written_range);
-
-        for (UINT index = 0; index < subresource_count; ++index) {
             D3D12_TEXTURE_COPY_LOCATION destination_location{};
             destination_location.pResource = destination.get();
             destination_location.Type =
@@ -255,13 +221,12 @@ namespace fjr::dx {
             destination_location.SubresourceIndex = index;
 
             D3D12_TEXTURE_COPY_LOCATION source_location{};
-            source_location.pResource = upload.get();
+            source_location.pResource = upload_buffers_[current_page_].get();
             source_location.Type =
                 D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-            source_location.PlacedFootprint = footprints[index];
+            source_location.PlacedFootprint = footprint;
 
-            command_lists_[current_list_]->get()
-                ->CopyTextureRegion(
+            contexts_[current_page_]->CopyTextureRegion(
                 &destination_location,
                 0,
                 0,
@@ -270,76 +235,47 @@ namespace fjr::dx {
                 nullptr);
         }
 
+        cursors_[current_page_] =
+            upload_offset + source.required_upload_size;
         destination.transition(
-            command_lists_[current_list_]->get(),
+            contexts_[current_page_].get(),
             final_state);
-        submit_current();
     }
 
-    void ResourceUploader::finish() {
-        submit_current();
-
-        for (std::size_t index = 0;
-            index < COMMAND_LIST_COUNT;
-            ++index) {
-
-            if (!staging_[index]) {
-                continue;
-            }
-
-            command_queue_.wait(
-                command_lists_[index]
-                    ->get_fence_value());
-            staging_[index].reset();
-        }
-    }
-
-    Buffer& ResourceUploader::acquire(UINT64 byte_size) {
-        if (byte_size == 0) {
-            log::Logger::g_logger << log::abrt(
-                "Upload buffer cannot be empty.");
-        }
-        if (recording_) {
-            log::Logger::g_logger << log::abrt(
-                "ResourceUploader already records an upload.");
-        }
-
-        auto& context =
-            *command_lists_[current_list_];
-
-        command_queue_.wait(
-            context.get_fence_value());
-
-        auto& upload = staging_[current_list_];
-        upload.reset();
-        context.reset();
-        recording_ = true;
-
-        upload.init(
-            device_,
-            byte_size,
-            D3D12_HEAP_TYPE_UPLOAD,
-            D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_GENERIC_READ);
-        return upload;
-    }
-
-    void ResourceUploader::submit_current() {
+    void ResourceUploader::flush() {
         if (!recording_) {
             return;
         }
 
-        auto& context =
-            *command_lists_[current_list_];
-
+        auto& context = contexts_[current_page_];
         context.close();
-        command_queue_.execute(context.get());
-        context.set_fence_value(
-            command_queue_.signal());
+        command_queue_->execute(context.get());
+        context.set_fence_value(command_queue_->signal());
 
         recording_ = false;
-        current_list_ =
-            (current_list_ + 1) % COMMAND_LIST_COUNT;
+        current_page_ = (current_page_ + 1) % contexts_.size();
+    }
+
+    void ResourceUploader::reset() {
+        if (command_queue_ != nullptr) {
+            for (std::size_t index = 0; index < contexts_.size(); ++index) {
+                command_queue_->wait(contexts_[index].get_fence_value());
+                if (upload_buffers_[index]) {
+                    upload_buffers_[index]->Unmap(0, nullptr);
+                    upload_buffers_[index].reset();
+                }
+                contexts_[index] = CommandContext{};
+            }
+        }
+
+        command_queue_ = nullptr;
+        contexts_.clear();
+        upload_buffers_.clear();
+        mapped_data_.clear();
+        cursors_.clear();
+        page_size_ = 0;
+        current_page_ = 0;
+        recording_ = false;
     }
 
 } // namespace fjr::dx

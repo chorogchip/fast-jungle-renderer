@@ -18,6 +18,7 @@
 #include "FastJungle/core/util/Assume.h"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/renderer/Application.hpp"
+#include "FastJungle/renderer/builder/ScenePreBuilder.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
 
 namespace {
@@ -252,27 +253,6 @@ int WINAPI wWinMain(
 
     auto options = get_renderer_launch_options();
 
-    /*
-    
-    struct RendererLaunchOptions {
-        std::filesystem::path scene = std::filesystem::path{ FASTJUNGLE_DEFAULT_COOKED_DIR } / "JungleRuins.fjscene";
-        fjr::render::RendererOptions renderer;
-        std::optional<std::filesystem::path> benchmark_output;
-        std::uint32_t benchmark_warmup_frames = 60;
-        std::uint32_t benchmark_frames = 240;
-    };
-    */
-    options.renderer.frame_entire_scene = false;
-    options.renderer.lod_selection = 
-        fjr::render::LodSelectionMode::COARSEST;
-    options.renderer.objects.other = true;
-    options.renderer.objects.other_foliage = true;
-    options.renderer.objects.pyramid_moss = true;
-    options.renderer.objects.river_forest = true;
-    options.renderer.objects.river_seedling = true;
-    options.renderer.objects.terrain = true;
-    options.renderer.vsync = true;
-
     HWND hwnd = create_window(instance, 1280, 720);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
     MSVC_ASSUME(hwnd != nullptr);
@@ -286,7 +266,8 @@ int WINAPI wWinMain(
 
     SetWindowTextW(hwnd, L"Fast Jungle Renderer");
 
-    const auto scene = fjr::scene::StaticSceneReader::load(options.scene);
+    auto scene = fjr::scene::StaticSceneReader::load(options.scene);
+    fjr::render::ScenePreBuilder::build(*scene);
     g_application.init(hwnd, width, height, *scene, options.renderer);
 
     ShowWindow(hwnd, show_command);

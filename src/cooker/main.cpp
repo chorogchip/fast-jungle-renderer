@@ -36,8 +36,8 @@ namespace {
     constexpr std::array<char, 8> TEXTURE_MAGIC{
         'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
     };
-    constexpr std::uint32_t SCENE_VERSION = 7;
-    constexpr std::uint32_t TEXTURE_VERSION = 2;
+    constexpr std::uint32_t SCENE_VERSION = 8;
+    constexpr std::uint32_t TEXTURE_VERSION = 3;
 
     struct CookedFileHeader final {
         std::array<char, 8> magic{};

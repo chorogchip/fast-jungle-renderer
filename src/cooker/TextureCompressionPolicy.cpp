@@ -11,15 +11,17 @@ namespace fjr::cooker {
     namespace {
         enum class TextureUsage : std::uint32_t {
             None = 0,
-            Color = 1u << 0u,
-            Normal = 1u << 1u,
-            Scalar = 1u << 2u,
-            Environment = 1u << 3u
+            BaseColor = 1u << 0u,
+            Emissive = 1u << 1u,
+            Normal = 1u << 2u,
+            Scalar = 1u << 3u,
+            Environment = 1u << 4u
         };
 
         struct UsageRecord final {
             std::uint32_t usage = 0;
             std::array<bool, 5> scalar_channels{};
+            bool base_color_uses_alpha = false;
             bool srgb = false;
         };
 
@@ -56,6 +58,11 @@ namespace fjr::cooker {
             auto& record = usages[binding.texture];
             record.usage |= usage_i;
             record.srgb = record.srgb || binding.flags == scene::StaticScene::EnumTextureBindingFlag::SRGB;
+            if (usage_i & static_cast<uint32_t>(TextureUsage::BaseColor)) {
+                record.base_color_uses_alpha =
+                    record.base_color_uses_alpha ||
+                    binding.channel != scene::StaticScene::EnumTextureChannel::RGB;
+            }
             if (usage_i & static_cast<uint32_t>(TextureUsage::Scalar)) {
                 record.scalar_channels[channel_index(binding.channel)] = true;
             }
@@ -82,7 +89,7 @@ namespace fjr::cooker {
                 scene,
                 usages,
                 material.texture_binding_base_color,
-                TextureUsage::Color);
+                TextureUsage::BaseColor);
             add_usage(
                 scene,
                 usages,
@@ -107,7 +114,7 @@ namespace fjr::cooker {
                 scene,
                 usages,
                 material.texture_binding_emissive,
-                TextureUsage::Color);
+                TextureUsage::Emissive);
         }
 
         if (scene.environment_light.texture !=
@@ -130,22 +137,33 @@ namespace fjr::cooker {
                     static_cast<std::uint32_t>(expected));
             };
             const bool environment = contains(TextureUsage::Environment);
-            const bool color = contains(TextureUsage::Color);
+            const bool base_color = contains(TextureUsage::BaseColor);
+            const bool emissive = contains(TextureUsage::Emissive);
             const bool normal = contains(TextureUsage::Normal);
             const bool scalar = contains(TextureUsage::Scalar);
 
-            if (environment && !color && !normal && !scalar) {
+            if (environment && !base_color && !emissive && !normal && !scalar) {
                 plan.dxgi_format = DXGI_FORMAT_BC6H_UF16;
             }
-            else if (normal && !color && !scalar && !environment) {
+            else if (normal && !base_color && !emissive && !scalar && !environment) {
                 plan.dxgi_format = DXGI_FORMAT_BC5_UNORM;
             }
-            else if (scalar && !color && !normal && !environment &&
+            else if (scalar && !base_color && !emissive && !normal && !environment &&
                 std::ranges::count(usage.scalar_channels, true) == 1) {
                 plan.dxgi_format = DXGI_FORMAT_BC4_UNORM;
                 plan.source_channel = scalar_channel(usage);
                 plan.isolate_source_channel = true;
                 plan.linearize_source_channel = usage.srgb;
+            }
+            else if (base_color && !usage.base_color_uses_alpha &&
+                !emissive && !normal && !scalar &&
+                !environment) {
+                // An RGB-only base-color map needs neither a continuous
+                // alpha channel nor the extra precision of BC7. BC1 halves
+                // its resident and payload size, while the SRGB view still
+                // comes from the texture binding at runtime.
+                plan.dxgi_format = DXGI_FORMAT_BC1_UNORM;
+                plan.filter_as_srgb = usage.srgb;
             }
             else {
                 plan.dxgi_format = DXGI_FORMAT_BC7_UNORM;

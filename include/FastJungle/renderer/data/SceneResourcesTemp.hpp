@@ -4,6 +4,7 @@
 
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 #include "FastJungle/renderer/data/RenderTypesCommon.hpp"
+#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 #include "FastJungle/renderer/data/RenderTypesPointBatch.hpp"
 
 namespace fjr::render::data {
@@ -22,9 +23,8 @@ namespace fjr::render::data {
 
         std::vector<StbufMaterial> materials;
         std::vector<StbufTextureBinding> texture_bindings;
+        std::vector<StbufDrawMetadata> draw_metadata;
         std::vector<StbufMatrixInstance> matrix_instances;
-        std::vector<CbufPointDraw> point_constants;
-        std::vector<CbufMatrixDraw> matrix_constants;
 
         PointRenderPlan points;
     };

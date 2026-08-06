@@ -1,20 +1,4 @@
-cbuffer CameraConstants : register(b0) {
-    row_major float4x4 view_projection;
-    float3 camera_world_position;
-    float camera_padding;
-
-    row_major float4x4 environment_world_transform;
-    float3 environment_color;
-    float environment_intensity;
-    uint environment_texture_id;
-    uint3 environment_padding;
-};
-
-cbuffer DrawConstants : register(b2) {
-    uint instance_offset;
-    uint material_id;
-    uint instance_kind;
-};
+#include "ForwardCommon.hlsli"
 
 struct Material {
     float4 base_color;
@@ -113,7 +97,8 @@ float2 environment_uv(float3 direction) {
 }
 
 float4 main(PixelInput input) : SV_TARGET {
-    const Material material = materials[material_id];
+    const DrawMetadata metadata = draw_metadata[draw_id];
+    const Material material = materials[metadata.material_id];
     const float2 uv = input.uv;
 
     const float3 position_dx = ddx(input.world_position);

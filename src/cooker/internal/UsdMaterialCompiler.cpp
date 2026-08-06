@@ -25,13 +25,9 @@ namespace fjr::cooker::internal {
             ? static_cast<std::uint32_t>(
                 StaticScene::EnumSubmeshFlag::DOUBLE_SIDED)
             : 0u;
-        if (alpha_mode == AlphaMode::Tested) {
+        if (alpha_tested) {
             flags |= static_cast<std::uint32_t>(
                 StaticScene::EnumSubmeshFlag::ALPHA_TESTED);
-        }
-        else if (alpha_mode == AlphaMode::Blended) {
-            flags |= static_cast<std::uint32_t>(
-                StaticScene::EnumSubmeshFlag::ALPHA_BLENDED);
         }
         return static_cast<StaticScene::EnumSubmeshFlag>(flags);
     }
@@ -81,7 +77,6 @@ namespace fjr::cooker::internal {
                 0.01f);
 
             std::string uv_primvar;
-            bool has_opacity_texture = false;
             if (resolve_material_texture(
                 surface,
                 "diffuseColor",
@@ -108,12 +103,12 @@ namespace fjr::cooker::internal {
                 false,
                 material.texture_binding_metallic,
                 uv_primvar));
-            has_opacity_texture = resolve_material_texture(
+            static_cast<void>(resolve_material_texture(
                 surface,
                 "opacity",
                 false,
                 material.texture_binding_opacity,
-                uv_primvar);
+                uv_primvar));
             if (resolve_material_texture(
                 surface,
                 "emissiveColor",
@@ -136,10 +131,7 @@ namespace fjr::cooker::internal {
                 material.texture_binding_emissive != StaticScene::INVALID_INDEX;
 
             if (material.opacity_threshold > 0.0f) {
-                product.alpha_mode = AlphaMode::Tested;
-            }
-            else if (material.opacity < 1.0f || has_opacity_texture) {
-                product.alpha_mode = AlphaMode::Blended;
+                product.alpha_tested = true;
             }
         }
 

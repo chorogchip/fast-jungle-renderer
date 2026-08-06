@@ -10,7 +10,7 @@ Executeable: FastJungle.exe
 Quality : basic PBR, alpha-tested foliage, light/shadow
 Concept : avoid generality, gain performance by fixed target
 
-DX12 / DXC / SM 6.6
+DX12 / DXC / SM 6.5
 
 # 알아야 할 수치
 count / size of instnace / triangle / draw / submesh / material / texture

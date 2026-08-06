@@ -10,7 +10,7 @@ The project targets **1920 x 1080 at 60 FPS on a GTX 1060 Mobile**. Instead of b
 * OS: Windows
 * API: DirectX 12
 * Shader compiler: DXC
-* Shader model: SM 6.6
+* Shader model: SM 6.5
 * Resolution: 1920 x 1080
 * Target frame rate: 60 FPS
 * Quality: basic PBR, alpha-tested foliage, lighting, and shadows
@@ -51,7 +51,7 @@ JungleRuins.fjscene + JungleRuins.fjtex
 GPU renderer
 ```
 
-The cooker writes a version 7 `JungleRuins.fjscene` containing geometry,
+The cooker writes a version 8 `JungleRuins.fjscene` containing geometry,
 materials, instances, and runtime component categories, plus a companion
 `JungleRuins.fjtex` containing texture pixels. The runtime renderer reads both
 without linking OpenUSD. Run the Release cooker preset once to create both

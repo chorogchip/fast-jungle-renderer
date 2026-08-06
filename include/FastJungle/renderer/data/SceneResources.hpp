@@ -7,6 +7,7 @@
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/Texture.hpp"
 #include "FastJungle/dx12/DescriptorHeap.hpp"
+#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 #include "FastJungle/renderer/data/RenderTypesPointBatch.hpp"
 
 namespace fjr::render::data {
@@ -34,13 +35,13 @@ namespace fjr::render::data {
             dx::Buffer point_instances;
             dx::Buffer matrix_instances;
 
-            dx::Buffer point_draw_constants;
-            dx::Buffer matrix_draw_constants;
-
             uint32_t point_instance_count = 0;
             uint32_t matrix_instance_count = 0;
-            uint32_t point_constant_count = 0;
-            uint32_t matrix_constant_count = 0;
+        };
+
+        struct DrawResources {
+            dx::Buffer metadata;
+            uint32_t metadata_count = 0;
         };
 
         struct PointResources {
@@ -61,6 +62,7 @@ namespace fjr::render::data {
         GeometryResources geometry;
         MaterialResources materials;
         InstanceResources instances;
+        DrawResources draws;
         PointResources points;
     };
 

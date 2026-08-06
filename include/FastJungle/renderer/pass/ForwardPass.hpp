@@ -28,12 +28,11 @@ namespace fjr::render {
 
             // root const buffer
             D3D12_GPU_VIRTUAL_ADDRESS cbuf_camera{};
-            dx::CBufferArrayView cbuf_transform_matrix{};
-            dx::CBufferArrayView cbuf_transform_point{};
-
             // root srv
-            D3D12_GPU_VIRTUAL_ADDRESS desc_instnaces_matrix{};
+            D3D12_GPU_VIRTUAL_ADDRESS desc_instances_matrix{};
             D3D12_GPU_VIRTUAL_ADDRESS desc_instances_point{};
+            D3D12_GPU_VIRTUAL_ADDRESS desc_draw_metadata{};
+            D3D12_GPU_VIRTUAL_ADDRESS desc_point_mesh_batches{};
             D3D12_GPU_VIRTUAL_ADDRESS desc_materials{};
             D3D12_GPU_VIRTUAL_ADDRESS desc_texture_bindings{};
 
@@ -59,9 +58,12 @@ namespace fjr::render {
             std::span<const data::DrawFinalCPU> draws);
 
     private:
-        static constexpr std::uint32_t PIPELINE_STATE_COUNT = 4;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
-        std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, PIPELINE_STATE_COUNT> pipeline_states_;
+        std::array<
+            std::array<
+                Microsoft::WRL::ComPtr<ID3D12PipelineState>,
+                data::Consts::RASTER_CLASS_CNT>,
+            data::Consts::INSTANCE_KIND_CNT> pipeline_states_;
     };
 
 } // namespace fjr::render

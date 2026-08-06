@@ -13,18 +13,6 @@ Renderer가 StaticScene을 가공 시 CPU/GPU 양측에서 처리하고 버퍼�
 
 namespace fjr::render::data {
 
-    struct alignas(Consts::CBUF_ALIGN) CbufPointDraw {
-        DirectX::XMFLOAT4X4 part_local_transform = Consts::I_MAT;
-    };
-
-    /*
-        StaticScene의 행렬들 하나로 합침.
-        normal 변환까지 이 행렬로 처리함. (uniform scale 가정)
-    */
-    struct alignas(Consts::CBUF_ALIGN) CbufMatrixDraw {
-        DirectX::XMFLOAT4X4 part_local_transform = Consts::I_MAT;
-    };
-
     /*
         StaticScene에서 matrix만 분리해서 씀.
     */
@@ -56,13 +44,9 @@ namespace fjr::render::data {
     };
 
 
-    static_assert(sizeof(CbufPointDraw) == Consts::CBUF_ALIGN);
-    static_assert(sizeof(CbufMatrixDraw) == Consts::CBUF_ALIGN);
     static_assert(sizeof(StbufMaterial) == 96);
     static_assert(sizeof(StbufTextureBinding) == 16);
 
-    static_assert(std::is_trivially_copyable_v<CbufPointDraw>);
-    static_assert(std::is_trivially_copyable_v<CbufMatrixDraw>);
     static_assert(std::is_trivially_copyable_v<StbufMatrixInstance>);
     static_assert(std::is_trivially_copyable_v<StbufMaterial>);
     static_assert(std::is_trivially_copyable_v<StbufTextureBinding>);

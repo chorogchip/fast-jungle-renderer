@@ -132,10 +132,6 @@ namespace fjr::render {
         build_context.command_queue = &command_queue_;
         build_context.heap_srv_cbv_uav = &heap_srv_cbv_uav_;
         build_context.heap_sampler = &heap_sampler_;
-        build_context.command_lists = {
-            &command_contexts_[0],
-            &command_contexts_[1],
-        };
 
         scene_resources_ = std::make_unique<data::SceneResources>(
             SceneResourcesBuilder::build(
@@ -143,6 +139,12 @@ namespace fjr::render {
                 scene,
                 scene_resources_temp,
                 point_culling.instance_order));
+
+        for (auto& frame : scene_frame_resources_) {
+            frame = SceneResourcesBuilder::build_frame(
+                device_.Get(),
+                *scene_resources_);
+        }
 
         initialize_camera(camera, scene.camera, bounds.world_bounds, width, height, options.frame_entire_scene);
 
@@ -176,24 +178,8 @@ namespace fjr::render {
         pass_views.view_indices =
             scene_resources_->geometry.index_view;
 
-        if (scene_resources_->instances.matrix_draw_constants) {
-            pass_views.cbuf_transform_matrix = dx::CBufferArrayView{
-                scene_resources_->instances.matrix_draw_constants
-                    ->GetGPUVirtualAddress(),
-                data::Consts::CBUF_ALIGN
-            };
-        }
-
-        if (scene_resources_->instances.point_draw_constants) {
-            pass_views.cbuf_transform_point = dx::CBufferArrayView{
-                scene_resources_->instances.point_draw_constants
-                    ->GetGPUVirtualAddress(),
-                data::Consts::CBUF_ALIGN
-            };
-        }
-
         if (scene_resources_->instances.matrix_instances) {
-            pass_views.desc_instnaces_matrix =
+            pass_views.desc_instances_matrix =
                 scene_resources_->instances.matrix_instances
                     ->GetGPUVirtualAddress();
         }
@@ -201,6 +187,18 @@ namespace fjr::render {
         if (scene_resources_->instances.point_instances) {
             pass_views.desc_instances_point =
                 scene_resources_->instances.point_instances
+                    ->GetGPUVirtualAddress();
+        }
+
+        if (scene_resources_->draws.metadata) {
+            pass_views.desc_draw_metadata =
+                scene_resources_->draws.metadata
+                    ->GetGPUVirtualAddress();
+        }
+
+        if (scene_resources_->points.mesh_batches) {
+            pass_views.desc_point_mesh_batches =
+                scene_resources_->points.mesh_batches
                     ->GetGPUVirtualAddress();
         }
 

@@ -12,6 +12,10 @@ namespace fjr::render {
     public:
         SceneTextureResourcesBuilder() = delete;
 
+        [[nodiscard]] static UINT64 get_max_upload_size(
+            ID3D12Device* device,
+            const scene::StaticScene& scene);
+
         static void build(
             data::SceneResources::MaterialResources& output,
             dx::ResourceUploader& uploader,

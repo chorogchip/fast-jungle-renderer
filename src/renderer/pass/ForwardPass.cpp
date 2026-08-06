@@ -1,11 +1,9 @@
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 
-#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <iterator>
 
-#include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
@@ -18,8 +16,9 @@ namespace fjr::render {
         enum class RootParameter : std::uint32_t {
             CONSTANT_DRAW,
             ROOT_CBUF_CAMERA,
-            ROOT_CBUF_TRANSFORMS,
             ROOT_SRV_INSTANCES,
+            ROOT_SRV_DRAW_METADATA,
+            ROOT_SRV_POINT_MESH_BATCHES,
             ROOT_SRV_MATERIAL,
             ROOT_SRV_TEXTURE_BINDING,
             TABLE_TEXTURES,
@@ -42,20 +41,26 @@ namespace fjr::render {
 
 
         root_builder.set_constants(RootParameter::CONSTANT_DRAW)
-            .reg(2)
-            .count(3)
+            .reg(1)
+            .count(1)
             .vis_all().add();
 
         root_builder.set_root_cbv(RootParameter::ROOT_CBUF_CAMERA)
             .reg(0)
             .vis_all().add();
 
-        root_builder.set_root_cbv(RootParameter::ROOT_CBUF_TRANSFORMS)
-            .reg(1)
-            .vis_vertex().add();
-
         root_builder.set_root_srv(RootParameter::ROOT_SRV_INSTANCES)
             .reg(0)
+            .vis_vertex().add();
+
+        root_builder.set_root_srv(RootParameter::ROOT_SRV_DRAW_METADATA)
+            .reg(0)
+            .space(1)
+            .vis_all().add();
+
+        root_builder.set_root_srv(RootParameter::ROOT_SRV_POINT_MESH_BATCHES)
+            .reg(1)
+            .space(1)
             .vis_vertex().add();
 
         root_builder.set_root_srv(RootParameter::ROOT_SRV_MATERIAL)
@@ -86,9 +91,13 @@ namespace fjr::render {
         root_signature_ = root_builder.build(device);
 
         const std::filesystem::path shader_directory{ FASTJUNGLE_SHADER_OUTPUT_DIR };
-        dx::Shader vertex_shader{};
+        dx::Shader matrix_vertex_shader{};
+        dx::Shader point_vertex_shader{};
         dx::Shader pixel_shader{};
-        vertex_shader.load(shader_directory / "Forward.vs.dxil");
+        matrix_vertex_shader.load(
+            shader_directory / "ForwardMatrix.vs.dxil");
+        point_vertex_shader.load(
+            shader_directory / "ForwardPoint.vs.dxil");
         pixel_shader.load(shader_directory / "Forward.ps.dxil");
 
         const D3D12_INPUT_ELEMENT_DESC input_elements[]{
@@ -117,7 +126,6 @@ namespace fjr::render {
 
         auto base = dx::PSOUtils::default_graphics_desc();
         base.pRootSignature = root_signature_.Get();
-        base.VS = vertex_shader.get_bytecode();
         base.PS = pixel_shader.get_bytecode();
         base.InputLayout = {
             input_elements,
@@ -127,31 +135,30 @@ namespace fjr::render {
         base.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         base.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-        for (std::uint32_t index = 0; index < PIPELINE_STATE_COUNT; ++index) {
-            auto description = base;
+        for (std::uint32_t instance_kind = 0;
+            instance_kind < data::Consts::INSTANCE_KIND_CNT;
+            ++instance_kind) {
+            const bool point = instance_kind == static_cast<std::uint32_t>(
+                data::EnumInstanceKind::POINT);
 
-            const bool double_sided = enm::has(index, 1u);
-            const bool alpha_blended = enm::has(index, 2u);
+            for (std::uint32_t raster_class = 0;
+                raster_class < data::Consts::RASTER_CLASS_CNT;
+                ++raster_class) {
+                auto description = base;
+                description.VS = point
+                    ? point_vertex_shader.get_bytecode()
+                    : matrix_vertex_shader.get_bytecode();
+                description.RasterizerState.CullMode =
+                    raster_class == static_cast<std::uint32_t>(
+                        data::EnumRasterClass::ALPHA_TESTED_DOUBLE_SIDED)
+                    ? D3D12_CULL_MODE_NONE
+                    : D3D12_CULL_MODE_BACK;
 
-            description.RasterizerState.CullMode =
-                double_sided ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
-
-            if (alpha_blended) {
-                auto& blend = description.BlendState.RenderTarget[0];
-                blend.BlendEnable = TRUE;
-                blend.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-                blend.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-                blend.BlendOp = D3D12_BLEND_OP_ADD;
-                blend.SrcBlendAlpha = D3D12_BLEND_ONE;
-                blend.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-                blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-                description.DepthStencilState.DepthWriteMask =
-                    D3D12_DEPTH_WRITE_MASK_ZERO;
+                pipeline_states_[instance_kind][raster_class] =
+                    dx::PSOUtils::create_graphics(
+                        device,
+                        description);
             }
-
-            pipeline_states_[index] = dx::PSOUtils::create_graphics(
-                device,
-                description);
         }
     }
 
@@ -176,7 +183,13 @@ namespace fjr::render {
             static_cast<UINT>(RootParameter::ROOT_CBUF_CAMERA),
             views.cbuf_camera);
         context->SetGraphicsRootShaderResourceView(
-        static_cast<UINT>(RootParameter::ROOT_SRV_MATERIAL),
+            static_cast<UINT>(RootParameter::ROOT_SRV_DRAW_METADATA),
+            views.desc_draw_metadata);
+        context->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::ROOT_SRV_POINT_MESH_BATCHES),
+            views.desc_point_mesh_batches);
+        context->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::ROOT_SRV_MATERIAL),
             views.desc_materials);
         context->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::ROOT_SRV_TEXTURE_BINDING),
@@ -198,9 +211,12 @@ namespace fjr::render {
         ID3D12PipelineState* current_pipeline = nullptr;
         for (const auto& draw : draws) {
 
-            const auto pipeline_index = static_cast<std::uint32_t>(
-                draw.flags);
-            auto* selected_pipeline = pipeline_states_[pipeline_index].Get();
+            const auto instance_kind = static_cast<std::uint32_t>(
+                draw.instance_kind);
+            const auto raster_class = static_cast<std::uint32_t>(
+                draw.raster_class);
+            auto* selected_pipeline =
+                pipeline_states_[instance_kind][raster_class].Get();
 
             if (selected_pipeline != current_pipeline) {
                 context->SetPipelineState(selected_pipeline);
@@ -208,43 +224,26 @@ namespace fjr::render {
             }
 
             const bool point_instanced =
-                draw.instnace_class ==
-                data::EnumPointOrMatrix::POINT;
-            const auto& transform_constants = point_instanced
-                ? views.cbuf_transform_point
-                : views.cbuf_transform_matrix;
+                draw.instance_kind == data::EnumInstanceKind::POINT;
             const auto instances = point_instanced
                 ? views.desc_instances_point
-                : views.desc_instnaces_matrix;
-
-            context->SetGraphicsRootConstantBufferView(
-                static_cast<UINT>(RootParameter::ROOT_CBUF_TRANSFORMS),
-                transform_constants.get_address(
-                    draw.offset_cbuf_transform));
+                : views.desc_instances_matrix;
 
             context->SetGraphicsRootShaderResourceView(
                 static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
                 instances);
 
-            const std::array<std::uint32_t, 3>
-                root_constants{
-                    draw.constants.offset_instance,
-                    draw.constants.offset_material,
-                    static_cast<std::uint32_t>(
-                        draw.instnace_class)
-                };
-
-            context->SetGraphicsRoot32BitConstants(
+            context->SetGraphicsRoot32BitConstant(
                 static_cast<UINT>(RootParameter::CONSTANT_DRAW),
-                static_cast<UINT>(root_constants.size()),
-                root_constants.data(), 0);
+                draw.draw_id,
+                0);
 
             context->DrawIndexedInstanced(
                 draw.count_index,
                 draw.count_instance,
                 draw.offset_index,
                 static_cast<INT>(draw.offset_vertex),
-                0);
+                draw.instance_offset);
         }
     }
 

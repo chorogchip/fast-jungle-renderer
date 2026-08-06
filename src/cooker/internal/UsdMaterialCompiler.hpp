@@ -20,17 +20,11 @@ namespace fjr::cooker::internal {
 
     class StaticSceneAssembler;
 
-    enum class AlphaMode {
-        Opaque,
-        Tested,
-        Blended,
-    };
-
     struct MaterialProduct final {
         MaterialId id;
         std::string uv_primvar = "st";
         bool has_textures = false;
-        AlphaMode alpha_mode = AlphaMode::Opaque;
+        bool alpha_tested = false;
 
         [[nodiscard]] scene::StaticScene::EnumSubmeshFlag submesh_flags(
             bool double_sided) const noexcept;

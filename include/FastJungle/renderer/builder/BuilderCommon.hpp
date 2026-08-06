@@ -19,6 +19,8 @@ online init
 
 [StaticScene]
 v
+ScenePreBuilder (in-place)
+v
 SceneBoundsBuilder
 v
 [SceneBounds]

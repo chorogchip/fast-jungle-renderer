@@ -11,6 +11,7 @@ namespace fjr::render {
         const data::SceneBounds& bounds,
         const data::SceneDraws& draws) {
         data::SceneResourcesTemp result;
+        result.draw_metadata = draws.draw_metadata;
 
         // Texture bindings
         result.texture_bindings.reserve(scene.texture_bindings.size() + 1);
@@ -67,19 +68,7 @@ namespace fjr::render {
             instance.transform = source.world_transform;
             result.matrix_instances.push_back(instance);
         }
-        // Point draw constants는 PointBatch index와
-        // constant index가 일치한다.
-        result.point_constants.resize(scene.point_batches.size());
-        for (std::size_t batch_id = 0; batch_id < scene.point_batches.size(); ++batch_id) {
-            result.point_constants[batch_id].part_local_transform =
-                scene.point_batches[batch_id].local_transform;
-        }
-        // 모든 matrix draw는 완성된 world matrix를
-        // instance buffer에서 읽는다.
-        if (!scene.static_mesh_instances.empty()) {
-            result.matrix_constants.emplace_back();
-        }
-        result.points = ScenePointResourceBuilder::build(scene, bounds, draws.draw_items);
+        result.points = ScenePointResourceBuilder::build(scene, bounds, draws);
         return result;
     }
 } // namespace fjr::render

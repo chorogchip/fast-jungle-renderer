@@ -38,11 +38,10 @@ namespace fjr::render {
         data::DrawFinalCPU make_final_draw(
             const data::DrawFinalGPUIndirect& source) {
             data::DrawFinalCPU result;
-            result.constants = source.constants;
-            result.instnace_class = source.instnace_class;
-            result.pso_class = source.pso_class;
-            result.flags = source.flags;
-            result.offset_cbuf_transform = source.offset_cbuf_transform;
+            result.draw_id = source.draw_id;
+            result.instance_offset = source.instance_offset;
+            result.instance_kind = source.instance_kind;
+            result.raster_class = source.raster_class;
             result.offset_index = source.offset_index;
             result.offset_vertex = source.offset_vertex;
             result.count_index = source.count_index;

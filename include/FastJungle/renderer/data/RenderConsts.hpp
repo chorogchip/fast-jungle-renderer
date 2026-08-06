@@ -5,15 +5,15 @@
 
 namespace fjr::render::data {
 
-    enum class EnumPointOrMatrix : uint32_t {
+    enum class EnumInstanceKind : uint32_t {
         POINT,
         MATRIX,
         COUNT,
     };
 
-    enum class EnumPSOClass : uint32_t {
-        SINGLE_SIDED,
-        DOUBLE_SIDED,
+    enum class EnumRasterClass : uint32_t {
+        OPAQUE_SINGLE_SIDED,
+        ALPHA_TESTED_DOUBLE_SIDED,
         COUNT,
     };
 
@@ -31,10 +31,10 @@ namespace fjr::render::data {
 
         static inline constexpr uint32_t PNT_CLUSTER_SZ = 256;
         static inline constexpr uint32_t LOD_CNT = 4;
-        static inline constexpr uint32_t INSTANCE_CLASS_CNT =
-            static_cast<uint32_t>(EnumPointOrMatrix::COUNT);
-        static inline constexpr uint32_t PIPELINE_CNT =
-            static_cast<uint32_t>(EnumPSOClass::COUNT);
+        static inline constexpr uint32_t INSTANCE_KIND_CNT =
+            static_cast<uint32_t>(EnumInstanceKind::COUNT);
+        static inline constexpr uint32_t RASTER_CLASS_CNT =
+            static_cast<uint32_t>(EnumRasterClass::COUNT);
     };
 
 }

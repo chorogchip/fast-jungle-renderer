@@ -9,6 +9,7 @@
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/SceneDraws.hpp"
+#include "FastJungle/renderer/data/SceneFrameResources.hpp"
 #include "FastJungle/renderer/data/SceneResources.hpp"
 #include "FastJungle/renderer/data/DynamicSceneData.hpp"
 #include "FastJungle/renderer/data/FrameConstData.hpp"
@@ -49,6 +50,8 @@ namespace fjr::render {
 
         data::SceneDraws scene_draws_;
         std::unique_ptr<data::SceneResources> scene_resources_;
+        std::array<data::SceneFrameResources, FRAME_COUNT>
+            scene_frame_resources_;
         data::DynamicSceneData dynamic_scene_data_;
         std::array<data::FrameConstData, FRAME_COUNT> frame_const_data_;
     };

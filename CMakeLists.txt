@@ -226,17 +226,17 @@ if(FASTJUNGLE_BUILD STREQUAL "renderer")
         )
 
         if(shader MATCHES "\\.vs\\.hlsl$")
-            set(profile "vs_6_6")
+            set(profile "vs_6_5")
         elseif(shader MATCHES "\\.ps\\.hlsl$")
-            set(profile "ps_6_6")
+            set(profile "ps_6_5")
         elseif(shader MATCHES "\\.cs\\.hlsl$")
-            set(profile "cs_6_6")
+            set(profile "cs_6_5")
         elseif(shader MATCHES "\\.gs\\.hlsl$")
-            set(profile "gs_6_6")
+            set(profile "gs_6_5")
         elseif(shader MATCHES "\\.hs\\.hlsl$")
-            set(profile "hs_6_6")
+            set(profile "hs_6_5")
         elseif(shader MATCHES "\\.ds\\.hlsl$")
-            set(profile "ds_6_6")
+            set(profile "ds_6_5")
         else()
             message(FATAL_ERROR
                 "Unknown shader stage for '${relative_shader}'."
@@ -657,6 +657,7 @@ endif()
         FastJungle::OpenUSD
         FastJungle::OneTBB
         windowscodecs
+        bcrypt
         ole32
         shell32
         Shlwapi

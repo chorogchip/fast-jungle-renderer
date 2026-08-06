@@ -3,6 +3,7 @@
 #include <DirectXMath.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -20,6 +21,7 @@ namespace fjr::render {
         geometry.mesh_bounds.resize(scene.meshes.size());
         points.local_bounds.resize(scene.point_batches.size());
         points.local_max_scale.resize(scene.point_batches.size());
+        points.local_sphere_radius.resize(scene.point_batches.size());
         points.batch_bounds.resize(scene.point_batches.size());
         points.batch_max_scale.resize(scene.point_batches.size());
         points.batch_cluster_ranges.resize(
@@ -69,6 +71,32 @@ namespace fjr::render {
             points.local_bounds[batch_id] =
                 geometry.mesh_bounds[batch.mesh].transformed(batch_local);
             points.local_max_scale[batch_id] = math::Matrix::maximum_scale(batch_local);
+
+            const auto center = points.local_bounds[batch_id].get_center();
+            const auto center_vector = DirectX::XMLoadFloat3(&center);
+            const auto& mesh = scene.meshes[batch.mesh];
+            const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
+            float radius_squared = 0.0f;
+
+            for (std::uint32_t submesh = 0; submesh < lod0.submesh_count; ++submesh) {
+                const auto& source = scene.submeshes[
+                    static_cast<std::size_t>(lod0.submesh_offset) + submesh];
+                for (std::uint32_t vertex = 0; vertex < source.vertex_count; ++vertex) {
+                    const auto vertex_id =
+                        static_cast<std::size_t>(source.vertex_offset) + vertex;
+                    const auto position = DirectX::XMVector3TransformCoord(
+                        DirectX::XMLoadFloat3(&scene.vertices[vertex_id].position),
+                        batch_local);
+                    const auto distance = DirectX::XMVectorSubtract(
+                        position,
+                        center_vector);
+                    radius_squared = std::max(
+                        radius_squared,
+                        DirectX::XMVectorGetX(
+                            DirectX::XMVector3LengthSq(distance)));
+                }
+            }
+            points.local_sphere_radius[batch_id] = std::sqrt(radius_squared);
         }
 
         std::size_t cluster_id = 0;

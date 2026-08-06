@@ -174,13 +174,9 @@ namespace fjr::scene {
 			DEFAULT = 0,
 			DOUBLE_SIDED = 1u << 0,
 			ALPHA_TESTED = 1u << 1,
-			ALPHA_BLENDED = 1u << 2,
 
 			DOUBLE_SIDED_AND_ALPHA_TESTED =
 			DOUBLE_SIDED | ALPHA_TESTED,
-
-			DOUBLE_SIDED_AND_ALPHA_BLENDED =
-			DOUBLE_SIDED | ALPHA_BLENDED,
 		};
 
 		struct Submesh {

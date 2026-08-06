@@ -9,16 +9,15 @@
 #include <objbase.h>
 #include <algorithm>
 #include <cctype>
-#include <fstream>
-#include <limits>
 #include <ranges>
 #include <string>
 #include <string_view>
-#include <system_error>
-#include <utility>
+#include <vector>
 
 #include "FastJungle/cooker/CookerCommon.hpp"
+#include "FastJungle/cooker/TextureCookPreparation.hpp"
 #include "FastJungle/cooker/TextureImageProcessing.hpp"
+#include "FastJungle/cooker/TexturePayloadWriter.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
 
@@ -192,30 +191,9 @@ namespace fjr::cooker {
             }
         }
 
-        void write_bytes(
-            std::ofstream& output,
-            const std::byte* data,
-            std::size_t size,
-            const std::filesystem::path& path) {
-            if (size > static_cast<std::size_t>(
-                std::numeric_limits<std::streamsize>::max())) {
-                fail("Texture mip is too large: ", path.generic_string());
-            }
-            output.write(
-                reinterpret_cast<const char*>(data),
-                static_cast<std::streamsize>(size));
-            if (!output) {
-                fail(
-                    "Failed to write texture payload: ",
-                    path.generic_string());
-            }
-        }
-
-        [[nodiscard]]
-        std::string_view texture_key(
+        [[nodiscard]] std::string_view texture_key(
             const scene::StaticScene& scene,
             std::uint32_t texture) {
-
             const auto found = std::ranges::find_if(
                 scene.texture_payload_refs,
                 [texture](const auto& reference) {
@@ -240,11 +218,13 @@ namespace fjr::cooker {
         }
 
         const ComScope com_scope;
-        const auto compression_plans =
-            resolve_texture_compression(scene);
-        std::vector<fjr::scene::StaticScene::Texture> cooked_textures = scene.textures;
+        const auto preparation = prepare_texture_cook(scene);
+        const auto& compression_plans = preparation.compression_plans;
+        std::vector<fjr::scene::StaticScene::Texture> cooked_textures =
+            scene.textures;
         std::vector<scene::StaticScene::TextureMip> cooked_mips;
-        std::vector<fjr::scene::StaticScene::TextureBinding> cooked_bindings = scene.texture_bindings;
+        std::vector<fjr::scene::StaticScene::TextureBinding> cooked_bindings =
+            scene.texture_bindings;
         for (auto& binding : cooked_bindings) {
             if (binding.texture >= compression_plans.size()) {
                 log::Logger::g_logger << log::abrt(
@@ -254,16 +234,17 @@ namespace fjr::cooker {
                 binding,
                 compression_plans[binding.texture]);
         }
-
-        std::ofstream output{
-            payload_path,
-            std::ios::binary | std::ios::trunc};
-        if (!output.is_open()) {
-            fail(
-                "Failed to open texture payload: ",
-                payload_path.generic_string());
+        if (preparation.duplicate_texture_count != 0 ||
+            preparation.folded_base_color_alpha_count != 0) {
+            log::Logger::g_logger
+                << "Texture cook optimizations: "
+                << preparation.duplicate_texture_count
+                << " duplicate textures removed, "
+                << preparation.folded_base_color_alpha_count
+                << " base-color alpha samples folded.\n";
         }
 
+        TexturePayloadWriter payload{payload_path};
         std::uint64_t payload_size = 0;
         try {
             for (std::size_t index = 0;
@@ -293,86 +274,20 @@ namespace fjr::cooker {
                     compression_plans[index],
                     options.fast_bc7,
                     processed);
-                metadata = processed.GetMetadata();
-
-                auto& texture = cooked_textures[index];
-                texture.width = checked_u32(metadata.width, "Texture width");
-                texture.height = checked_u32(metadata.height, "Texture height");
-                texture.dxgi_format =
-                    static_cast<std::uint32_t>(metadata.format);
-                texture.mip_offset = checked_u32(
-                    cooked_mips.size(),
-                    "Texture mip offset");
-                texture.mip_count = checked_u32(
-                    metadata.mipLevels,
-                    "Texture mip count");
-                texture.data_byte_offset = payload_size;
-
-                for (std::size_t mip = 0;
-                     mip < metadata.mipLevels;
-                     ++mip) {
-                    const auto* image = processed.GetImage(mip, 0, 0);
-                    if (image == nullptr || image->pixels == nullptr) {
-                        fail(
-                            "Texture mip is missing: ",
-                            path.generic_string());
-                    }
-
-                    scene::StaticScene::TextureMip destination;
-                    destination.width = checked_u32(
-                        image->width,
-                        "Texture mip width");
-                    destination.height = checked_u32(
-                        image->height,
-                        "Texture mip height");
-                    destination.row_pitch = checked_u32(
-                        image->rowPitch,
-                        "Texture mip row pitch");
-                    destination.slice_pitch = checked_u32(
-                        image->slicePitch,
-                        "Texture mip slice pitch");
-                    destination.data_byte_offset_local =
-                        payload_size - texture.data_byte_offset;
-                    cooked_mips.push_back(destination);
-
-                    if (image->slicePitch >
-                        std::numeric_limits<std::uint64_t>::max() -
-                            payload_size) {
-                        fail("Texture payload exceeds uint64_t.");
-                    }
-                    write_bytes(
-                        output,
-                        reinterpret_cast<const std::byte*>(image->pixels),
-                        image->slicePitch,
-                        path);
-                    payload_size += image->slicePitch;
-                }
-
-                texture.data_size =
-                    payload_size - texture.data_byte_offset;
+                payload.append(
+                    processed,
+                    cooked_textures[index],
+                    cooked_mips,
+                    path);
             }
-
-            output.flush();
-            if (!output) {
-                fail(
-                    "Failed to flush texture payload: ",
-                    payload_path.generic_string());
-            }
-            output.close();
-            if (!output) {
-                fail(
-                    "Failed to close texture payload: ",
-                    payload_path.generic_string());
-            }
+            payload_size = payload.finish();
 
             scene.textures = std::move(cooked_textures);
             scene.texture_mips = std::move(cooked_mips);
             scene.texture_bindings = std::move(cooked_bindings);
         }
         catch (...) {
-            output.close();
-            std::error_code error;
-            std::filesystem::remove(payload_path, error);
+            payload.abandon();
             log::Logger::g_logger << log::abrt(
                 "Texture cooking failed.");
         }
@@ -386,8 +301,8 @@ namespace fjr::cooker {
 
         const auto cached = scene::StaticSceneReader::load_texture_metadata(
             texture_path);
-        const auto compression_plans =
-            resolve_texture_compression(scene);
+        const auto preparation = prepare_texture_cook(scene);
+        const auto& compression_plans = preparation.compression_plans;
         auto cooked_textures = scene.textures;
         std::vector<scene::StaticScene::TextureMip> cooked_mips;
         auto cooked_bindings = scene.texture_bindings;
@@ -396,6 +311,15 @@ namespace fjr::cooker {
             binding = normalize_texture_binding(
                 binding,
                 compression_plans[binding.texture]);
+        }
+        if (preparation.duplicate_texture_count != 0 ||
+            preparation.folded_base_color_alpha_count != 0) {
+            log::Logger::g_logger
+                << "Texture reuse optimizations: "
+                << preparation.duplicate_texture_count
+                << " duplicate textures removed, "
+                << preparation.folded_base_color_alpha_count
+                << " base-color alpha samples folded.\n";
         }
 
         for (const auto& reference : scene.texture_payload_refs) {

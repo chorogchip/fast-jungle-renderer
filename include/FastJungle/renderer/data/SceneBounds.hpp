@@ -28,6 +28,7 @@ namespace fjr::render::data {
         struct PointBounds {
             std::vector<math::AABB> local_bounds;
             std::vector<float> local_max_scale;
+            std::vector<float> local_sphere_radius;
             std::vector<math::AABB> batch_bounds;
             std::vector<float> batch_max_scale;
 

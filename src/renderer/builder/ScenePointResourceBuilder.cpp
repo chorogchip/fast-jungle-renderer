@@ -4,9 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <set>
-#include <tuple>
-
-#include "FastJungle/core/util/EnumUtils.hpp"
+#include <utility>
 
 namespace fjr::render {
     namespace {
@@ -25,6 +23,7 @@ namespace fjr::render {
             result.point_mesh_batch_index = source.point_mesh_batch_index;
             result.instance_offset = source.instances.offset;
             result.instance_count = source.instances.count;
+            result.world_max_scale = source.world_max_scale;
             return result;
         }
     } // namespace
@@ -33,9 +32,7 @@ namespace fjr::render {
         ScenePointResourceBuilder::build(
             const scene::StaticScene& scene,
             const data::SceneBounds& bounds,
-            std::span<
-            const data::DrawFinalGPUIndirect>
-            draw_items) {
+            const data::SceneDraws& draws) {
         data::SceneResourcesTemp::PointRenderPlan result;
         result.bin_count =
             static_cast<std::uint32_t>(scene.point_batches.size()) * data::Consts::LOD_CNT;
@@ -49,17 +46,17 @@ namespace fjr::render {
             const auto center = local_bounds.get_center();
             const auto size = local_bounds.get_size();
             auto& definition = result.definitions[batch_id];
-            definition.bounds_center_scale = {
+            definition.bounds_center_lod_scale = {
                 center.x,
                 center.y,
                 center.z,
                 bounds.points.local_max_scale[batch_id],
             };
-            definition.bounds_extent = {
+            definition.bounds_extent_radius = {
                 size.x * 0.5f,
                 size.y * 0.5f,
                 size.z * 0.5f,
-                0.0f,
+                bounds.points.local_sphere_radius[batch_id],
             };
             float* errors = &definition.lod_errors.x;
             for (std::uint32_t lod = 0; lod < data::Consts::LOD_CNT; ++lod) {
@@ -81,53 +78,34 @@ namespace fjr::render {
             result.clusters.push_back(convert_cluster(cluster));
 
         // Static point draw templates
-        std::array<std::uint32_t, data::Consts::PIPELINE_CNT> command_counts{};
-        std::set<std::tuple<
-            std::uint32_t,
-            std::uint32_t,
-            std::uint32_t,
-            data::EnumPSOClass,
-            std::uint32_t,
-            std::uint32_t,
-            std::int32_t>> template_keys;
+        std::array<std::uint32_t, data::Consts::RASTER_CLASS_CNT>
+            command_counts{};
+        std::set<std::pair<std::uint32_t, std::uint32_t>> template_keys;
 
-        for (const auto& draw : draw_items) {
-            if (draw.instnace_class != data::EnumPointOrMatrix::POINT) {
-                continue;
-            }
-            // Alpha blend remains on the direct path.
-            if (enm::has(draw.flags, data::EnumDrawCpuFlag::ALPHA_BLENDED)) {
+        for (const auto& draw : draws.draw_items) {
+            if (draw.instance_kind != data::EnumInstanceKind::POINT) {
                 continue;
             }
             data::StbufPointDraw output;
-            const auto batch_id = draw.offset_cbuf_transform;
+            const auto& metadata = draws.draw_metadata[draw.draw_id];
+            const auto batch_id = metadata.transform_index;
             output.bin_index = batch_id * data::Consts::LOD_CNT + draw.lod_index;
-            output.point_mesh_batch_index = batch_id;
-            output.material_id = draw.constants.offset_material;
-            output.pipeline_class = draw.pso_class;
-            output.index_count = draw.count_index;
-            output.first_index = draw.offset_index;
-            output.base_vertex = static_cast<std::int32_t>(draw.offset_vertex);
-            const auto key = std::tuple{
-                output.point_mesh_batch_index,
-                draw.lod_index,
-                output.material_id,
-                output.pipeline_class,
-                output.index_count,
-                output.first_index,
-                output.base_vertex,
-            };
+            output.draw_id = draw.draw_id;
+            output.raster_class = draw.raster_class;
+            const auto key = std::pair{output.bin_index, output.draw_id};
             if (!template_keys.insert(key).second) {
                 continue;
             }
-            const auto class_id = static_cast<std::size_t>(output.pipeline_class);
+            const auto class_id = static_cast<std::size_t>(output.raster_class);
             ++command_counts[class_id];
             result.draw_templates.push_back(output);
         }
 
-        // Indirect command ranges grouped by pipeline class.
+        // Indirect command ranges grouped by raster class.
         std::uint32_t command_cursor = 0;
-        for (std::size_t class_id = 0; class_id < data::Consts::PIPELINE_CNT; ++class_id) {
+        for (std::size_t class_id = 0;
+            class_id < data::Consts::RASTER_CLASS_CNT;
+            ++class_id) {
             auto& range = result.indirect_layout.class_ranges[class_id];
             range.first_command = command_cursor;
             range.max_command_count = command_counts[class_id];
