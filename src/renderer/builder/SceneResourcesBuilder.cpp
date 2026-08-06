@@ -76,14 +76,15 @@ namespace fjr::render {
             data::SceneResources& output,
             dx::ResourceUploader& uploader,
             const scene::StaticScene& scene,
-            const data::SceneResourcesTemp& source) {
+            const data::SceneResourcesTemp& source,
+            std::span<const std::uint32_t> point_instance_order) {
 
-            upload_if_not_empty(
+            uploader.upload_buffer_gathered(
                 output.instances.point_instances,
-                uploader,
                 std::span<
                 const scene::StaticScene::PointInstance>{
                 scene.point_instances},
+                point_instance_order,
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
             upload_if_not_empty(
@@ -110,7 +111,7 @@ namespace fjr::render {
 
             output.instances.point_instance_count =
                 static_cast<std::uint32_t>(
-                    scene.point_instances.size());
+                    point_instance_order.size());
 
             output.instances.matrix_instance_count =
                 static_cast<std::uint32_t>(
@@ -231,7 +232,8 @@ namespace fjr::render {
         SceneResourcesBuilder::build(
             const Context& context,
             const scene::StaticScene& scene,
-            const data::SceneResourcesTemp& source) {
+            const data::SceneResourcesTemp& source,
+            std::span<const std::uint32_t> point_instance_order) {
 
         if (context.device == nullptr ||
             context.command_queue == nullptr) {
@@ -245,7 +247,8 @@ namespace fjr::render {
 
         dx::ResourceUploader uploader{
             context.device,
-            *context.command_queue
+            *context.command_queue,
+            context.command_lists
         };
 
         upload_geometry(
@@ -262,7 +265,8 @@ namespace fjr::render {
             result,
             uploader,
             scene,
-            source);
+            source,
+            point_instance_order);
 
         upload_point_resources(
             result,

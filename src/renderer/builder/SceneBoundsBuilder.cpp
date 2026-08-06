@@ -7,8 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "FastJungle/renderer/data/RenderConsts.hpp"
-
 namespace fjr::render {
 
     namespace {
@@ -48,7 +46,8 @@ namespace fjr::render {
     } // namespace
 
     data::SceneBounds SceneBoundsBuilder::build(
-        const scene::StaticScene& scene) {
+        const scene::StaticScene& scene,
+        const data::PointCullingData& point_culling) {
 
         data::SceneBounds result;
 
@@ -147,6 +146,28 @@ namespace fjr::render {
             const auto& batch =
                 scene.point_mesh_batches[batch_index];
 
+            const auto batch_local =
+                DirectX::XMLoadFloat4x4(
+                    &batch.local_transform);
+
+            points.local_bounds[batch_index] =
+                transformed(
+                    geometry.mesh_bounds[batch.mesh],
+                    batch_local);
+
+            points.local_max_scale[batch_index] =
+                maximum_scale(batch_local);
+        }
+
+        // Keep GPU cluster ranges contiguous per mesh batch while preserving
+        // the instance order selected by the user callback.
+        for (std::size_t batch_index = 0;
+            batch_index < scene.point_mesh_batches.size();
+            ++batch_index) {
+
+            const auto& batch =
+                scene.point_mesh_batches[batch_index];
+
             auto& batch_bounds =
                 points.batch_bounds[batch_index];
 
@@ -157,13 +178,6 @@ namespace fjr::render {
                 DirectX::XMLoadFloat4x4(
                     &batch.local_transform);
 
-            points.local_bounds[batch_index] =
-                transformed(
-                    geometry.mesh_bounds[batch.mesh],
-                    batch_local);
-            points.local_max_scale[batch_index] =
-                maximum_scale(batch_local);
-
             auto& cluster_range =
                 points.batch_cluster_ranges[batch_index];
 
@@ -171,45 +185,48 @@ namespace fjr::render {
                 static_cast<std::uint32_t>(
                     points.clusters.size());
 
-            for (std::uint32_t local_span = 0;
-                local_span < batch.category_spans.count;
-                ++local_span) {
+            for (const auto& source_batch :
+                point_culling.batches) {
 
-                const auto& span = scene.point_category_spans[
-                    static_cast<std::size_t>(
-                        batch.category_spans.offset) +
-                    local_span];
+                const auto first_source_index =
+                    point_culling.instance_order[
+                        source_batch.instances.offset];
 
-                for (std::uint32_t local_begin = 0;
-                    local_begin < span.instances.count;
-                    local_begin += data::Consts::PNT_CLUSTER_SZ) {
+                const auto& first_instance =
+                    point_culling.instances[
+                        first_source_index];
 
-                    auto& cluster =
-                        points.clusters.emplace_back();
+                if (first_instance.point_mesh_batch_index !=
+                    batch_index) {
 
-                    cluster.point_mesh_batch_index =
-                        static_cast<std::uint32_t>(
-                            batch_index);
+                    continue;
+                }
 
-                    cluster.category = span.category;
+                auto& cluster =
+                    points.clusters.emplace_back();
 
-                    cluster.instances.offset =
-                        span.instances.offset + local_begin;
+                cluster.point_mesh_batch_index =
+                    static_cast<std::uint32_t>(
+                        batch_index);
 
-                    cluster.instances.count =
-                        std::min(
-                            data::Consts::PNT_CLUSTER_SZ,
-                            span.instances.count - local_begin);
+                cluster.category =
+                    first_instance.category;
+
+                cluster.instances =
+                    source_batch.instances;
 
                 for (std::uint32_t local_instance = 0;
-                    local_instance <
-                    cluster.instances.count;
+                    local_instance < cluster.instances.count;
                     ++local_instance) {
 
-                    const auto instance_index =
+                    const auto order_index =
                         static_cast<std::size_t>(
                             cluster.instances.offset) +
                         local_instance;
+
+                    const auto instance_index =
+                        point_culling.instance_order[
+                            order_index];
 
                     const auto& instance =
                         scene.point_instances[
@@ -241,7 +258,7 @@ namespace fjr::render {
                     const auto instance_bounds =
                         transformed(
                             geometry.mesh_bounds[batch.mesh],
-                                world);
+                            world);
 
                     cluster.world_bounds.merge(
                         instance_bounds);
@@ -260,9 +277,8 @@ namespace fjr::render {
                             instance_max_scale);
                 }
 
-                    batch_bounds.merge(
-                        cluster.world_bounds);
-                }
+                batch_bounds.merge(
+                    cluster.world_bounds);
             }
 
             cluster_range.count =

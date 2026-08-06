@@ -14,6 +14,7 @@
 #include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneDynamicDataBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneFrameConstDataBuilder.hpp"
+#include "FastJungle/renderer/builder/PointCullingDataBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneResourcesTempBuilder.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
@@ -293,8 +294,15 @@ namespace fjr::render {
                 frame);
         }
 
+        const auto point_culling =
+            PointCullingDataBuilder::build(
+                scene,
+                options_.point_culling_build);
+
         const auto bounds =
-            SceneBoundsBuilder::build(scene);
+            SceneBoundsBuilder::build(
+                scene,
+                point_culling);
 
         scene_resources_temp_ =
             std::make_unique<data::SceneResourcesTemp>(
@@ -306,13 +314,18 @@ namespace fjr::render {
         SceneResourcesBuilder::Context build_context;
         build_context.device = device_.Get();
         build_context.command_queue = &command_queue_;
+        build_context.command_lists = {
+            &command_contexts_[0],
+            &command_contexts_[1],
+        };
 
         scene_resources_ =
             std::make_unique<data::SceneResources>(
                 SceneResourcesBuilder::build(
                     build_context,
                     scene,
-                    *scene_resources_temp_));
+                    *scene_resources_temp_,
+                    point_culling.instance_order));
 
         filter_draw_categories(
             *scene_resources_temp_,

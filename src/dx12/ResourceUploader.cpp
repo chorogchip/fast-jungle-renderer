@@ -6,22 +6,34 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace fjr::dx {
 
     ResourceUploader::ResourceUploader(
         ID3D12Device* device,
-        CommandQueue& command_queue)
-        : device_{device}, command_queue_{command_queue} {
+        CommandQueue& command_queue,
+        std::array<
+            CommandContext*,
+            COMMAND_LIST_COUNT> command_lists)
+        : device_{device},
+        command_queue_{command_queue},
+        command_lists_{command_lists} {
 
         if (device_ == nullptr || !command_queue_) {
             throw std::invalid_argument(
                 "ResourceUploader requires a device and command queue.");
         }
 
-        context_.init(device_, command_queue_.get_type(), 0);
-        context_.reset();
-        staging_.reserve(STAGING_SLOT_COUNT);
+        for (const auto* command_list : command_lists_) {
+            if (command_list == nullptr || !*command_list ||
+                command_list->get_type() !=
+                    command_queue_.get_type()) {
+
+                throw std::invalid_argument(
+                    "ResourceUploader requires two compatible command lists.");
+            }
+        }
     }
 
     void ResourceUploader::upload_buffer_bytes(
@@ -52,13 +64,102 @@ namespace fjr::dx {
         };
         upload->Unmap(0, &written_range);
 
-        context_->CopyBufferRegion(
+        auto& context =
+            *command_lists_[current_list_];
+
+        context->CopyBufferRegion(
             destination.get(),
             0,
             upload.get(),
             0,
             byte_size);
-        destination.transition(context_.get(), final_state);
+        destination.transition(context.get(), final_state);
+        submit_current();
+    }
+
+    void ResourceUploader::upload_buffer_gathered_bytes(
+        Buffer& destination,
+        std::span<const std::byte> source,
+        std::size_t element_size,
+        std::span<const std::uint32_t> source_order,
+        D3D12_RESOURCE_STATES final_state) {
+
+        if (source_order.empty()) {
+            return;
+        }
+        if (element_size == 0 ||
+            source.size() % element_size != 0) {
+
+            throw std::invalid_argument(
+                "Gathered buffer upload has an invalid element size.");
+        }
+        if (source_order.size() >
+            std::numeric_limits<UINT64>::max() / element_size) {
+
+            throw std::overflow_error(
+                "Gathered buffer upload is too large.");
+        }
+
+        const auto source_count =
+            source.size() / element_size;
+
+        for (const auto source_index : source_order) {
+            if (source_index >= source_count) {
+                throw std::out_of_range(
+                    "Gathered buffer upload has an invalid source index.");
+            }
+        }
+
+        const UINT64 byte_size =
+            static_cast<UINT64>(source_order.size()) *
+            element_size;
+
+        destination.init(
+            device_,
+            byte_size,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST);
+
+        auto& upload = acquire(byte_size);
+        void* mapped = nullptr;
+        const D3D12_RANGE read_range{0, 0};
+        abort_failed(upload->Map(0, &read_range, &mapped));
+
+        auto* destination_data =
+            static_cast<std::byte*>(mapped);
+
+        for (std::size_t destination_index = 0;
+            destination_index < source_order.size();
+            ++destination_index) {
+
+            std::memcpy(
+                destination_data +
+                    destination_index * element_size,
+                source.data() +
+                    static_cast<std::size_t>(
+                        source_order[destination_index]) *
+                    element_size,
+                element_size);
+        }
+
+        const D3D12_RANGE written_range{
+            0,
+            static_cast<SIZE_T>(byte_size),
+        };
+        upload->Unmap(0, &written_range);
+
+        auto& context =
+            *command_lists_[current_list_];
+
+        context->CopyBufferRegion(
+            destination.get(),
+            0,
+            upload.get(),
+            0,
+            byte_size);
+        destination.transition(context.get(), final_state);
+        submit_current();
     }
 
     void ResourceUploader::upload_texture(
@@ -159,7 +260,8 @@ namespace fjr::dx {
                 D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
             source_location.PlacedFootprint = footprints[index];
 
-            context_->CopyTextureRegion(
+            command_lists_[current_list_]->get()
+                ->CopyTextureRegion(
                 &destination_location,
                 0,
                 0,
@@ -168,11 +270,28 @@ namespace fjr::dx {
                 nullptr);
         }
 
-        destination.transition(context_.get(), final_state);
+        destination.transition(
+            command_lists_[current_list_]->get(),
+            final_state);
+        submit_current();
     }
 
     void ResourceUploader::finish() {
-        submit_and_reset();
+        submit_current();
+
+        for (std::size_t index = 0;
+            index < COMMAND_LIST_COUNT;
+            ++index) {
+
+            if (!staging_[index]) {
+                continue;
+            }
+
+            command_queue_.wait(
+                command_lists_[index]
+                    ->get_fence_value());
+            staging_[index].reset();
+        }
     }
 
     Buffer& ResourceUploader::acquire(UINT64 byte_size) {
@@ -180,12 +299,22 @@ namespace fjr::dx {
             throw std::invalid_argument(
                 "Upload buffer cannot be empty.");
         }
-        if (staging_.size() == STAGING_SLOT_COUNT) {
-            submit_and_reset();
+        if (recording_) {
+            throw std::logic_error(
+                "ResourceUploader already records an upload.");
         }
 
-        staging_.emplace_back();
-        auto& upload = staging_.back();
+        auto& context =
+            *command_lists_[current_list_];
+
+        command_queue_.wait(
+            context.get_fence_value());
+
+        auto& upload = staging_[current_list_];
+        upload.reset();
+        context.reset();
+        recording_ = true;
+
         upload.init(
             device_,
             byte_size,
@@ -195,16 +324,22 @@ namespace fjr::dx {
         return upload;
     }
 
-    void ResourceUploader::submit_and_reset() {
-        if (staging_.empty()) {
+    void ResourceUploader::submit_current() {
+        if (!recording_) {
             return;
         }
 
-        context_.close();
-        command_queue_.execute(context_.get());
-        command_queue_.flush();
-        staging_.clear();
-        context_.reset();
+        auto& context =
+            *command_lists_[current_list_];
+
+        context.close();
+        command_queue_.execute(context.get());
+        context.set_fence_value(
+            command_queue_.signal());
+
+        recording_ = false;
+        current_list_ =
+            (current_list_ + 1) % COMMAND_LIST_COUNT;
     }
 
 } // namespace fjr::dx

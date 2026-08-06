@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "FastJungle/renderer/data/PointCullingData.hpp"
+
 namespace fjr::render {
 
     enum class LodSelectionMode : uint8_t {
@@ -28,6 +30,7 @@ namespace fjr::render {
         LodSelectionMode lod_selection = LodSelectionMode::AUTOMATIC;
         ObjectSelectionMode object_selection = ObjectSelectionMode::DEFAULT_ALL;
         ObjectCategoryOptions objects;
+        data::PointCullingBuildFunction point_culling_build = nullptr;
         bool frame_entire_scene = false;
         bool vsync = true;
     };

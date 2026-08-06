@@ -1,19 +1,18 @@
 #pragma once
 
 #include "FastJungle/renderer/data/PointCullingData.hpp"
-#include "FastJungle/renderer/data/SceneBounds.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
 
-    class SceneBoundsBuilder final {
+    class PointCullingDataBuilder final {
     public:
-        SceneBoundsBuilder() = delete;
+        PointCullingDataBuilder() = delete;
 
         [[nodiscard]]
-        static data::SceneBounds build(
+        static data::PointCullingData build(
             const scene::StaticScene& scene,
-            const data::PointCullingData& point_culling);
+            data::PointCullingBuildFunction user_build_function);
     };
 
 } // namespace fjr::render
