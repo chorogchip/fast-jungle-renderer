@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "FastJungle/core/util/Logger.hpp"
-#include "FastJungle/dx12/HeapManager.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 #include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneDynamicDataBuilder.hpp"
@@ -104,7 +103,10 @@ namespace fjr::render {
 
     void RendererMain::reset() {
         command_queue_.flush();
-        dx::HeapManager::g_heap_manager.reset();
+        heap_srv_cbv_uav_.reset();
+        heap_sampler_.reset();
+        heap_dsv_.reset();
+        heap_rtv_.reset();
     }
 
     void RendererMain::init(
@@ -136,16 +138,29 @@ namespace fjr::render {
             FRAME_COUNT,
             options_.vsync);
 
-        auto& descriptor_heaps = dx::HeapManager::g_heap_manager;
-        descriptor_heaps.init(
+        heap_srv_cbv_uav_.init(
             device_.Get(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
             1024,
+            true);
+        heap_sampler_.init(
+            device_.Get(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
             128,
+            true);
+        heap_dsv_.init(
+            device_.Get(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
             1,
-            FRAME_COUNT);
+            false);
+        heap_rtv_.init(
+            device_.Get(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+            FRAME_COUNT,
+            false);
 
-        desc_rtv_ = descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
-        desc_dsv_ = descriptor_heaps.heap_dsv.alloc();
+        desc_rtv_ = heap_rtv_.alloc(FRAME_COUNT);
+        desc_dsv_ = heap_dsv_.alloc();
 
         for (std::uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             command_contexts_[frame].init(
@@ -165,6 +180,8 @@ namespace fjr::render {
         SceneResourcesBuilder::Context build_context;
         build_context.device = device_.Get();
         build_context.command_queue = &command_queue_;
+        build_context.heap_srv_cbv_uav = &heap_srv_cbv_uav_;
+        build_context.heap_sampler = &heap_sampler_;
         build_context.command_lists = {
             &command_contexts_[0],
             &command_contexts_[1],
@@ -379,10 +396,8 @@ namespace fjr::render {
             D3D12_RESOURCE_STATE_RENDER_TARGET);
 
         context.SetDescriptorHeaps(
-            dx::HeapManager::g_heap_manager
-                .heap_sampler.get(),
-            dx::HeapManager::g_heap_manager
-                .heap_srv_cbv_uav.get());
+            heap_sampler_.get(),
+            heap_srv_cbv_uav_.get());
 
         forward_pass_.views.desc_rtv =
             desc_rtv_.get_cpu(frame);

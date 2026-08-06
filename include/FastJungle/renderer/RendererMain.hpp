@@ -58,6 +58,11 @@ namespace fjr::render {
 
         Microsoft::WRL::ComPtr<ID3D12Device> device_;
 
+        dx::DescriptorHeap heap_srv_cbv_uav_;
+        dx::DescriptorHeap heap_sampler_;
+        dx::DescriptorHeap heap_dsv_;
+        dx::DescriptorHeap heap_rtv_;
+
         dx::CommandQueue command_queue_;
         std::array<dx::CommandContext, FRAME_COUNT> command_contexts_;
 

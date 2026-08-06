@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "FastJungle/dx12/FormatUtils.hpp"
-#include "FastJungle/dx12/HeapManager.hpp"
 #include "FastJungle/dx12/ResourceUploader.hpp"
 #include "FastJungle/dx12/SamplerUtils.hpp"
 #include "FastJungle/renderer/data/SceneResources.hpp"
@@ -23,6 +22,7 @@ namespace fjr::render {
             data::SceneResources::MaterialResources& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
+            dx::DescriptorHeap& heap_srv_cbv_uav,
             const scene::StaticScene& scene) {
 
             if (scene.textures.size() >
@@ -41,9 +41,7 @@ namespace fjr::render {
                     2u);
 
             output.texture_descriptors =
-                dx::HeapManager::g_heap_manager
-                .heap_srv_cbv_uav
-                .alloc(descriptor_count);
+                heap_srv_cbv_uav.alloc(descriptor_count);
 
             if (scene.textures.empty()) {
 
@@ -192,6 +190,7 @@ namespace fjr::render {
         void create_samplers(
             data::SceneResources::MaterialResources& output,
             ID3D12Device* device,
+            dx::DescriptorHeap& heap_sampler,
             const scene::StaticScene& scene) {
 
             if (scene.samplers.size() >
@@ -209,9 +208,7 @@ namespace fjr::render {
                         scene.samplers.size()));
 
             output.sampler_descriptors =
-                dx::HeapManager::g_heap_manager
-                .heap_sampler
-                .alloc(sampler_count);
+                heap_sampler.alloc(sampler_count);
 
             for (UINT sampler_index = 0;
                 sampler_index < sampler_count;
@@ -278,17 +275,21 @@ namespace fjr::render {
         data::SceneResources::MaterialResources& output,
         dx::ResourceUploader& uploader,
         ID3D12Device* device,
+        dx::DescriptorHeap& heap_srv_cbv_uav,
+        dx::DescriptorHeap& heap_sampler,
         const scene::StaticScene& scene) {
 
         create_textures(
             output,
             uploader,
             device,
+            heap_srv_cbv_uav,
             scene);
 
         create_samplers(
             output,
             device,
+            heap_sampler,
             scene);
     }
 

@@ -8,6 +8,7 @@
 
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/CommandQueue.hpp"
+#include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/renderer/data/SceneResources.hpp"
 #include "FastJungle/renderer/data/SceneResourcesTemp.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
@@ -21,6 +22,8 @@ namespace fjr::render {
         struct Context {
             ID3D12Device* device = nullptr;
             dx::CommandQueue* command_queue = nullptr;
+            dx::DescriptorHeap* heap_srv_cbv_uav = nullptr;
+            dx::DescriptorHeap* heap_sampler = nullptr;
             std::array<
                 dx::CommandContext*,
                 2>

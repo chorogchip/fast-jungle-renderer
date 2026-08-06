@@ -236,11 +236,13 @@ namespace fjr::render {
             std::span<const std::uint32_t> point_instance_order) {
 
         if (context.device == nullptr ||
-            context.command_queue == nullptr) {
+            context.command_queue == nullptr ||
+            context.heap_srv_cbv_uav == nullptr ||
+            context.heap_sampler == nullptr) {
 
             throw std::invalid_argument(
                 "SceneResourcesBuilder requires "
-                "device and command queue.");
+                "device, command queue, and descriptor heaps.");
         }
 
         data::SceneResources result;
@@ -277,6 +279,8 @@ namespace fjr::render {
             result.materials,
             uploader,
             context.device,
+            *context.heap_srv_cbv_uav,
+            *context.heap_sampler,
             scene);
 
         uploader.finish();
