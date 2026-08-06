@@ -11,8 +11,7 @@ namespace fjr::render {
 
         [[nodiscard]]
         static data::PointCullingData build(
-            const scene::StaticScene& scene,
-            data::PointCullingBuildFunction user_build_function);
+            const scene::StaticScene& scene);
     };
 
 } // namespace fjr::render

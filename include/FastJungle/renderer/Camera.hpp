@@ -68,12 +68,6 @@ namespace fjr::render {
         }
 
         [[nodiscard]]
-        float get_viewport_height() const noexcept {
-            return 2.0f * near_plane_ *
-                std::tan(vertical_fov_ * 0.5f);;
-        }
-
-        [[nodiscard]]
         const DirectX::XMFLOAT4X4&
             get_view_projection_mat() const noexcept {
             return view_projection_;

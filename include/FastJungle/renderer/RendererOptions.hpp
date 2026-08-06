@@ -10,13 +10,6 @@ namespace fjr::render {
         AUTOMATIC, FINEST, COARSEST,
     };
 
-    enum class ObjectSelectionMode : uint8_t {
-        DEFAULT_ALL,
-        DEMO_PYRAMID,
-        DEMO_FOLIAGE1,
-        DEMO_BASIC,
-    };
-
     struct ObjectCategoryOptions {
         bool river_seedling = true;
         bool river_forest = true;
@@ -28,9 +21,7 @@ namespace fjr::render {
 
     struct RendererOptions {
         LodSelectionMode lod_selection = LodSelectionMode::AUTOMATIC;
-        ObjectSelectionMode object_selection = ObjectSelectionMode::DEFAULT_ALL;
         ObjectCategoryOptions objects;
-        data::PointCullingBuildFunction point_culling_build = nullptr;
         bool frame_entire_scene = false;
         bool vsync = true;
     };

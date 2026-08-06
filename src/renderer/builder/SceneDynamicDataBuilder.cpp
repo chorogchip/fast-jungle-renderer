@@ -215,7 +215,8 @@ namespace fjr::render {
         data::DynamicSceneData& output,
         const data::SceneResourcesTemp& scene,
         const Camera& camera,
-        LodSelectionMode lod_selection) {
+        LodSelectionMode lod_selection,
+        uint32_t viewport_height) {
 
         output.visible_draws.clear();
 
@@ -254,9 +255,7 @@ namespace fjr::render {
                 camera.get_projection_mat()._22);
 
         const float half_viewport_height =
-            0.5f *
-            static_cast<float>(
-                camera.get_viewport_height());
+            0.5f * static_cast<float>(viewport_height);
 
         static constexpr float MAX_PIXEL_ERROR =
             1.0f;

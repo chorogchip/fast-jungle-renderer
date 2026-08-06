@@ -24,8 +24,8 @@ namespace fjr::render {
     class RendererMain {
 
     public:
-        RendererMain();
-        ~RendererMain();
+        RendererMain() = default;
+        ~RendererMain() = default;
 
         RendererMain(const RendererMain&) = delete;
         RendererMain(RendererMain&&) = delete;
@@ -38,6 +38,8 @@ namespace fjr::render {
             std::uint32_t height,
             const scene::StaticScene& scene,
             const RendererOptions& options = {});
+
+        void reset();
 
         void resize(
             std::uint32_t width,

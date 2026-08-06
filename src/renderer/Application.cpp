@@ -55,8 +55,7 @@ namespace fjr {
                 std::chrono::duration<double, std::milli>(
                     time_end - time_begin).count();
 
-            if (measured_frames != 0 &&
-                frame_index >= warmup_frames) {
+            if (measured_frames != 0 && frame_index >= warmup_frames) {
 
                 measurements.push_back(frame_time_ms);
 
@@ -74,6 +73,8 @@ namespace fjr {
 
             ++frame_index;
         }
+
+        renderer_.reset();
 
         return measurements;
     }

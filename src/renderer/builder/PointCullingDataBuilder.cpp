@@ -150,84 +150,30 @@ namespace fjr::render {
             }
         }
 
-        void validate_user_result(
-            const data::PointCullingData& result,
+
+        void build_custum_batches(
+            data::PointCullingData& output,
             const scene::StaticScene& scene) {
 
-            if (result.instance_order.size() >
-                std::numeric_limits<std::uint32_t>::max()) {
+            // TODO
 
-                throw std::overflow_error(
-                    "Point culling instance order is too large.");
-            }
 
-            for (const auto source_index : result.instance_order) {
-                if (source_index >= scene.point_instances.size()) {
-                    throw std::out_of_range(
-                        "Point culling order contains an invalid source index.");
-                }
-            }
-
-            for (const auto& batch : result.batches) {
-                if (batch.instances.count == 0 ||
-                    !valid_range(
-                        batch.instances,
-                        result.instance_order.size())) {
-
-                    throw std::invalid_argument(
-                        "Point culling batch has an invalid instance range.");
-                }
-
-                const auto first_source =
-                    result.instance_order[batch.instances.offset];
-                const auto& first = result.instances[first_source];
-
-                for (std::uint32_t local_instance = 1;
-                    local_instance < batch.instances.count;
-                    ++local_instance) {
-
-                    const auto source_index =
-                        result.instance_order[
-                            static_cast<std::size_t>(
-                                batch.instances.offset) +
-                            local_instance];
-                    const auto& instance =
-                        result.instances[source_index];
-
-                    if (instance.point_mesh_batch_index !=
-                        first.point_mesh_batch_index ||
-                        instance.category != first.category) {
-
-                        throw std::invalid_argument(
-                            "A point culling batch mixes meshes or categories.");
-                    }
-                }
-            }
         }
 
     } // namespace
 
-    data::PointCullingData
-        PointCullingDataBuilder::build(
-            const scene::StaticScene& scene,
-            data::PointCullingBuildFunction user_build_function) {
+    data::PointCullingData PointCullingDataBuilder::build(
+            const scene::StaticScene& scene) {
 
         data::PointCullingData result;
+
         collect_instance_information(result, scene);
 
-        if (user_build_function == nullptr) {
-            build_default_batches(result);
-        } else {
-            data::PointCullingBuildContext context{
-                scene,
-                result.instances,
-                result.instance_order,
-                result.batches,
-            };
-            user_build_function(context);
-        }
+        // prev build function
+        // build_default_batches(result);
 
-        validate_user_result(result, scene);
+        build_custum_batches(result, scene);
+
         return result;
     }
 

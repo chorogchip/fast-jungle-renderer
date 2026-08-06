@@ -15,6 +15,7 @@ namespace fjr::dx {
 			UINT sampler_count,
 			UINT dsv_count,
 			UINT rtv_count);
+
 		void reset();
 
 		dx::DescriptorHeap heap_srv_cbv_uav{};

@@ -39,5 +39,6 @@ namespace fjr::dx {
 		heap_sampler.reset();
 		heap_dsv.reset();
 		heap_rtv.reset();
-	};
+	}
+
 }

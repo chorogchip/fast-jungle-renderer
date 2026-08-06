@@ -238,10 +238,10 @@ namespace fjr::render {
 
     } // namespace
 
-    RendererMain::RendererMain() = default;
 
-    RendererMain::~RendererMain() {
+    void RendererMain::reset() {
         command_queue_.flush();
+        dx::HeapManager::g_heap_manager.reset();
     }
 
     void RendererMain::init(
@@ -295,9 +295,7 @@ namespace fjr::render {
         }
 
         const auto point_culling =
-            PointCullingDataBuilder::build(
-                scene,
-                options_.point_culling_build);
+            PointCullingDataBuilder::build(scene);
 
         const auto bounds =
             SceneBoundsBuilder::build(
@@ -506,7 +504,8 @@ namespace fjr::render {
             dynamic_scene_data_,
             *scene_resources_temp_,
             camera,
-            options_.lod_selection);
+            options_.lod_selection,
+            swap_chain_.get_height());
 
         SceneFrameConstDataBuilder::build(
             frame_const_data_[frame],

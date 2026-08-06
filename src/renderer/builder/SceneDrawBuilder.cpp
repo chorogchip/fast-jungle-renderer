@@ -209,14 +209,6 @@ namespace fjr::render {
             const data::SceneBounds& bounds,
             const RendererOptions& options) {
 
-            if (options.object_selection ==
-                ObjectSelectionMode::DEMO_PYRAMID ||
-                options.object_selection ==
-                ObjectSelectionMode::DEMO_BASIC) {
-
-                return;
-            }
-
             for (const auto& cluster : bounds.points.clusters) {
                 append_point_cluster(
                     output,

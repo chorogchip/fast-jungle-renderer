@@ -36,6 +36,8 @@ namespace fjr::dx {
 
     void DescriptorHeap::reset() {
         descriptor_heap_.Reset();
+        capacity_ = 0;
+        size_ = 0;
     }
 
 } // namespace fjr::dx
