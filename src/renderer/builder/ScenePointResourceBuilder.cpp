@@ -69,19 +69,19 @@ namespace fjr::render {
 
         result.bin_count =
             static_cast<std::uint32_t>(
-                scene.point_mesh_batches.size()) *
+                scene.point_batches.size()) *
             data::Consts::LOD_CNT;
 
         // GPU point definitions are one-to-one with point mesh batches.
         result.definitions.resize(
-            scene.point_mesh_batches.size());
+            scene.point_batches.size());
 
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_mesh_batches.size();
+            batch_index < scene.point_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             const auto& mesh =
                 scene.meshes[batch.mesh];
@@ -130,14 +130,14 @@ namespace fjr::render {
 
         // Point mesh batches
         result.mesh_batches.resize(
-            scene.point_mesh_batches.size());
+            scene.point_batches.size());
 
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_mesh_batches.size();
+            batch_index < scene.point_batches.size();
             ++batch_index) {
 
             const auto& source =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             const auto& cluster_range =
                 bounds.points.batch_cluster_ranges[

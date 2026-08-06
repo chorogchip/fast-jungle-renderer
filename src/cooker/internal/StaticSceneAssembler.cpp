@@ -40,8 +40,7 @@ namespace fjr::cooker::internal {
         string_offsets_.emplace(std::string{}, 0u);
 
         scene_->point_instances.reserve(8'674'676);
-        scene_->point_category_spans.reserve(58);
-        scene_->point_mesh_batches.reserve(53);
+        scene_->point_batches.reserve(58);
         scene_->static_mesh_instances.reserve(84);
         scene_->meshes.reserve(160);
         scene_->submeshes.reserve(256);

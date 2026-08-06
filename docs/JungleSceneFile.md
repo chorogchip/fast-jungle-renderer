@@ -1,4 +1,4 @@
-# Jungle scene file version 5
+# Jungle scene file version 6
 
 ## Purpose
 
@@ -23,7 +23,7 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`5`) |
+| 8 | 4 | format version (`6`) |
 | 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
@@ -85,12 +85,11 @@ instances by mesh and category. All sources using the same mesh must also have
 the same bit-exact local transform; disagreement is a cook error instead of a
 hidden second mesh identity.
 
-Each unique point mesh becomes one `PointMeshBatch`. Its contiguous
-`PointCategorySpan` records preserve semantic distinctions such as `Grass_B`
-versus `Pyramid_Grass_B` even when both use the same mesh. The Jungle scene
-therefore stores 53 point mesh batches, 58 category spans, and all 8,674,676
-point instances. Static mesh instances remain independent and keep their full
-world matrices.
+Each mesh/category pair becomes one `PointBatch`. This preserves semantic
+distinctions such as `Grass_B` versus `Pyramid_Grass_B` even when both use the
+same mesh. The Jungle scene therefore stores 58 point batches and all
+8,674,676 point instances. Static mesh instances remain independent and keep
+their full world matrices.
 
 ## Renderer-owned derived data
 

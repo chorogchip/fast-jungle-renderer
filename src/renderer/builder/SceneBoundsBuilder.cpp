@@ -57,12 +57,12 @@ namespace fjr::render {
 
         geometry.submesh_bounds.resize(scene.submeshes.size());
         geometry.mesh_bounds.resize(scene.meshes.size());
-        points.local_bounds.resize(scene.point_mesh_batches.size());
-        points.local_max_scale.resize(scene.point_mesh_batches.size());
-        points.batch_bounds.resize(scene.point_mesh_batches.size());
-        points.batch_max_scale.resize(scene.point_mesh_batches.size());
+        points.local_bounds.resize(scene.point_batches.size());
+        points.local_max_scale.resize(scene.point_batches.size());
+        points.batch_bounds.resize(scene.point_batches.size());
+        points.batch_max_scale.resize(scene.point_batches.size());
         points.batch_cluster_ranges.resize(
-            scene.point_mesh_batches.size());
+            scene.point_batches.size());
 
         static_instances.bounds.resize(
             scene.static_mesh_instances.size());
@@ -138,13 +138,13 @@ namespace fjr::render {
             }
         }
 
-        // PointMeshBatch와 PointCluster bounds
+        // PointBatch와 PointCluster bounds
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_mesh_batches.size();
+            batch_index < scene.point_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             const auto batch_local =
                 DirectX::XMLoadFloat4x4(
@@ -162,11 +162,11 @@ namespace fjr::render {
         // Keep GPU cluster ranges contiguous per mesh batch while preserving
         // the instance order selected by the user callback.
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_mesh_batches.size();
+            batch_index < scene.point_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             auto& batch_bounds =
                 points.batch_bounds[batch_index];

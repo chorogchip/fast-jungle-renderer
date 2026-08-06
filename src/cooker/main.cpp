@@ -79,15 +79,15 @@ namespace {
 			<< scene.components.terrain.cinematic.count << L" cinematic\n";
 		for (const auto& [category, name] : category_names) {
 			std::uint64_t instances = 0;
-			std::uint32_t spans = 0;
-			for (const auto& span : scene.point_category_spans) {
-				if (span.category == category) {
-					++spans;
-					instances += span.instances.count;
+			std::uint32_t batches = 0;
+			for (const auto& batch : scene.point_batches) {
+				if (batch.category == category) {
+					++batches;
+					instances += batch.instances.count;
 				}
 			}
 			std::wcout << L"    " << name << L": "
-				<< spans << L" mesh spans / "
+				<< batches << L" point batches / "
 				<< instances << L" instances\n";
 		}
     }
@@ -143,10 +143,8 @@ namespace {
             << L"  textures: " << scene.textures.size() << L'\n'
             << L"  materials: " << scene.materials.size() << L'\n'
 			<< L"  meshes: " << scene.meshes.size() << L'\n'
-			<< L"  point mesh batches: "
-			<< scene.point_mesh_batches.size() << L'\n'
-			<< L"  point category spans: "
-			<< scene.point_category_spans.size() << L'\n'
+			<< L"  point batches: "
+			<< scene.point_batches.size() << L'\n'
 			<< L"  point instances: " << scene.point_instances.size() << L'\n'
 			<< L"  static mesh instances: "
 			<< scene.static_mesh_instances.size() << L'\n';

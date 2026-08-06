@@ -46,59 +46,40 @@ namespace fjr::render {
                 0u);
 
             for (std::size_t batch_index = 0;
-                batch_index < scene.point_mesh_batches.size();
+                batch_index < scene.point_batches.size();
                 ++batch_index) {
 
                 const auto& batch =
-                    scene.point_mesh_batches[batch_index];
+                    scene.point_batches[batch_index];
 
                 if (!valid_range(
-                    batch.category_spans,
-                    scene.point_category_spans.size())) {
+                    batch.instances,
+                    scene.point_instances.size())) {
 
                     throw std::invalid_argument(
-                        "Point mesh batch has an invalid category range.");
+                        "Point batch has an invalid instance range.");
                 }
 
-                for (std::uint32_t local_span = 0;
-                    local_span < batch.category_spans.count;
-                    ++local_span) {
+                for (std::uint32_t local_instance = 0;
+                    local_instance < batch.instances.count;
+                    ++local_instance) {
 
-                    const auto& span =
-                        scene.point_category_spans[
-                            static_cast<std::size_t>(
-                                batch.category_spans.offset) +
-                            local_span];
+                    const auto source_index =
+                        batch.instances.offset + local_instance;
 
-                    if (!valid_range(
-                        span.instances,
-                        scene.point_instances.size())) {
+                    auto& instance =
+                        output.instances[source_index];
+
+                    if (instance.point_mesh_batch_index !=
+                        scene::StaticScene::INVALID_INDEX) {
 
                         throw std::invalid_argument(
-                            "Point category has an invalid instance range.");
+                            "Point instance belongs to multiple batches.");
                     }
 
-                    for (std::uint32_t local_instance = 0;
-                        local_instance < span.instances.count;
-                        ++local_instance) {
-
-                        const auto source_index =
-                            span.instances.offset + local_instance;
-
-                        auto& instance =
-                            output.instances[source_index];
-
-                        if (instance.point_mesh_batch_index !=
-                            scene::StaticScene::INVALID_INDEX) {
-
-                            throw std::invalid_argument(
-                                "Point instance belongs to multiple batches.");
-                        }
-
-                        instance.point_mesh_batch_index =
-                            static_cast<std::uint32_t>(batch_index);
-                        instance.category = span.category;
-                    }
+                    instance.point_mesh_batch_index =
+                        static_cast<std::uint32_t>(batch_index);
+                    instance.category = batch.category;
                 }
             }
 
@@ -168,48 +149,28 @@ namespace fjr::render {
             output.batches.reserve(
                 scene.point_instances.size() /
                 data::Consts::PNT_CLUSTER_SZ +
-                scene.point_category_spans.size());
+                scene.point_batches.size());
 
             std::vector<SpatialPoint> spatial_points;
 
             std::size_t write_cursor = 0;
 
-            for (const auto& mesh_batch :
-                scene.point_mesh_batches) {
-
-                for (std::uint32_t local_span = 0;
-                    local_span <
-                    mesh_batch.category_spans.count;
-                    ++local_span) {
-
-                    const std::size_t span_index =
-                        static_cast<std::size_t>(
-                            mesh_batch.category_spans.offset) +
-                        local_span;
-
-                    const auto& span =
-                        scene.point_category_spans[
-                            span_index];
-
-                    if (span.instances.count == 0) {
-                        continue;
-                    }
+            for (const auto& batch : scene.point_batches) {
 
                     const float cell_size =
-                        point_cluster_cell_size(
-                            span.category);
+                        point_cluster_cell_size(batch.category);
 
                     spatial_points.clear();
                     spatial_points.reserve(
-                        span.instances.count);
+                        batch.instances.count);
 
                     for (std::uint32_t local_instance = 0;
                         local_instance <
-                        span.instances.count;
+                        batch.instances.count;
                         ++local_instance) {
 
-                        const std::uint32_t source_index =
-                            span.instances.offset +
+                    const std::uint32_t source_index =
+                            batch.instances.offset +
                             local_instance;
 
                         spatial_points.push_back(
@@ -297,7 +258,6 @@ namespace fjr::render {
                     }
 
                     flush_cluster();
-                }
             }
 
             if (write_cursor !=

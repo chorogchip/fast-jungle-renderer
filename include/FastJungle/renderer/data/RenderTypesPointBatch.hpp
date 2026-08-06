@@ -10,7 +10,7 @@
 
 namespace fjr::render::data {
 
-    // PointMeshBatch -> PointCluster -> PointInstance
+    // PointBatch -> PointCluster -> PointInstance
     struct StbufPointCluster {
         DirectX::XMFLOAT3 bounds_center{};
         uint32_t point_mesh_batch_index = 0;

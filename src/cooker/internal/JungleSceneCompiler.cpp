@@ -156,7 +156,7 @@ namespace fjr::cooker {
                 }
 
                 collect_point_instancers();
-                build_point_mesh_batches();
+                build_point_batches();
                 build_direct_scene();
 				flatten_static_components();
 				JungleSceneProfile::validate_contract(*result_);
@@ -164,8 +164,8 @@ namespace fjr::cooker {
                 if (result_->vertices.empty() || result_->meshes.empty()) {
                     fail("Intel Jungle produced no renderable meshes.");
                 }
-                if (result_->point_mesh_batches.empty()) {
-                    fail("Intel Jungle produced no point mesh batches.");
+                if (result_->point_batches.empty()) {
+                    fail("Intel Jungle produced no point batches.");
                 }
 
                 return assembler_.finish();
@@ -266,19 +266,12 @@ namespace fjr::cooker {
 					});
             }
 
-            void build_point_mesh_batches() {
+			void build_point_batches() {
 				std::size_t source_index = 0;
 				while (source_index < point_instancers_.size()) {
 					const auto mesh = point_instancers_[source_index].mesh;
 					const auto local_transform =
 						point_instancers_[source_index].local_transform;
-
-					StaticScene::PointMeshBatch batch;
-					batch.mesh = mesh;
-					batch.local_transform = local_transform;
-					batch.category_spans.offset = checked_u32(
-						result_->point_category_spans.size(),
-						"Point mesh category span offset");
 
 					while (source_index < point_instancers_.size() &&
 						point_instancers_[source_index].mesh == mesh) {
@@ -294,16 +287,18 @@ namespace fjr::cooker {
 								first_source.prim.GetPath().GetString());
 						}
 
-						StaticScene::PointCategorySpan span;
-						span.category = first_source.category;
-						span.instances.offset = checked_u32(
+						StaticScene::PointBatch batch;
+						batch.mesh = mesh;
+						batch.local_transform = local_transform;
+						batch.category = first_source.category;
+						batch.instances.offset = checked_u32(
 							result_->point_instances.size(),
-							"Point category instance offset");
+							"Point batch instance offset");
 
 						while (source_index < point_instancers_.size() &&
 							point_instancers_[source_index].mesh == mesh &&
 							point_instancers_[source_index].category ==
-								span.category) {
+								batch.category) {
 
 							const auto& source = point_instancers_[source_index];
 							if (!matrix_bits_equal(
@@ -319,21 +314,15 @@ namespace fjr::cooker {
 							++source_index;
 						}
 
-						span.instances.count = checked_u32(
+						batch.instances.count = checked_u32(
 							result_->point_instances.size() -
-								span.instances.offset,
-							"Point category instance count");
-						if (span.instances.count == 0) {
-							fail("Point mesh category span has no visible instances.");
+								batch.instances.offset,
+							"Point batch instance count");
+						if (batch.instances.count == 0) {
+							fail("Point batch has no visible instances.");
 						}
-						result_->point_category_spans.push_back(span);
+						result_->point_batches.push_back(batch);
 					}
-
-					batch.category_spans.count = checked_u32(
-						result_->point_category_spans.size() -
-							batch.category_spans.offset,
-						"Point mesh category span count");
-					result_->point_mesh_batches.push_back(batch);
 				}
 			}
 

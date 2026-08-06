@@ -188,7 +188,7 @@ namespace fjr::render {
                 cluster.point_mesh_batch_index;
 
             const auto& batch =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             append_mesh_draws(
                 output,

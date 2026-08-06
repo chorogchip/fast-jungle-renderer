@@ -66,12 +66,11 @@ Before texture cooking, meshoptimizer generates 100%, 40%, 15%, and 4% mesh
 LODs that share LOD0 vertices and add index ranges only. The runtime selects a
 level using a 1-pixel projected-error threshold; static instances are selected
 individually and points use renderer-derived 256-instance clusters.
-Point instancers that resolve to the same mesh are merged into one
-`PointMeshBatch`; `PointCategorySpan` records keep categories such as
-`Grass_B` and `Pyramid_Grass_B` explicit without preserving source-instancer
-boundaries. Spatial bounds are not cooked as authoritative data: the renderer
-derives them from the static data before VFC. The v5 files do not yet apply
-instance compression or GPU-oriented vertex packing.
+Point instancers with the same resolved mesh and category are merged into one
+`PointBatch`, without preserving source-instancer boundaries. Spatial bounds
+are not cooked as authoritative data: the renderer derives them from the
+static data before VFC. The v6 files do not yet apply instance compression or
+GPU-oriented vertex packing.
 
 The offline cooker will handle:
 

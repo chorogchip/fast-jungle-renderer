@@ -44,7 +44,7 @@ namespace fjr::scene {
 		uv: origin: top-left / +X: right / +Y: down
 
 		Final point mesh transform:
-		PointMeshBatch::local_transform * PointInstanceTRS
+		PointBatch::local_transform * PointInstanceTRS
 		
 		StaticMeshInstance::world_transform is the final world transform.
 		*/
@@ -270,18 +270,13 @@ namespace fjr::scene {
 			COUNT,
 		};
 
-		struct PointCategorySpan {
+		struct PointBatch {
+			uint32_t mesh = INVALID_INDEX;
+			DirectX::XMFLOAT4X4 local_transform = IDENTITY_TRANSFORM;
 			EnumPointCategory category = EnumPointCategory::ANTHURIUM;
 			IndexRange instances;
 		};
-
-		struct PointMeshBatch {
-			uint32_t mesh = INVALID_INDEX;
-			IndexRange category_spans;
-			DirectX::XMFLOAT4X4 local_transform = IDENTITY_TRANSFORM;
-		};
-		static_assert(sizeof(PointCategorySpan) == 12);
-		static_assert(sizeof(PointMeshBatch) == 76);
+		static_assert(sizeof(PointBatch) == 80);
 
 		struct StaticMeshInstance {
 			uint32_t name = INVALID_INDEX;
@@ -379,8 +374,7 @@ namespace fjr::scene {
     X(CornerTexcoord2Stream, corner_texcoord2_streams) \
     X(Float2, corner_texcoord2_values) \
     X(PointInstance, point_instances) \
-    X(PointCategorySpan, point_category_spans) \
-    X(PointMeshBatch, point_mesh_batches) \
+    X(PointBatch, point_batches) \
     X(StaticMeshInstance, static_mesh_instances)
 
 #define SceneData_MACRO \
@@ -413,8 +407,7 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<CornerColor3Stream>);
 		static_assert(std::is_trivially_copyable_v<CornerTexcoord2Stream>);
 		static_assert(std::is_trivially_copyable_v<PointInstance>);
-		static_assert(std::is_trivially_copyable_v<PointCategorySpan>);
-		static_assert(std::is_trivially_copyable_v<PointMeshBatch>);
+		static_assert(std::is_trivially_copyable_v<PointBatch>);
 		static_assert(std::is_trivially_copyable_v<StaticMeshInstance>);
 		static_assert(std::is_trivially_copyable_v<Components>);
 
@@ -438,8 +431,7 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<CornerColor3Stream>);
 		static_assert(std::is_standard_layout_v<CornerTexcoord2Stream>);
 		static_assert(std::is_standard_layout_v<PointInstance>);
-		static_assert(std::is_standard_layout_v<PointCategorySpan>);
-		static_assert(std::is_standard_layout_v<PointMeshBatch>);
+		static_assert(std::is_standard_layout_v<PointBatch>);
 		static_assert(std::is_standard_layout_v<StaticMeshInstance>);
 		static_assert(std::is_standard_layout_v<Components>);
 

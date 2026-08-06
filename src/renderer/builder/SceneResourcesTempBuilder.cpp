@@ -119,17 +119,17 @@ namespace fjr::render {
                 output);
         }
 
-        // Point draw constants는 PointMeshBatch index와
+        // Point draw constants는 PointBatch index와
         // constant index가 일치한다.
         result.point_constants.resize(
-            scene.point_mesh_batches.size());
+            scene.point_batches.size());
 
         for (std::size_t batch_index = 0;
-            batch_index < scene.point_mesh_batches.size();
+            batch_index < scene.point_batches.size();
             ++batch_index) {
 
             const auto& batch =
-                scene.point_mesh_batches[batch_index];
+                scene.point_batches[batch_index];
 
             auto& output =
                 result.point_constants[batch_index];

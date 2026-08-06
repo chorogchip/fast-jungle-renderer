@@ -206,74 +206,41 @@ namespace fjr::cooker::internal {
     void JungleSceneProfile::validate_contract(
         const scene::StaticScene& source) {
 
-        constexpr std::size_t EXPECTED_POINT_MESH_BATCHES = 53;
-        constexpr std::size_t EXPECTED_POINT_CATEGORY_SPANS = 58;
+        constexpr std::size_t EXPECTED_POINT_BATCHES = 58;
         constexpr std::size_t EXPECTED_POINT_INSTANCES = 8'674'676;
 
-        if (source.point_mesh_batches.size() !=
-            EXPECTED_POINT_MESH_BATCHES) {
+        if (source.point_batches.size() != EXPECTED_POINT_BATCHES) {
 
-            fail("Jungle point mesh batch count changed.");
-        }
-        if (source.point_category_spans.size() !=
-            EXPECTED_POINT_CATEGORY_SPANS) {
-
-            fail("Jungle point category span count changed.");
+            fail("Jungle point batch count changed.");
         }
         if (source.point_instances.size() != EXPECTED_POINT_INSTANCES) {
             fail("Jungle point instance count changed.");
         }
 
-        std::set<std::uint32_t> meshes;
         std::array<
             bool,
             static_cast<std::size_t>(
                 scene::StaticScene::EnumPointCategory::COUNT)>
             seen_categories{};
 
-        std::uint32_t expected_span_offset = 0;
         std::uint32_t expected_instance_offset = 0;
-        for (const auto& batch : source.point_mesh_batches) {
-            if (!meshes.insert(batch.mesh).second) {
-                fail("One point mesh produced multiple batches.");
+        for (const auto& batch : source.point_batches) {
+            const auto category_index =
+                static_cast<std::size_t>(batch.category);
+            if (category_index >= seen_categories.size()) {
+                fail("Point category is invalid.");
             }
-            if (batch.category_spans.count == 0 ||
-                batch.category_spans.offset != expected_span_offset) {
+            if (batch.instances.count == 0 ||
+                batch.instances.offset != expected_instance_offset) {
 
-                fail("Point mesh category spans are not contiguous.");
+                fail("Point batch instances are not contiguous.");
             }
-
-            std::set<scene::StaticScene::EnumPointCategory>
-                batch_categories;
-            for (std::uint32_t local = 0;
-                local < batch.category_spans.count;
-                ++local) {
-
-                const auto& span = source.point_category_spans[
-                    static_cast<std::size_t>(
-                        batch.category_spans.offset) + local];
-                const auto category_index =
-                    static_cast<std::size_t>(span.category);
-                if (category_index >= seen_categories.size()) {
-                    fail("Point category is invalid.");
-                }
-                if (!batch_categories.insert(span.category).second) {
-                    fail("Point mesh repeats a category span.");
-                }
-                if (span.instances.count == 0 ||
-                    span.instances.offset != expected_instance_offset) {
-
-                    fail("Point category instance ranges are not contiguous.");
-                }
-                seen_categories[category_index] = true;
-                expected_instance_offset += span.instances.count;
-            }
-            expected_span_offset += batch.category_spans.count;
+            seen_categories[category_index] = true;
+            expected_instance_offset += batch.instances.count;
         }
-        if (expected_span_offset != source.point_category_spans.size() ||
-            expected_instance_offset != source.point_instances.size()) {
+        if (expected_instance_offset != source.point_instances.size()) {
 
-            fail("Point mesh batches do not cover all point data.");
+            fail("Point batches do not cover all point data.");
         }
         if (std::ranges::find(seen_categories, false) !=
             seen_categories.end()) {
