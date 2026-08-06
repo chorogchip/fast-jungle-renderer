@@ -264,14 +264,14 @@ int WINAPI wWinMain(
     */
     options.renderer.frame_entire_scene = false;
     options.renderer.lod_selection = 
-        fjr::render::LodSelectionMode::FINEST;
+        fjr::render::LodSelectionMode::COARSEST;
     options.renderer.objects.other = true;
     options.renderer.objects.other_foliage = true;
     options.renderer.objects.pyramid_moss = true;
-    options.renderer.objects.river_forest = false;
+    options.renderer.objects.river_forest = true;
     options.renderer.objects.river_seedling = true;
     options.renderer.objects.terrain = true;
-    options.renderer.vsync = false;
+    options.renderer.vsync = true;
 
     HWND hwnd = create_window(instance, 1280, 720);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
