@@ -21,6 +21,11 @@ namespace fjr::scene {
             const std::filesystem::path& texture_payload_path,
             std::uint64_t texture_payload_size);
 
+        static void save_metadata(
+            const std::filesystem::path& path,
+            const StaticScene& scene,
+            std::uint64_t texture_payload_size);
+
         [[nodiscard]]
         static std::filesystem::path texture_path(
             const std::filesystem::path& scene_path);

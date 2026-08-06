@@ -1,11 +1,11 @@
 #include "FastJungle/dx12/ResourceUploader.hpp"
 
+#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <stdexcept>
 #include <vector>
 
 namespace fjr::dx {
@@ -21,7 +21,7 @@ namespace fjr::dx {
         command_lists_{command_lists} {
 
         if (device_ == nullptr || !command_queue_) {
-            throw std::invalid_argument(
+            log::Logger::g_logger << log::abrt(
                 "ResourceUploader requires a device and command queue.");
         }
 
@@ -30,7 +30,7 @@ namespace fjr::dx {
                 command_list->get_type() !=
                     command_queue_.get_type()) {
 
-                throw std::invalid_argument(
+                log::Logger::g_logger << log::abrt(
                     "ResourceUploader requires two compatible command lists.");
             }
         }
@@ -90,13 +90,13 @@ namespace fjr::dx {
         if (element_size == 0 ||
             source.size() % element_size != 0) {
 
-            throw std::invalid_argument(
+            log::Logger::g_logger << log::abrt(
                 "Gathered buffer upload has an invalid element size.");
         }
         if (source_order.size() >
             std::numeric_limits<UINT64>::max() / element_size) {
 
-            throw std::overflow_error(
+            log::Logger::g_logger << log::abrt(
                 "Gathered buffer upload is too large.");
         }
 
@@ -105,7 +105,7 @@ namespace fjr::dx {
 
         for (const auto source_index : source_order) {
             if (source_index >= source_count) {
-                throw std::out_of_range(
+                log::Logger::g_logger << log::abrt(
                     "Gathered buffer upload has an invalid source index.");
             }
         }
@@ -171,11 +171,11 @@ namespace fjr::dx {
             return;
         }
         if (!destination) {
-            throw std::invalid_argument(
+            log::Logger::g_logger << log::abrt(
                 "Texture upload requires a destination resource.");
         }
         if (source.size() > std::numeric_limits<UINT>::max()) {
-            throw std::overflow_error(
+            log::Logger::g_logger << log::abrt(
                 "Texture upload has too many subresources.");
         }
 
@@ -202,7 +202,7 @@ namespace fjr::dx {
             if (source[index].data == nullptr ||
                 source[index].row_pitch < row_sizes[index] ||
                 source[index].slice_pitch < minimum_slice_pitch) {
-                throw std::invalid_argument(
+                log::Logger::g_logger << log::abrt(
                     "Texture subresource layout is incompatible with D3D12.");
             }
         }
@@ -296,11 +296,11 @@ namespace fjr::dx {
 
     Buffer& ResourceUploader::acquire(UINT64 byte_size) {
         if (byte_size == 0) {
-            throw std::invalid_argument(
+            log::Logger::g_logger << log::abrt(
                 "Upload buffer cannot be empty.");
         }
         if (recording_) {
-            throw std::logic_error(
+            log::Logger::g_logger << log::abrt(
                 "ResourceUploader already records an upload.");
         }
 

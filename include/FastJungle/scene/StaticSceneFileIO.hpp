@@ -120,11 +120,17 @@ namespace fjr::scene::static_scene_file_io {
     [[nodiscard]]
     std::uint64_t texture_header_size() noexcept;
 
+    struct TextureHeaderInfo final {
+        std::uint64_t metadata_size = 0;
+        std::uint64_t payload_size = 0;
+    };
+
     [[nodiscard]]
-    std::uint64_t read_texture_header(Reader& reader);
+    TextureHeaderInfo read_texture_header(Reader& reader);
 
     void write_texture_header(
         Writer& writer,
+        std::uint64_t metadata_size,
         std::uint64_t payload_size);
 
 } // namespace fjr::scene::static_scene_file_io

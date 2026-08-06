@@ -3,17 +3,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::cooker {
     template<typename... Parts>
     [[noreturn]] void fail(Parts&&... parts) {
         std::string message;
         (message.append(std::forward<Parts>(parts)), ...);
-        throw std::runtime_error(std::move(message));
+        log::Logger::g_logger << log::abrt(message);
     }
 
     [[nodiscard]] inline std::uint32_t checked_u32(

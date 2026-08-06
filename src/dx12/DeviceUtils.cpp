@@ -1,5 +1,6 @@
 #include "FastJungle/dx12/DeviceUtils.hpp"
 
+#include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 namespace fjr::dx {
@@ -43,7 +44,9 @@ namespace fjr::dx {
             DXGI_ADAPTER_DESC1 description{};
             abort_failed(adapter->GetDesc1(&description));
 
-            if ((description.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0) {
+            if (enm::has(
+                description.Flags,
+                static_cast<UINT>(DXGI_ADAPTER_FLAG_SOFTWARE))) {
                 continue;
             }
 

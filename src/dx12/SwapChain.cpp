@@ -1,10 +1,10 @@
 #include "FastJungle/dx12/SwapChain.hpp"
 
+#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 #include <iomanip>
 #include <sstream>
-#include <stdexcept>
 
 namespace fjr::dx {
 
@@ -91,7 +91,7 @@ namespace fjr::dx {
                 << std::setfill('0')
                 << static_cast<std::uint32_t>(result);
             message << ".";
-            throw std::runtime_error(message.str());
+            log::Logger::g_logger << log::abrt(message.str());
         }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();

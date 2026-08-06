@@ -3,6 +3,7 @@
 #include <array>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -29,6 +30,33 @@
 namespace {
 
     constexpr wchar_t DEFAULT_SCENE_NAME[] = L"JungleRuins.fjscene";
+    constexpr std::array<char, 8> SCENE_MAGIC{
+        'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
+    };
+    constexpr std::array<char, 8> TEXTURE_MAGIC{
+        'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
+    };
+    constexpr std::uint32_t SCENE_VERSION = 7;
+    constexpr std::uint32_t TEXTURE_VERSION = 2;
+
+    struct CookedFileHeader final {
+        std::array<char, 8> magic{};
+        std::uint32_t version = 0;
+    };
+
+    [[nodiscard]]
+    bool has_current_header(
+        const std::filesystem::path& path,
+        const std::array<char, 8>& magic,
+        std::uint32_t version) {
+
+        std::ifstream input{path, std::ios::binary};
+        CookedFileHeader header;
+        input.read(
+            reinterpret_cast<char*>(&header),
+            sizeof(header));
+        return input && header.magic == magic && header.version == version;
+    }
 
     void print_usage() {
         std::wcerr
@@ -233,6 +261,23 @@ namespace {
             std::filesystem::create_directories(parent);
         }
 
+        const auto texture_path =
+            fjr::scene::StaticSceneWriter::texture_path(output_path);
+        const bool has_scene = has_current_header(
+            output_path,
+            SCENE_MAGIC,
+            SCENE_VERSION);
+        const bool has_textures = has_current_header(
+            texture_path,
+            TEXTURE_MAGIC,
+            TEXTURE_VERSION);
+        if (has_scene && has_textures) {
+            std::wcout
+                << L"Reusing " << output_path << L'\n'
+                << L"Reusing " << texture_path << L'\n';
+            return EXIT_SUCCESS;
+        }
+
         std::wcout
             << L"Building scene from " << root_layer << L"...\n"
             << std::flush;
@@ -264,38 +309,53 @@ namespace {
         print_scene_summary(*scene);
         std::wcout << std::flush;
 
-        auto texture_payload_path = output_path;
-        texture_payload_path += L".textures.tmp";
-        fjr::util::TemporaryFile texture_payload{
-            std::move(texture_payload_path)
-        };
-
-        std::wcout
-            << L"Cooking textures sequentially...\n"
-            << std::flush;
-        const std::uint64_t texture_payload_size =
-            fjr::cooker::TextureCooker::cook(
+        if (has_textures) {
+            std::wcout
+                << L"Reusing cooked textures...\n"
+                << std::flush;
+            const auto texture_payload_size =
+                fjr::cooker::TextureCooker::reuse(
+                    *scene,
+                    texture_path);
+            fjr::scene::StaticSceneWriter::save_metadata(
+                output_path,
                 *scene,
-                build.texture_paths,
-                texture_payload.path());
-        std::wcout
-            << L"Texture payload cooked: "
-            << texture_payload_size / static_cast<double>(1024 * 1024)
-            << L" MiB\n"
-            << std::flush;
-        print_memory_usage(L"texture cook");
+                texture_payload_size);
+            std::wcout
+                << L"Saved " << output_path << L'\n'
+                << L"Reused " << texture_path << L'\n';
+        }
+        else {
+            auto texture_payload_path = output_path;
+            texture_payload_path += L".textures.tmp";
+            fjr::util::TemporaryFile texture_payload{
+                std::move(texture_payload_path)
+            };
 
-        fjr::scene::StaticSceneWriter::save(
-            output_path,
-            *scene,
-            texture_payload.path(),
-            texture_payload_size);
-        texture_payload.remove();
-        std::wcout
-            << L"Saved " << output_path << L'\n'
-            << L"Saved "
-            << fjr::scene::StaticSceneWriter::texture_path(output_path)
-            << L'\n';
+            std::wcout
+                << L"Cooking textures sequentially...\n"
+                << std::flush;
+            const std::uint64_t texture_payload_size =
+                fjr::cooker::TextureCooker::cook(
+                    *scene,
+                    texture_payload.path());
+            std::wcout
+                << L"Texture payload cooked: "
+                << texture_payload_size / static_cast<double>(1024 * 1024)
+                << L" MiB\n"
+                << std::flush;
+            print_memory_usage(L"texture cook");
+
+            fjr::scene::StaticSceneWriter::save(
+                output_path,
+                *scene,
+                texture_payload.path(),
+                texture_payload_size);
+            texture_payload.remove();
+            std::wcout
+                << L"Saved " << output_path << L'\n'
+                << L"Saved " << texture_path << L'\n';
+        }
         print_memory_usage(L"scene save");
         return EXIT_SUCCESS;
     }

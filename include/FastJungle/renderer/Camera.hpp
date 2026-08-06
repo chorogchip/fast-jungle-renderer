@@ -4,6 +4,7 @@
 #include <DirectXMath.h>
 
 #include "FastJungle/core/math/AABB.hpp"
+#include "FastJungle/core/math/Frustum.hpp"
 
 namespace fjr::render {
 
@@ -76,6 +77,9 @@ namespace fjr::render {
             get_view_projection_mat() const noexcept {
             return view_projection_;
         }
+
+        [[nodiscard]]
+        math::Frustum make_frustum() const noexcept;
 
     private:
         void calc_matrix() noexcept;

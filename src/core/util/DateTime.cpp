@@ -3,7 +3,6 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
-#include <stdexcept>
 
 namespace fjr::util {
 
@@ -23,15 +22,11 @@ namespace fjr::util {
 
 #ifdef _WIN32
         if (::localtime_s(&local_time, &raw_time) != 0) {
-            throw std::runtime_error{
-                "failed to convert time to local time"
-            };
+            return "unknown";
         }
 #else
         if (::localtime_r(&raw_time, &local_time) == nullptr) {
-            throw std::runtime_error{
-                "failed to convert time to local time"
-            };
+            return "unknown";
         }
 #endif
 
@@ -42,9 +37,7 @@ namespace fjr::util {
             std::string{ format }.c_str());
 
         if (stream.fail()) {
-            throw std::runtime_error{
-                "failed to format local time"
-            };
+            return "unknown";
         }
 
         return stream.str();

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <limits>
 #include <DirectXMath.h>
 
@@ -92,6 +93,18 @@ namespace fjr::math {
         }
 
         [[nodiscard]]
+        float distance_to(const DirectX::XMFLOAT3& point) const noexcept {
+            if (!is_valid()) {
+                return 0.0f;
+            }
+
+            const float x = std::max({ min.x - point.x, 0.0f, point.x - max.x });
+            const float y = std::max({ min.y - point.y, 0.0f, point.y - max.y });
+            const float z = std::max({ min.z - point.z, 0.0f, point.z - max.z });
+            return std::sqrt(x * x + y * y + z * z);
+        }
+
+        [[nodiscard]]
         constexpr bool do_contain(float x, float y, float z) const noexcept {
             return
                 x >= min.x && x <= max.x &&
@@ -149,6 +162,13 @@ namespace fjr::math {
 
             XMStoreFloat3(&min, XMVectorSubtract(center_new, extents_new));
             XMStoreFloat3(&max, XMVectorAdd(center_new, extents_new));
+        }
+
+        [[nodiscard]]
+        AABB XM_CALLCONV transformed(DirectX::FXMMATRIX matrix) const noexcept {
+            auto result = *this;
+            result.transform(matrix);
+            return result;
         }
 
         [[nodiscard]]

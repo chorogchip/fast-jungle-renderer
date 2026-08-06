@@ -1,6 +1,7 @@
 #include "JungleSceneCompiler.hpp"
 
 #include "FastJungle/core/math/CheckedCast.hpp"
+#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 #include "JungleSceneProfile.hpp"
@@ -58,7 +59,6 @@
 #include <memory>
 #include <optional>
 #include <ranges>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -87,7 +87,7 @@ namespace fjr::cooker {
         constexpr std::size_t MAX_PROTOTYPE_DEPTH = 64;
 
         [[noreturn]] void fail(std::string message) {
-            throw std::runtime_error(std::move(message));
+            log::Logger::g_logger << log::abrt(message);
         }
 
         template<typename... Parts>

@@ -23,6 +23,10 @@ SceneBoundsBuilder
 v
 [SceneBounds]
 v
+SceneDrawBuilder
+v
+[SceneDraws]
+v
 SceneResourcesTempBuilder
 v
 [SceneResourcesTemp]
@@ -36,7 +40,7 @@ ___________________________________
 
 per frame
 
-[SceneResourcesTemp] [Camera]
+[SceneDraws] [Camera]
 v
 SceneDynamicDataBuilder
 v

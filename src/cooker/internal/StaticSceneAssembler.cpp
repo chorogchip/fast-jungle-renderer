@@ -46,6 +46,7 @@ namespace fjr::cooker::internal {
         scene_->submeshes.reserve(256);
         scene_->materials.reserve(192);
         scene_->textures.reserve(600);
+        scene_->texture_payload_refs.reserve(600);
         scene_->texture_bindings.reserve(800);
     }
 
@@ -102,7 +103,10 @@ namespace fjr::cooker::internal {
             scene_->textures.size(),
             "Texture index")};
         scene_->textures.push_back(texture);
-        texture_paths_.push_back(path.generic_string());
+        scene_->texture_payload_refs.push_back({
+            .texture = id.value(),
+            .key = intern_string(key).value(),
+        });
         texture_cache_.emplace(key, id);
         return id;
     }
@@ -157,7 +161,6 @@ namespace fjr::cooker::internal {
         scene_->info.vertex_count_after_indexing = scene_->vertices.size();
         return {
             .scene = std::move(scene_),
-            .texture_paths = std::move(texture_paths_),
         };
     }
 

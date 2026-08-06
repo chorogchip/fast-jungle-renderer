@@ -4,11 +4,10 @@
 
 #include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/ResourceUploader.hpp"
-#include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/SceneResources.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
-
     class SceneTextureResourcesBuilder final {
     public:
         SceneTextureResourcesBuilder() = delete;
@@ -21,5 +20,4 @@ namespace fjr::render {
             dx::DescriptorHeap& heap_sampler,
             const scene::StaticScene& scene);
     };
-
 } // namespace fjr::render

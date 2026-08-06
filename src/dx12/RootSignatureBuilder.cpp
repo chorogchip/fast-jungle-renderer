@@ -1,9 +1,9 @@
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 
+#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <utility>
 
 namespace fjr::dx {
@@ -63,7 +63,8 @@ namespace fjr::dx {
         switch (root_type_) {
         case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
             if (count_ == 0) {
-                std::abort();
+                log::Logger::g_logger << log::abrt(
+                    "Root constant count cannot be zero.");
             }
 
             return owner_.add_constants(
@@ -84,7 +85,8 @@ namespace fjr::dx {
                 visibility_);
 
         default:
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Root parameter type is invalid.");
         }
     }
 
@@ -139,7 +141,8 @@ namespace fjr::dx {
     RootSignatureBuilder::TableProxy&
         RootSignatureBuilder::TableProxy::RangeProxy::add_range() {
         if (description_.count == 0) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Descriptor range count cannot be zero.");
         }
 
         const bool is_sampler =
@@ -147,7 +150,8 @@ namespace fjr::dx {
             D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
 
         if (is_sampler != owner_.sampler_table_) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Descriptor range type does not match its table.");
         }
 
         owner_.ranges_.push_back(description_);
@@ -215,7 +219,8 @@ namespace fjr::dx {
     RootSignatureBuilder&
         RootSignatureBuilder::TableProxy::add() {
         if (ranges_.empty()) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Descriptor table cannot be empty.");
         }
 
         return owner_.add_descriptor_table(
@@ -366,14 +371,16 @@ namespace fjr::dx {
     RootSignatureBuilder&
         RootSignatureBuilder::set_parameter(
             UINT index,
-            ParameterDesc description) {
+        ParameterDesc description) {
 
         if (index >= parameters_.size()) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Root parameter index is out of range.");
         }
 
         if (initialized_[index]) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Root parameter is already initialized.");
         }
 
         parameters_[index] = std::move(description);
@@ -394,7 +401,8 @@ namespace fjr::dx {
             });
 
         if (!all_initialized) {
-            std::abort();
+            log::Logger::g_logger << log::abrt(
+                "Every root parameter must be initialized.");
         }
 
         std::vector<D3D12_ROOT_PARAMETER1> root_parameters(
@@ -467,7 +475,8 @@ namespace fjr::dx {
             }
 
             default:
-                std::abort();
+                log::Logger::g_logger << log::abrt(
+                    "Root parameter kind is invalid.");
             }
         }
 

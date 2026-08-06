@@ -194,6 +194,10 @@ namespace fjr::render {
         calc_matrix();
     }
 
+    math::Frustum Camera::make_frustum() const noexcept {
+        return math::Frustum{view_projection_};
+    }
+
     void Camera::move_up(float delta_time) noexcept {
         position_.y += move_speed_ * delta_time;
         calc_matrix();

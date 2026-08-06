@@ -122,6 +122,11 @@ namespace fjr::scene {
 			uint64_t data_size = 0;
 		};
 
+		struct TexturePayloadRef {
+			uint32_t texture = INVALID_INDEX;
+			uint32_t key = INVALID_INDEX;
+		};
+
 		enum class EnumTextureChannel : uint32_t {
 			RGBA,
 			R,
@@ -357,6 +362,7 @@ namespace fjr::scene {
     X(Sampler, samplers)
 
 #define SceneDataAfterTexture_MACRO \
+    X(TexturePayloadRef, texture_payload_refs) \
     X(TextureMip, texture_mips) \
     X(Texture, textures) \
     X(TextureBinding, texture_bindings) \

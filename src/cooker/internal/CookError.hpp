@@ -1,13 +1,14 @@
 #pragma once
 
-#include <stdexcept>
 #include <string>
 #include <utility>
+
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::cooker::internal {
 
     [[noreturn]] inline void fail(std::string message) {
-        throw std::runtime_error{std::move(message)};
+        log::Logger::g_logger << log::abrt(message);
     }
 
     template<typename... Parts>

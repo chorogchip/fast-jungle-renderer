@@ -1,4 +1,4 @@
-# Jungle scene file version 6
+# Jungle scene file version 7
 
 ## Purpose
 
@@ -23,7 +23,7 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`6`) |
+| 8 | 4 | format version (`7`) |
 | 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
@@ -35,16 +35,20 @@ truncation, and trailing bytes.
 
 ## Texture header
 
-The fixed 24-byte `.fjtex` header is:
+The fixed 32-byte `.fjtex` header is:
 
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJTEX\0\0\0` magic |
-| 8 | 4 | format version (`1`) |
-| 12 | 4 | header size (`24`) |
-| 16 | 8 | texture payload byte count |
+| 8 | 4 | format version (`2`) |
+| 12 | 4 | header size (`32`) |
+| 16 | 8 | texture metadata byte count |
+| 24 | 8 | texture payload byte count |
 
-`Texture::data_byte_offset` is relative to the first byte after this header.
+The metadata stores its string table, `TexturePayloadRef` mapping, texture mips,
+and texture records. `TexturePayloadRef::key` identifies the normalized texture
+source path for its `Texture` index. `Texture::data_byte_offset` is relative to
+the first byte after the metadata.
 Each `TextureMip::data_byte_offset_local` is relative to its owning texture.
 The reader requires the `.fjscene` expected texture size, `.fjtex` declared
 size, and physical file size to agree.
@@ -108,12 +112,17 @@ changing the cooked scene contract.
 
 ## Bounded-memory cooker path
 
-OpenUSD first builds static scene data and a deduplicated texture path list.
+OpenUSD first builds static scene data and texture payload mappings.
 After the stage is released, the cooker generates index-only mesh LODs, then
 decodes and compresses one texture at a time into a temporary payload. The
 writer creates and atomically replaces
 `.fjtex` first, then creates and replaces `.fjscene` last. A failed cook cannot
 publish a new scene header that points at an incomplete new texture file.
+
+The cooker reads only magic and version from existing file headers before
+deciding whether to reuse them. A current `.fjtex` avoids texture decoding and
+compression while a fresh `.fjscene` receives its texture records through the
+payload mapping.
 
 `StaticSceneReader::load_metadata` reads and validates static data without
 materializing texture pixels. `StaticSceneReader::load` additionally reads the

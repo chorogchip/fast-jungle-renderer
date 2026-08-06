@@ -18,11 +18,11 @@ namespace fjr::scene::static_scene_file_io {
         constexpr std::array<char, 8> SCENE_MAGIC{
             'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
         };
-        constexpr std::uint32_t SCENE_VERSION = 6;
+        constexpr std::uint32_t SCENE_VERSION = 7;
         constexpr std::array<char, 8> TEXTURE_MAGIC{
             'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
         };
-        constexpr std::uint32_t TEXTURE_VERSION = 1;
+        constexpr std::uint32_t TEXTURE_VERSION = 2;
 
         struct SceneHeader final {
             std::array<char, 8> magic = SCENE_MAGIC;
@@ -37,12 +37,13 @@ namespace fjr::scene::static_scene_file_io {
         struct TextureHeader final {
             std::array<char, 8> magic = TEXTURE_MAGIC;
             std::uint32_t version = TEXTURE_VERSION;
-            std::uint32_t header_size = 24;
+            std::uint32_t header_size = 32;
+            std::uint64_t metadata_size = 0;
             std::uint64_t payload_size = 0;
         };
 
         static_assert(sizeof(SceneHeader) == 40);
-        static_assert(sizeof(TextureHeader) == 24);
+        static_assert(sizeof(TextureHeader) == 32);
 
         void validate_scene_header(
             const SceneHeader& header,
@@ -75,7 +76,7 @@ namespace fjr::scene::static_scene_file_io {
 
         void validate_texture_header(
             const TextureHeader& header,
-            std::uint64_t payload_size) {
+            std::uint64_t file_size) {
 
             if (header.magic != TEXTURE_MAGIC) {
                 log::Logger::g_logger
@@ -89,7 +90,8 @@ namespace fjr::scene::static_scene_file_io {
                 log::Logger::g_logger.abort();
             }
             if (header.header_size != sizeof(TextureHeader) ||
-                header.payload_size != payload_size) {
+                header.metadata_size > file_size ||
+                header.payload_size != file_size - header.metadata_size) {
                 log::Logger::g_logger
                     << "StaticTexture file length is invalid.\n";
                 log::Logger::g_logger.abort();
@@ -257,18 +259,23 @@ namespace fjr::scene::static_scene_file_io {
         return sizeof(TextureHeader);
     }
 
-    std::uint64_t read_texture_header(Reader& reader) {
+    TextureHeaderInfo read_texture_header(Reader& reader) {
         TextureHeader header;
         reader.read(header);
         validate_texture_header(header, reader.remaining());
-        return header.payload_size;
+        return {
+            .metadata_size = header.metadata_size,
+            .payload_size = header.payload_size,
+        };
     }
 
     void write_texture_header(
         Writer& writer,
+        std::uint64_t metadata_size,
         std::uint64_t payload_size) {
 
         TextureHeader header;
+        header.metadata_size = metadata_size;
         header.payload_size = payload_size;
         writer.write(header);
     }

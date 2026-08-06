@@ -61,8 +61,33 @@ namespace fjr::scene {
             return total;
         }
 
+        [[nodiscard]]
+        std::uint64_t calculate_texture_metadata_size(
+            const StaticScene& scene) {
+
+            std::uint64_t total = 0;
+            add_vector_size(
+                total,
+                scene.strings.size(),
+                sizeof(StaticScene::Char));
+            add_vector_size(
+                total,
+                scene.texture_payload_refs.size(),
+                sizeof(StaticScene::TexturePayloadRef));
+            add_vector_size(
+                total,
+                scene.texture_mips.size(),
+                sizeof(StaticScene::TextureMip));
+            add_vector_size(
+                total,
+                scene.textures.size(),
+                sizeof(StaticScene::Texture));
+            return total;
+        }
+
         void save_texture(
             const std::filesystem::path& path,
+            const StaticScene& scene,
             const std::vector<std::byte>* texture_data,
             std::istream* texture_payload,
             const std::filesystem::path& texture_payload_path,
@@ -79,7 +104,12 @@ namespace fjr::scene {
 
             static_scene_file_io::write_texture_header(
                 writer,
+                calculate_texture_metadata_size(scene),
                 texture_payload_size);
+            writer.write(scene.strings);
+            writer.write(scene.texture_payload_refs);
+            writer.write(scene.texture_mips);
+            writer.write(scene.textures);
             if (texture_data != nullptr) {
                 writer.write_raw(
                     texture_data->data(),
@@ -94,6 +124,7 @@ namespace fjr::scene {
 
             const auto expected_size =
                 static_scene_file_io::texture_header_size() +
+                calculate_texture_metadata_size(scene) +
                 texture_payload_size;
             if (writer.offset() != expected_size) {
                 log::Logger::g_logger
@@ -104,7 +135,7 @@ namespace fjr::scene {
             temporary.replace(path);
         }
 
-        void save_scene(
+        void save_scene_file(
             const std::filesystem::path& path,
             const StaticScene& scene,
             std::uint64_t texture_payload_size) {
@@ -150,11 +181,12 @@ namespace fjr::scene {
         StaticSceneValidator::validate(scene);
         save_texture(
             texture_path(path),
+            scene,
             &scene.texture_data,
             nullptr,
             {},
             scene.texture_data.size());
-        save_scene(path, scene, scene.texture_data.size());
+        save_scene_file(path, scene, scene.texture_data.size());
     }
 
     void StaticSceneWriter::save(
@@ -175,11 +207,21 @@ namespace fjr::scene {
         auto texture_payload = util::File::open_read(texture_payload_path);
         save_texture(
             texture_path(path),
+            scene,
             nullptr,
             &texture_payload,
             texture_payload_path,
             texture_payload_size);
-        save_scene(path, scene, texture_payload_size);
+        save_scene_file(path, scene, texture_payload_size);
+    }
+
+    void StaticSceneWriter::save_metadata(
+        const std::filesystem::path& path,
+        const StaticScene& scene,
+        std::uint64_t texture_payload_size) {
+
+        StaticSceneValidator::validate(scene, texture_payload_size);
+        save_scene_file(path, scene, texture_payload_size);
     }
 
     std::filesystem::path StaticSceneWriter::texture_path(

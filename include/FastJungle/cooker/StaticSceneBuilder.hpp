@@ -2,17 +2,13 @@
 
 #include <filesystem>
 #include <memory>
-#include <string>
-#include <vector>
-
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::cooker {
 
-    struct StaticSceneBuild final {
-        std::unique_ptr<scene::StaticScene> scene;
-        std::vector<std::string> texture_paths;
-    };
+struct StaticSceneBuild final {
+    std::unique_ptr<scene::StaticScene> scene;
+};
 
     class StaticSceneBuilder final {
     public:

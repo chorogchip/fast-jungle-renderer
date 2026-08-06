@@ -12,7 +12,6 @@
 #include <fstream>
 #include <limits>
 #include <ranges>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -20,6 +19,8 @@
 
 #include "FastJungle/cooker/CookerCommon.hpp"
 #include "FastJungle/cooker/TextureImageProcessing.hpp"
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/scene/StaticSceneReader.hpp"
 
 namespace fjr::cooker {
     namespace {
@@ -210,23 +211,31 @@ namespace fjr::cooker {
             }
         }
 
+        [[nodiscard]]
+        std::string_view texture_key(
+            const scene::StaticScene& scene,
+            std::uint32_t texture) {
+
+            const auto found = std::ranges::find_if(
+                scene.texture_payload_refs,
+                [texture](const auto& reference) {
+                    return reference.texture == texture;
+                });
+            if (found == scene.texture_payload_refs.end() ||
+                found->key >= scene.strings.size()) {
+                fail("Texture payload key is missing.");
+            }
+            return scene.strings.data() + found->key;
+        }
+
     } // namespace
 
     std::uint64_t TextureCooker::cook(
         scene::StaticScene& scene,
-        std::span<const std::string> texture_paths,
         const std::filesystem::path& payload_path,
         TextureCookOptions options) {
-        if (scene.textures.size() != texture_paths.size()) {
-            fail(
-                "Texture source count does not match StaticScene textures: ",
-                std::to_string(texture_paths.size()),
-                " sources for ",
-                std::to_string(scene.textures.size()),
-                " textures.");
-        }
         if (!scene.texture_data.empty() || !scene.texture_mips.empty()) {
-            throw std::invalid_argument(
+            log::Logger::g_logger << log::abrt(
                 "TextureCooker requires an uncooked StaticScene.");
         }
 
@@ -238,7 +247,7 @@ namespace fjr::cooker {
         std::vector<fjr::scene::StaticScene::TextureBinding> cooked_bindings = scene.texture_bindings;
         for (auto& binding : cooked_bindings) {
             if (binding.texture >= compression_plans.size()) {
-                throw std::runtime_error(
+                log::Logger::g_logger << log::abrt(
                     "Texture compression binding index is invalid.");
             }
             binding = normalize_texture_binding(
@@ -258,9 +267,10 @@ namespace fjr::cooker {
         std::uint64_t payload_size = 0;
         try {
             for (std::size_t index = 0;
-                 index < texture_paths.size();
+                 index < scene.textures.size();
                  ++index) {
-                const std::filesystem::path path{texture_paths[index]};
+                const std::filesystem::path path{
+                    texture_key(scene, static_cast<std::uint32_t>(index))};
                 DirectX::TexMetadata metadata{};
                 load_texture_metadata(path, metadata);
                 validate_texture_metadata(metadata, path);
@@ -363,10 +373,63 @@ namespace fjr::cooker {
             output.close();
             std::error_code error;
             std::filesystem::remove(payload_path, error);
-            throw;
+            log::Logger::g_logger << log::abrt(
+                "Texture cooking failed.");
         }
 
         return payload_size;
+    }
+
+    std::uint64_t TextureCooker::reuse(
+        scene::StaticScene& scene,
+        const std::filesystem::path& texture_path) {
+
+        const auto cached = scene::StaticSceneReader::load_texture_metadata(
+            texture_path);
+        const auto compression_plans =
+            resolve_texture_compression(scene);
+        auto cooked_textures = scene.textures;
+        std::vector<scene::StaticScene::TextureMip> cooked_mips;
+        auto cooked_bindings = scene.texture_bindings;
+
+        for (auto& binding : cooked_bindings) {
+            binding = normalize_texture_binding(
+                binding,
+                compression_plans[binding.texture]);
+        }
+
+        for (const auto& reference : scene.texture_payload_refs) {
+            const auto key = texture_key(scene, reference.texture);
+            const auto cached_reference = std::ranges::find_if(
+                cached.texture_payload_refs,
+                [&cached, key](const auto& candidate) {
+                    return candidate.key < cached.strings.size() &&
+                        key == cached.strings.data() + candidate.key;
+                });
+            if (cached_reference == cached.texture_payload_refs.end()) {
+                fail("Cooked texture payload key is missing: ", key);
+            }
+
+            const auto& source = cached.textures[cached_reference->texture];
+            auto& destination = cooked_textures[reference.texture];
+            const auto name = destination.name;
+            destination = source;
+            destination.name = name;
+            destination.mip_offset = static_cast<std::uint32_t>(
+                cooked_mips.size());
+
+            for (std::uint32_t mip = 0;
+                 mip < source.mip_count;
+                 ++mip) {
+                cooked_mips.push_back(
+                    cached.texture_mips[source.mip_offset + mip]);
+            }
+        }
+
+        scene.textures = std::move(cooked_textures);
+        scene.texture_mips = std::move(cooked_mips);
+        scene.texture_bindings = std::move(cooked_bindings);
+        return cached.texture_payload.size;
     }
 
 } // namespace fjr::cooker

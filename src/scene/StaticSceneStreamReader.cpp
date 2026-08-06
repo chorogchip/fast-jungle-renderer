@@ -51,9 +51,10 @@ namespace fjr::scene {
         };
         const auto texture_size =
             static_scene_file_io::read_texture_header(texture_reader);
+        texture_reader.skip(texture_size.metadata_size);
         try {
             scene->texture_data.resize(
-                static_cast<std::size_t>(texture_size));
+                static_cast<std::size_t>(texture_size.payload_size));
         }
         catch (...) {
             log::Logger::g_logger
@@ -104,7 +105,7 @@ namespace fjr::scene {
         };
         const auto actual_texture_size =
             static_scene_file_io::read_texture_header(texture_reader);
-        if (actual_texture_size != expected_texture_size) {
+        if (actual_texture_size.payload_size != expected_texture_size) {
             log::Logger::g_logger
                 << "StaticScene and StaticTexture payload sizes differ.\n"
                 << "  scene: " << path << '\n'
@@ -114,12 +115,38 @@ namespace fjr::scene {
 
         result.texture_payload = {
             .path = external_path,
-            .file_offset = static_scene_file_io::texture_header_size(),
-            .size = actual_texture_size
+            .file_offset = static_scene_file_io::texture_header_size() +
+                actual_texture_size.metadata_size,
+            .size = actual_texture_size.payload_size
         };
         StaticSceneValidator::validate(
             *result.scene,
             result.texture_payload.size);
+        return result;
+    }
+
+    StaticTextureMetadata StaticSceneReader::load_texture_metadata(
+        const std::filesystem::path& path) {
+
+        auto source = util::File::open_read(path);
+        static_scene_file_io::Reader reader{
+            source,
+            util::File::size(path),
+            path
+        };
+        const auto header = static_scene_file_io::read_texture_header(reader);
+
+        StaticTextureMetadata result;
+        reader.read(result.strings);
+        reader.read(result.texture_payload_refs);
+        reader.read(result.texture_mips);
+        reader.read(result.textures);
+        result.texture_payload = {
+            .path = path,
+            .file_offset = static_scene_file_io::texture_header_size() +
+                header.metadata_size,
+            .size = header.payload_size
+        };
         return result;
     }
 

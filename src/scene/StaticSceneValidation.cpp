@@ -17,8 +17,7 @@ namespace fjr::scene {
 
         if (scene.strings.empty() || scene.strings.front() != '\0') {
             log::Logger::g_logger
-                << "Invalid StaticScene string table.\n";
-            log::Logger::g_logger.abort();
+                << log::abrt("Invalid StaticScene string table.");
         }
 
         for (const auto& texture : scene.textures) {
@@ -109,8 +108,7 @@ namespace fjr::scene {
             }
             if (submesh.index_count == 0 || submesh.index_count % 3 != 0) {
                 log::Logger::g_logger
-                    << "Invalid StaticScene submesh triangle count.\n";
-                log::Logger::g_logger.abort();
+                    << log::abrt("Invalid StaticScene submesh triangle count.");
             }
             for (std::uint32_t local_index = 0;
                  local_index < submesh.index_count;
@@ -118,8 +116,7 @@ namespace fjr::scene {
                 if (scene.indices[submesh.index_offset + local_index] >=
                     submesh.vertex_count) {
                     log::Logger::g_logger
-                        << "Invalid StaticScene submesh local index.\n";
-                    log::Logger::g_logger.abort();
+                        << log::abrt("Invalid StaticScene submesh local index.");
                 }
             }
         }
@@ -132,8 +129,7 @@ namespace fjr::scene {
                 "mesh LOD");
             if (mesh.lod_count == 0) {
                 log::Logger::g_logger
-                    << "Invalid StaticScene empty mesh LOD range.\n";
-                log::Logger::g_logger.abort();
+                    << log::abrt("Invalid StaticScene empty mesh LOD range.");
             }
 
             const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
@@ -144,8 +140,7 @@ namespace fjr::scene {
                 "mesh LOD0 submesh");
             if (lod0.submesh_count == 0 || lod0.max_deviation != 0.0f) {
                 log::Logger::g_logger
-                    << "Invalid StaticScene mesh LOD0.\n";
-                log::Logger::g_logger.abort();
+                    << log::abrt("Invalid StaticScene mesh LOD0.");
             }
 
             float previous_deviation = 0.0f;
@@ -161,10 +156,9 @@ namespace fjr::scene {
                 if (lod.submesh_count != lod0.submesh_count ||
                     !std::isfinite(lod.max_deviation) ||
                     lod.max_deviation < previous_deviation ||
-					lod.reserved != 0) {
+                    lod.reserved != 0) {
                     log::Logger::g_logger
-                        << "Invalid StaticScene mesh LOD contract.\n";
-                    log::Logger::g_logger.abort();
+                        << log::abrt("Invalid StaticScene mesh LOD contract.");
                 }
 
                 for (std::uint32_t local_submesh = 0;
@@ -180,18 +174,18 @@ namespace fjr::scene {
                         candidate.material != base.material ||
                         candidate.flags != base.flags) {
                         log::Logger::g_logger
-                            << "Invalid StaticScene mesh LOD submesh contract.\n";
-                        log::Logger::g_logger.abort();
+                            << log::abrt(
+                                "Invalid StaticScene mesh LOD submesh contract.");
                     }
 					if (local_lod > 0) {
 						const auto& previous_lod = scene.mesh_lods[
 							mesh.lod_offset + local_lod - 1];
 						const auto& previous_submesh = scene.submeshes[
 							previous_lod.submesh_offset + local_submesh];
-						if (candidate.index_count > previous_submesh.index_count) {
-							log::Logger::g_logger
-								<< "Invalid StaticScene increasing LOD index count.\n";
-							log::Logger::g_logger.abort();
+                        if (candidate.index_count > previous_submesh.index_count) {
+                            log::Logger::g_logger
+                                << log::abrt(
+                                    "Invalid StaticScene increasing LOD index count.");
 						}
 					}
                 }
@@ -216,10 +210,9 @@ namespace fjr::scene {
 				stream.value_count,
 				scene.triangle_bool_values.size(),
 				"triangle bool value");
-			if (stream.value_count != lod0_corner_count(stream.mesh) / 3) {
-				log::Logger::g_logger
-					<< "Invalid StaticScene LOD0 triangle bool count.\n";
-				log::Logger::g_logger.abort();
+            if (stream.value_count != lod0_corner_count(stream.mesh) / 3) {
+                log::Logger::g_logger
+                    << log::abrt("Invalid StaticScene LOD0 triangle bool count.");
 			}
 		}
 
@@ -234,10 +227,9 @@ namespace fjr::scene {
 				stream.value_count,
 				value_size,
 				subject);
-			if (stream.value_count != lod0_corner_count(stream.mesh)) {
-				log::Logger::g_logger
-					<< "Invalid StaticScene LOD0 corner stream count.\n";
-				log::Logger::g_logger.abort();
+            if (stream.value_count != lod0_corner_count(stream.mesh)) {
+                log::Logger::g_logger
+                    << log::abrt("Invalid StaticScene LOD0 corner stream count.");
 			}
 		};
 		for (const auto& stream : scene.corner_float_streams) {
@@ -264,9 +256,8 @@ namespace fjr::scene {
 			if (category >= static_cast<std::size_t>(
 				StaticScene::EnumPointCategory::COUNT)) {
 
-				log::Logger::g_logger
-					<< "Point batch category is invalid.\n";
-				log::Logger::g_logger.abort();
+                log::Logger::g_logger
+                    << log::abrt("Point batch category is invalid.");
 			}
 			require_range(
 				batch.instances.offset,
@@ -276,17 +267,15 @@ namespace fjr::scene {
 			if (batch.instances.count == 0 ||
 				batch.instances.offset != expected_instance_offset) {
 
-				log::Logger::g_logger
-					<< "Point batch instances are not contiguous.\n";
-				log::Logger::g_logger.abort();
+                log::Logger::g_logger
+                    << log::abrt("Point batch instances are not contiguous.");
 			}
 			expected_instance_offset += batch.instances.count;
 		}
 		if (expected_instance_offset != scene.point_instances.size()) {
 
-			log::Logger::g_logger
-				<< "Point batches do not cover all point data.\n";
-			log::Logger::g_logger.abort();
+            log::Logger::g_logger
+                << log::abrt("Point batches do not cover all point data.");
 		}
 
 		for (const auto& instance : scene.static_mesh_instances) {
@@ -310,8 +299,8 @@ namespace fjr::scene {
         }
         log::Logger::g_logger
             << "Invalid StaticScene " << subject
-            << " index.\n";
-        log::Logger::g_logger.abort();
+            << " index.\n"
+            << log::abrt();
     }
 
     void StaticSceneValidator::require_range(
@@ -329,8 +318,8 @@ namespace fjr::scene {
         }
         log::Logger::g_logger
             << "Invalid StaticScene " << subject
-            << " range.\n";
-        log::Logger::g_logger.abort();
+            << " range.\n"
+            << log::abrt();
     }
 
 } // namespace fjr::scene

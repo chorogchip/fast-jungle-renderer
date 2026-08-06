@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <vector>
 
 #include "FastJungle/scene/StaticScene.hpp"
 
@@ -19,6 +20,14 @@ namespace fjr::scene {
         StaticScenePayloadRange texture_payload;
     };
 
+    struct StaticTextureMetadata final {
+        std::vector<StaticScene::Char> strings;
+        std::vector<StaticScene::TexturePayloadRef> texture_payload_refs;
+        std::vector<StaticScene::TextureMip> texture_mips;
+        std::vector<StaticScene::Texture> textures;
+        StaticScenePayloadRange texture_payload;
+    };
+
     class StaticSceneReader final {
     public:
         StaticSceneReader() = delete;
@@ -29,6 +38,10 @@ namespace fjr::scene {
 
         [[nodiscard]]
         static StaticSceneMetadata load_metadata(
+            const std::filesystem::path& path);
+
+        [[nodiscard]]
+        static StaticTextureMetadata load_texture_metadata(
             const std::filesystem::path& path);
 
         [[nodiscard]]

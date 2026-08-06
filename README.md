@@ -51,7 +51,7 @@ JungleRuins.fjscene + JungleRuins.fjtex
 GPU renderer
 ```
 
-The cooker writes a version 5 `JungleRuins.fjscene` containing geometry,
+The cooker writes a version 7 `JungleRuins.fjscene` containing geometry,
 materials, instances, and runtime component categories, plus a companion
 `JungleRuins.fjtex` containing texture pixels. The runtime renderer reads both
 without linking OpenUSD. Run the Release cooker preset once to create both
@@ -69,7 +69,7 @@ individually and points use renderer-derived 256-instance clusters.
 Point instancers with the same resolved mesh and category are merged into one
 `PointBatch`, without preserving source-instancer boundaries. Spatial bounds
 are not cooked as authoritative data: the renderer derives them from the
-static data before VFC. The v6 files do not yet apply instance compression or
+static data before VFC. The v7 files do not yet apply instance compression or
 GPU-oriented vertex packing.
 
 The offline cooker will handle:

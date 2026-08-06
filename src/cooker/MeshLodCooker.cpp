@@ -7,10 +7,11 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::cooker {
 namespace {
@@ -19,13 +20,15 @@ namespace {
 
     [[noreturn]]
     void fail(const char* message) {
-        throw std::runtime_error{message};
+        log::Logger::g_logger << log::abrt(message);
     }
 
     [[nodiscard]]
     std::uint32_t checked_u32(std::size_t value, const char* subject) {
         if (value > std::numeric_limits<std::uint32_t>::max()) {
-            throw std::runtime_error{std::string{subject} + " exceeds uint32_t."};
+            log::Logger::g_logger
+                << subject << " exceeds uint32_t."
+                << log::abrt();
         }
         return static_cast<std::uint32_t>(value);
     }

@@ -7,7 +7,6 @@ struct ID3D12Device;
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
-
     class SceneFrameConstDataBuilder final {
     public:
         SceneFrameConstDataBuilder() = delete;
@@ -16,8 +15,6 @@ namespace fjr::render {
             data::FrameConstData& output,
             ID3D12Device* device,
             const Camera& camera,
-            const scene::StaticScene::
-            EnvironmentLight& environment);
+            const scene::StaticScene::EnvironmentLight& environment);
     };
-
 } // namespace fjr::render

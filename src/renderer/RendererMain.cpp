@@ -9,11 +9,11 @@
 #include <utility>
 
 #include "FastJungle/core/util/Logger.hpp"
-#include "FastJungle/dx12/WindowsUtils.hpp"
+#include "FastJungle/renderer/builder/SceneBatchBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneBoundsBuilder.hpp"
+#include "FastJungle/renderer/builder/SceneDrawBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneDynamicDataBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneFrameConstDataBuilder.hpp"
-#include "FastJungle/renderer/builder/PointCullingDataBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneResourcesBuilder.hpp"
 #include "FastJungle/renderer/builder/SceneResourcesTempBuilder.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
@@ -99,16 +99,6 @@ namespace fjr::render {
         }
 
     } // namespace
-
-
-    void RendererMain::reset() {
-        command_queue_.flush();
-        heap_srv_cbv_uav_.reset();
-        heap_sampler_.reset();
-        heap_dsv_.reset();
-        heap_rtv_.reset();
-    }
-
     void RendererMain::init(
         void* window,
         std::uint32_t width,
@@ -116,66 +106,26 @@ namespace fjr::render {
         const scene::StaticScene& scene,
         const RendererOptions& options) {
 
-        const HWND hwnd = static_cast<HWND>(window);
         options_ = options;
         environment_light_ = scene.environment_light;
 
-        // basic resources
-
-        const auto factory = dx::DeviceUtils::create_factory();
-        device_ = dx::DeviceUtils::create_device(factory.Get());
-
-        command_queue_.init(
-            device_.Get(),
-            D3D12_COMMAND_LIST_TYPE_DIRECT);
-
-        swap_chain_.init(
-            factory.Get(),
-            command_queue_.get_command_queue(),
-            hwnd,
+        RendererBase::init(
+            window,
             width,
             height,
-            FRAME_COUNT,
             options_.vsync);
-
-        heap_srv_cbv_uav_.init(
-            device_.Get(),
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            1024,
-            true);
-        heap_sampler_.init(
-            device_.Get(),
-            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-            128,
-            true);
-        heap_dsv_.init(
-            device_.Get(),
-            D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-            1,
-            false);
-        heap_rtv_.init(
-            device_.Get(),
-            D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-            FRAME_COUNT,
-            false);
-
-        desc_rtv_ = heap_rtv_.alloc(FRAME_COUNT);
-        desc_dsv_ = heap_dsv_.alloc();
-
-        for (std::uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
-            command_contexts_[frame].init(
-                device_.Get(),
-                D3D12_COMMAND_LIST_TYPE_DIRECT,
-                frame);
-        }
 
         // scene
 
-        const auto point_culling = PointCullingDataBuilder::build(scene);
+        const auto point_culling = SceneBatchBuilder::build(scene);
         const auto bounds = SceneBoundsBuilder::build(scene, point_culling);
 
-        scene_resources_temp_ = std::make_unique<data::SceneResourcesTemp>(
-            SceneResourcesTempBuilder::build(scene, bounds, options));
+        scene_draws_ = SceneDrawBuilder::build(scene, bounds, options);
+        const auto scene_resources_temp =
+            SceneResourcesTempBuilder::build(
+                scene,
+                bounds,
+                scene_draws_);
 
         SceneResourcesBuilder::Context build_context;
         build_context.device = device_.Get();
@@ -188,29 +138,11 @@ namespace fjr::render {
         };
 
         scene_resources_ = std::make_unique<data::SceneResources>(
-                SceneResourcesBuilder::build(
-                    build_context, scene, *scene_resources_temp_, point_culling.instance_order));
-
-        // remove category by option
-        std::erase_if(scene_resources_temp_->draw_items, [&](const data::DrawFinalGPUIndirect& draw) {
-
-            if (draw.instnace_class == data::EnumPointOrMatrix::POINT) {
-                if (draw.point_category == scene::StaticScene::EnumPointCategory::RIVER_SEEDLING)
-                    return !options_.objects.river_seedling;
-                if (draw.point_category == scene::StaticScene::EnumPointCategory::RIVER_FOREST)
-                    return !options_.objects.river_forest;
-                if (draw.point_category == scene::StaticScene::EnumPointCategory::PYRAMID_MOSS)
-                    return !options_.objects.pyramid_moss;
-                return !options_.objects.other_foliage;
-            }
-
-            const bool is_terrain =
-                scene.components.terrain.extended.contains(draw.constants.offset_instance) ||
-                scene.components.terrain.cinematic.contains(draw.constants.offset_instance);
-
-            return is_terrain ? !options_.objects.terrain : !options_.objects.other;
-            });
-
+            SceneResourcesBuilder::build(
+                build_context,
+                scene,
+                scene_resources_temp,
+                point_culling.instance_order));
 
         initialize_camera(camera, scene.camera, bounds.world_bounds, width, height, options.frame_entire_scene);
 
@@ -226,7 +158,7 @@ namespace fjr::render {
 
         SceneDynamicDataBuilder::build(
             dynamic_scene_data_,
-            *scene_resources_temp_,
+            scene_draws_,
             camera,
             options_.lod_selection,
             swap_chain_.get_height());
@@ -289,78 +221,19 @@ namespace fjr::render {
         pass_views.descs_samplers =
             scene_resources_->materials.sampler_descriptors;
 
-        create_size_dependent_resources(width, height);
+        forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
+        forward_pass_.views.width = width;
+        forward_pass_.views.height = height;
     }
 
     void RendererMain::resize(
         std::uint32_t width,
         std::uint32_t height) {
 
-        command_queue_.flush();
-        swap_chain_.resize(width, height);
-        create_size_dependent_resources(width, height);
-    }
-
-    void RendererMain::create_size_dependent_resources(
-        std::uint32_t width,
-        std::uint32_t height) {
-
+        RendererBase::resize(width, height);
         camera.set_aspect_ratio(
             static_cast<float>(width) /
             static_cast<float>(height));
-
-        for (std::uint32_t frame = 0;
-            frame < FRAME_COUNT;
-            ++frame) {
-
-            swap_chain_.get_buffer(frame).create_rtv(
-                device_.Get(),
-                desc_rtv_.get_cpu(frame),
-                0,
-                0,
-                1,
-                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-        }
-
-        buffer_depth_.reset();
-
-        constexpr DXGI_FORMAT DEPTH_FORMAT =
-            DXGI_FORMAT_D32_FLOAT;
-
-        D3D12_RESOURCE_DESC depth_description{};
-        depth_description.Dimension =
-            D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        depth_description.Width = width;
-        depth_description.Height = height;
-        depth_description.DepthOrArraySize = 1;
-        depth_description.MipLevels = 1;
-        depth_description.Format = DEPTH_FORMAT;
-        depth_description.SampleDesc.Count = 1;
-        depth_description.Layout =
-            D3D12_TEXTURE_LAYOUT_UNKNOWN;
-        depth_description.Flags =
-            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-        D3D12_CLEAR_VALUE clear_value{};
-        clear_value.Format = DEPTH_FORMAT;
-        clear_value.DepthStencil.Depth = 1.0f;
-
-        buffer_depth_.init(
-            device_.Get(),
-            depth_description,
-            dx::TextureType::texture2d,
-            D3D12_RESOURCE_STATE_DEPTH_WRITE,
-            &clear_value);
-
-        buffer_depth_.create_dsv(
-            device_.Get(),
-            desc_dsv_.get_cpu(),
-            0,
-            0,
-            1,
-            DEPTH_FORMAT,
-            D3D12_DSV_FLAG_NONE);
-
         forward_pass_.views.desc_dsv =
             desc_dsv_.get_cpu();
         forward_pass_.views.width = width;
@@ -378,7 +251,7 @@ namespace fjr::render {
 
         SceneDynamicDataBuilder::build(
             dynamic_scene_data_,
-            *scene_resources_temp_,
+            scene_draws_,
             camera,
             options_.lod_selection,
             swap_chain_.get_height());

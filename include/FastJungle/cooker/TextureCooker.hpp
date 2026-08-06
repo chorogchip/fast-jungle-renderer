@@ -2,9 +2,6 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <span>
-#include <string>
-
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::cooker {
@@ -22,9 +19,13 @@ namespace fjr::cooker {
         [[nodiscard]]
         static std::uint64_t cook(
             scene::StaticScene& scene,
-            std::span<const std::string> texture_paths,
             const std::filesystem::path& payload_path,
             TextureCookOptions options = {});
+
+        [[nodiscard]]
+        static std::uint64_t reuse(
+            scene::StaticScene& scene,
+            const std::filesystem::path& texture_path);
     };
 
 } // namespace fjr::cooker

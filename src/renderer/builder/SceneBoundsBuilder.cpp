@@ -3,58 +3,19 @@
 #include <DirectXMath.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
+#include "FastJungle/core/math/Matrix.hpp"
+
 namespace fjr::render {
 
-    namespace {
-
-        [[nodiscard]]
-        math::AABB transformed(
-            const math::AABB& source,
-            DirectX::FXMMATRIX transform) noexcept {
-
-            auto result = source;
-            result.transform(transform);
-            return result;
-        }
-
-        [[nodiscard]]
-        float maximum_scale(
-            DirectX::FXMMATRIX transform) noexcept {
-
-            DirectX::XMFLOAT4X4 matrix;
-            DirectX::XMStoreFloat4x4(&matrix, transform);
-
-            const auto length = [](
-                float x,
-                float y,
-                float z) noexcept {
-
-                    return std::sqrt(x * x + y * y + z * z);
-                };
-
-            return std::max({
-                length(matrix._11, matrix._12, matrix._13),
-                length(matrix._21, matrix._22, matrix._23),
-                length(matrix._31, matrix._32, matrix._33),
-                });
-        }
-
-    } // namespace
-
-    data::SceneBounds SceneBoundsBuilder::build(
-        const scene::StaticScene& scene,
+    data::SceneBounds SceneBoundsBuilder::build(const scene::StaticScene& scene,
         const data::PointCullingData& point_culling) {
-
         data::SceneBounds result;
-
         auto& geometry = result.geometry;
         auto& points = result.points;
         auto& static_instances = result.static_instances;
-
         geometry.submesh_bounds.resize(scene.submeshes.size());
         geometry.mesh_bounds.resize(scene.meshes.size());
         points.local_bounds.resize(scene.point_batches.size());
@@ -63,258 +24,112 @@ namespace fjr::render {
         points.batch_max_scale.resize(scene.point_batches.size());
         points.batch_cluster_ranges.resize(
             scene.point_batches.size());
-
         static_instances.bounds.resize(
             scene.static_mesh_instances.size());
         static_instances.max_scale.resize(
             scene.static_mesh_instances.size());
 
         // LOD0 geometry bounds
-        for (std::size_t mesh_index = 0;
-            mesh_index < scene.meshes.size();
-            ++mesh_index) {
+        for (std::size_t mesh_id = 0; mesh_id < scene.meshes.size(); ++mesh_id) {
+            const auto& mesh = scene.meshes[mesh_id];
+            const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
+            auto& mesh_bounds = geometry.mesh_bounds[mesh_id];
 
-            const auto& mesh = scene.meshes[mesh_index];
-            const auto& lod0 =
-                scene.mesh_lods[mesh.lod_offset];
+            for (std::uint32_t submesh = 0; submesh < lod0.submesh_count; ++submesh) {
+                const auto submesh_id =
+                    static_cast<std::size_t>(lod0.submesh_offset) + submesh;
+                const auto& source = scene.submeshes[submesh_id];
+                auto& submesh_bounds = geometry.submesh_bounds[submesh_id];
 
-            auto& mesh_bounds =
-                geometry.mesh_bounds[mesh_index];
-
-            for (std::uint32_t local_submesh = 0;
-                local_submesh < lod0.submesh_count;
-                ++local_submesh) {
-
-                const auto submesh_index =
-                    static_cast<std::size_t>(
-                        lod0.submesh_offset) +
-                    local_submesh;
-
-                const auto& submesh =
-                    scene.submeshes[submesh_index];
-
-                auto& submesh_bounds =
-                    geometry.submesh_bounds[submesh_index];
-
-                for (std::uint32_t local_vertex = 0;
-                    local_vertex < submesh.vertex_count;
-                    ++local_vertex) {
-
-                    const auto vertex_index =
-                        static_cast<std::size_t>(
-                            submesh.vertex_offset) +
-                        local_vertex;
-
-                    submesh_bounds.merge(
-                        scene.vertices[vertex_index].position);
+                for (std::uint32_t vertex = 0; vertex < source.vertex_count; ++vertex) {
+                    const auto vertex_id =
+                        static_cast<std::size_t>(source.vertex_offset) + vertex;
+                    submesh_bounds.merge(scene.vertices[vertex_id].position);
                 }
-
                 mesh_bounds.merge(submesh_bounds);
             }
 
             // 모든 LOD submesh가 LOD0 vertex range를 공유한다.
-            for (std::uint32_t local_lod = 1;
-                local_lod < mesh.lod_count;
-                ++local_lod) {
-
-                const auto& lod = scene.mesh_lods[
-                    static_cast<std::size_t>(
-                        mesh.lod_offset) +
-                        local_lod];
-
-                for (std::uint32_t local_submesh = 0;
-                    local_submesh < lod.submesh_count;
-                    ++local_submesh) {
-
+            for (std::uint32_t lod = 1; lod < mesh.lod_count; ++lod) {
+                const auto& lod_data = scene.mesh_lods[
+                    static_cast<std::size_t>(mesh.lod_offset) + lod];
+                for (std::uint32_t submesh = 0; submesh < lod_data.submesh_count; ++submesh) {
                     geometry.submesh_bounds[
-                        static_cast<std::size_t>(
-                            lod.submesh_offset) +
-                            local_submesh] =
+                        static_cast<std::size_t>(lod_data.submesh_offset) + submesh] =
                         geometry.submesh_bounds[
-                            static_cast<std::size_t>(
-                                lod0.submesh_offset) +
-                                local_submesh];
+                            static_cast<std::size_t>(lod0.submesh_offset) + submesh];
                 }
             }
         }
 
         // PointBatch와 PointCluster bounds
-        for (std::size_t batch_index = 0;
-            batch_index < scene.point_batches.size();
-            ++batch_index) {
-
-            const auto& batch =
-                scene.point_batches[batch_index];
-
-            const auto batch_local =
-                DirectX::XMLoadFloat4x4(
-                    &batch.local_transform);
-
-            points.local_bounds[batch_index] =
-                transformed(
-                    geometry.mesh_bounds[batch.mesh],
-                    batch_local);
-
-            points.local_max_scale[batch_index] =
-                maximum_scale(batch_local);
+        for (std::size_t batch_id = 0; batch_id < scene.point_batches.size(); ++batch_id) {
+            const auto& batch = scene.point_batches[batch_id];
+            const auto batch_local = DirectX::XMLoadFloat4x4(&batch.local_transform);
+            points.local_bounds[batch_id] =
+                geometry.mesh_bounds[batch.mesh].transformed(batch_local);
+            points.local_max_scale[batch_id] = math::Matrix::maximum_scale(batch_local);
         }
+
+        std::size_t cluster_id = 0;
 
         // Keep GPU cluster ranges contiguous per mesh batch while preserving
         // the instance order selected by the user callback.
-        for (std::size_t batch_index = 0;
-            batch_index < scene.point_batches.size();
-            ++batch_index) {
+        for (std::size_t batch_id = 0; batch_id < scene.point_batches.size(); ++batch_id) {
+            const auto& batch = scene.point_batches[batch_id];
+            auto& batch_bounds = points.batch_bounds[batch_id];
+            auto& batch_max_scale = points.batch_max_scale[batch_id];
+            const auto batch_local = DirectX::XMLoadFloat4x4(&batch.local_transform);
+            auto& cluster_range = points.batch_cluster_ranges[batch_id];
+            cluster_range.offset = static_cast<std::uint32_t>(points.clusters.size());
 
-            const auto& batch =
-                scene.point_batches[batch_index];
+            while (cluster_id < point_culling.batches.size() &&
+                point_culling.batches[cluster_id].point_batch_index ==
+                static_cast<std::uint32_t>(batch_id)) {
+                const auto& source_batch = point_culling.batches[cluster_id];
+                auto& cluster = points.clusters.emplace_back();
+                cluster.point_mesh_batch_index = static_cast<std::uint32_t>(batch_id);
+                cluster.category = batch.category;
+                cluster.instances = source_batch.instance_order_id;
 
-            auto& batch_bounds =
-                points.batch_bounds[batch_index];
-
-            auto& batch_max_scale =
-                points.batch_max_scale[batch_index];
-
-            const auto batch_local =
-                DirectX::XMLoadFloat4x4(
-                    &batch.local_transform);
-
-            auto& cluster_range =
-                points.batch_cluster_ranges[batch_index];
-
-            cluster_range.offset =
-                static_cast<std::uint32_t>(
-                    points.clusters.size());
-
-            for (const auto& source_batch :
-                point_culling.batches) {
-
-                const auto first_source_index =
-                    point_culling.instance_order[
-                        source_batch.instances.offset];
-
-                const auto& first_instance =
-                    point_culling.instances[
-                        first_source_index];
-
-                if (first_instance.point_mesh_batch_index !=
-                    batch_index) {
-
-                    continue;
-                }
-
-                auto& cluster =
-                    points.clusters.emplace_back();
-
-                cluster.point_mesh_batch_index =
-                    static_cast<std::uint32_t>(
-                        batch_index);
-
-                cluster.category =
-                    first_instance.category;
-
-                cluster.instances =
-                    source_batch.instances;
-
-                for (std::uint32_t local_instance = 0;
-                    local_instance < cluster.instances.count;
-                    ++local_instance) {
-
-                    const auto order_index =
-                        static_cast<std::size_t>(
-                            cluster.instances.offset) +
-                        local_instance;
-
-                    const auto instance_index =
-                        point_culling.instance_order[
-                            order_index];
-
-                    const auto& instance =
-                        scene.point_instances[
-                            instance_index];
-
-                    const auto scale =
-                        DirectX::XMMatrixScaling(
-                            instance.scale.x,
-                            instance.scale.y,
-                            instance.scale.z);
-
-                    const auto rotation =
-                        DirectX::XMMatrixRotationQuaternion(
-                            DirectX::XMLoadFloat4(
-                                &instance.orientation));
-
-                    const auto translation =
-                        DirectX::XMMatrixTranslation(
-                            instance.position.x,
-                            instance.position.y,
-                            instance.position.z);
-
-                    const auto instance_world =
-                        scale * rotation * translation;
-
-                    const auto world =
-                        batch_local * instance_world;
-
+                for (std::uint32_t instance = 0; instance < cluster.instances.count; ++instance) {
+                    const auto order =
+                        static_cast<std::size_t>(cluster.instances.offset) + instance;
+                    const auto source_id = point_culling.instance_order[order];
+                    const auto& source = scene.point_instances[source_id];
+                    const auto scale = DirectX::XMMatrixScaling(
+                        source.scale.x, source.scale.y, source.scale.z);
+                    const auto rotation = DirectX::XMMatrixRotationQuaternion(
+                        DirectX::XMLoadFloat4(&source.orientation));
+                    const auto translation = DirectX::XMMatrixTranslation(
+                        source.position.x, source.position.y, source.position.z);
+                    const auto world = batch_local * (scale * rotation * translation);
                     const auto instance_bounds =
-                        transformed(
-                            geometry.mesh_bounds[batch.mesh],
-                            world);
+                        geometry.mesh_bounds[batch.mesh].transformed(world);
+                    cluster.world_bounds.merge(instance_bounds);
 
-                    cluster.world_bounds.merge(
-                        instance_bounds);
-
-                    const float instance_max_scale =
-                        maximum_scale(world);
-
-                    cluster.world_max_scale =
-                        std::max(
-                            cluster.world_max_scale,
-                            instance_max_scale);
-
-                    batch_max_scale =
-                        std::max(
-                            batch_max_scale,
-                            instance_max_scale);
+                    const float instance_max_scale = math::Matrix::maximum_scale(world);
+                    cluster.world_max_scale = std::max(
+                        cluster.world_max_scale, instance_max_scale);
+                    batch_max_scale = std::max(batch_max_scale, instance_max_scale);
                 }
-
-                batch_bounds.merge(
-                    cluster.world_bounds);
+                batch_bounds.merge(cluster.world_bounds);
+                ++cluster_id;
             }
-
             cluster_range.count =
-                static_cast<std::uint32_t>(
-                    points.clusters.size()) -
-                cluster_range.offset;
-
+                static_cast<std::uint32_t>(points.clusters.size()) - cluster_range.offset;
             result.world_bounds.merge(batch_bounds);
         }
 
         // Matrix instances
-        for (std::size_t instance_index = 0;
-            instance_index <
-            scene.static_mesh_instances.size();
-            ++instance_index) {
-
-            const auto& instance =
-                scene.static_mesh_instances[
-                    instance_index];
-
-            const auto world =
-                DirectX::XMLoadFloat4x4(
-                    &instance.world_transform);
-
-            static_instances.bounds[instance_index] =
-                transformed(
-                    geometry.mesh_bounds[instance.mesh],
-                    world);
-
-            static_instances.max_scale[instance_index] =
-                maximum_scale(world);
-
-            result.world_bounds.merge(
-                static_instances.bounds[instance_index]);
+        for (std::size_t instance_id = 0; instance_id < scene.static_mesh_instances.size(); ++instance_id) {
+            const auto& instance = scene.static_mesh_instances[instance_id];
+            const auto world = DirectX::XMLoadFloat4x4(&instance.world_transform);
+            static_instances.bounds[instance_id] =
+                geometry.mesh_bounds[instance.mesh].transformed(world);
+            static_instances.max_scale[instance_id] = math::Matrix::maximum_scale(world);
+            result.world_bounds.merge(static_instances.bounds[instance_id]);
         }
-
         return result;
     }
 

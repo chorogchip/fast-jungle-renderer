@@ -1,10 +1,8 @@
 #pragma once
 
-#include <vector>
-
 #include "FastJungle/renderer/RendererOptions.hpp"
-#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 #include "FastJungle/renderer/data/SceneBounds.hpp"
+#include "FastJungle/renderer/data/SceneDraws.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
@@ -14,7 +12,7 @@ namespace fjr::render {
         SceneDrawBuilder() = delete;
 
         [[nodiscard]]
-        static std::vector<data::DrawFinalGPUIndirect> build(
+        static data::SceneDraws build(
             const scene::StaticScene& scene,
             const data::SceneBounds& bounds,
             const RendererOptions& options);

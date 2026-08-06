@@ -1,11 +1,12 @@
 #pragma once
 
 #include <concepts>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::math {
 
@@ -18,8 +19,9 @@ namespace fjr::math {
         std::string_view subject) {
 
         if (!std::in_range<To>(value)) {
-            throw std::overflow_error{
-                std::string{subject} + " does not fit the destination integer type."};
+            log::Logger::g_logger << log::abrt(
+                std::string{subject} +
+                " does not fit the destination integer type.");
         }
         return static_cast<To>(value);
     }

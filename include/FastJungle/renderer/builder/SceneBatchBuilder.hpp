@@ -5,9 +5,9 @@
 
 namespace fjr::render {
 
-    class PointCullingDataBuilder final {
+    class SceneBatchBuilder final {
     public:
-        PointCullingDataBuilder() = delete;
+        SceneBatchBuilder() = delete;
 
         [[nodiscard]]
         static data::PointCullingData build(

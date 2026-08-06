@@ -8,7 +8,6 @@
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
-
     class ScenePointResourceBuilder final {
     public:
         ScenePointResourceBuilder() = delete;
@@ -17,9 +16,6 @@ namespace fjr::render {
         static data::SceneResourcesTemp::PointRenderPlan build(
             const scene::StaticScene& scene,
             const data::SceneBounds& bounds,
-            std::span<
-            const data::DrawFinalGPUIndirect>
-            draw_items);
+            std::span<const data::DrawFinalGPUIndirect> draw_items);
     };
-
 } // namespace fjr::render

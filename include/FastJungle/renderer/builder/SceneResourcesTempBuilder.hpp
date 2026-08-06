@@ -1,12 +1,11 @@
 #pragma once
 
-#include "FastJungle/renderer/RendererOptions.hpp"
 #include "FastJungle/renderer/data/SceneBounds.hpp"
+#include "FastJungle/renderer/data/SceneDraws.hpp"
 #include "FastJungle/renderer/data/SceneResourcesTemp.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
-
     class SceneResourcesTempBuilder final {
     public:
         SceneResourcesTempBuilder() = delete;
@@ -15,7 +14,6 @@ namespace fjr::render {
         static data::SceneResourcesTemp build(
             const scene::StaticScene& scene,
             const data::SceneBounds& bounds,
-            const RendererOptions& options);
+            const data::SceneDraws& draws);
     };
-
 } // namespace fjr::render

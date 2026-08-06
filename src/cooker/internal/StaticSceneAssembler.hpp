@@ -62,7 +62,6 @@ namespace fjr::cooker::internal {
         };
 
         std::unique_ptr<scene::StaticScene> scene_;
-        std::vector<std::string> texture_paths_;
         std::unordered_map<std::string, std::uint32_t> string_offsets_;
         std::unordered_map<std::string, TextureId> texture_cache_;
         std::unordered_map<SamplerKey, SamplerId, SamplerKeyHash>

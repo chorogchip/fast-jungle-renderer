@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <iterator>
 
+#include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
@@ -129,8 +130,8 @@ namespace fjr::render {
         for (std::uint32_t index = 0; index < PIPELINE_STATE_COUNT; ++index) {
             auto description = base;
 
-            const bool double_sided = (index & 1u) != 0;
-            const bool alpha_blended = (index & 2u) != 0;
+            const bool double_sided = enm::has(index, 1u);
+            const bool alpha_blended = enm::has(index, 2u);
 
             description.RasterizerState.CullMode =
                 double_sided ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;

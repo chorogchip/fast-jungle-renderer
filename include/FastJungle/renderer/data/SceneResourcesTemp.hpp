@@ -1,13 +1,10 @@
 #pragma once
 
-#include <array>
 #include <vector>
 
-#include "FastJungle/core/math/AABB.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 #include "FastJungle/renderer/data/RenderTypesCommon.hpp"
 #include "FastJungle/renderer/data/RenderTypesPointBatch.hpp"
-#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 
 namespace fjr::render::data {
 
@@ -29,9 +26,6 @@ namespace fjr::render::data {
         std::vector<CbufPointDraw> point_constants;
         std::vector<CbufMatrixDraw> matrix_constants;
 
-        std::vector<DrawFinalGPUIndirect> draw_items;
         PointRenderPlan points;
-
-        math::AABB world_bounds;
     };
 }
