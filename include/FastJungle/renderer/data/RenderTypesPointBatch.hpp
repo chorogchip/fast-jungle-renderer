@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include <array>
 #include <cstdint>
 #include <type_traits>
 #include <d3d12.h>
