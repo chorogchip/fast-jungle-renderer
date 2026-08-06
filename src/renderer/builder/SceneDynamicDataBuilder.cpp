@@ -205,10 +205,6 @@ namespace fjr::render {
             return result;
         }
 
-        static constexpr std::uint64_t
-            FORCED_LOD0_INDEX_INVOCATION_BUDGET =
-            64'000'000;
-
     } // namespace
 
     void SceneDynamicDataBuilder::build(
@@ -340,9 +336,6 @@ namespace fjr::render {
             const data::DrawFinalGPUIndirect*>::
             first);
 
-        std::uint64_t remaining =
-            FORCED_LOD0_INDEX_INVOCATION_BUDGET;
-
         for (const auto& entry :
             forced_lod0_draws) {
 
@@ -355,44 +348,8 @@ namespace fjr::render {
                 continue;
             }
 
-            auto draw =
-                make_final_draw(source);
-
-            const std::uint64_t maximum_instances =
-                remaining /
-                draw.count_index;
-
-            if (maximum_instances == 0) {
-
-                if (!output.visible_draws.empty()) {
-                    break;
-                }
-
-                draw.count_instance = 1;
-            } else {
-
-                draw.count_instance =
-                    static_cast<std::uint32_t>(
-                        std::min<std::uint64_t>(
-                            draw.count_instance,
-                            maximum_instances));
-            }
-
-            output.visible_draws.push_back(draw);
-
-            const std::uint64_t work =
-                static_cast<std::uint64_t>(
-                    draw.count_index) *
-                draw.count_instance;
-
-            remaining =
-                work >= remaining
-                ? 0
-                : remaining - work;
-
-            if (remaining == 0) {
-                break;
-            }
+            output.visible_draws.push_back(
+                make_final_draw(source));
         }
     }
 
