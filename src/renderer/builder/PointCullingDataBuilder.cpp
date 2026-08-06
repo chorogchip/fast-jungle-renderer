@@ -319,9 +319,10 @@ namespace fjr::render {
         collect_instance_information(result, scene);
 
         // prev build function
-        // build_default_batches(result);
-
-        build_custum_batches(result, scene);
+        if (0)
+            build_default_batches(result);
+        else
+            build_custum_batches(result, scene);
 
         return result;
     }
