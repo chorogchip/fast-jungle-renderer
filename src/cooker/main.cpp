@@ -83,7 +83,7 @@ namespace {
             << L" MiB\n";
     }
 
-    void print_component_summary(const fjr::scene::StaticScene& scene) {
+	void print_component_summary(const fjr::scene::StaticScene& scene) {
 		using Category = fjr::scene::StaticScene::EnumPointCategory;
 		const std::array category_names{
 			std::pair{Category::ANTHURIUM, L"Anthurium"},
@@ -118,66 +118,6 @@ namespace {
 				<< batches << L" point batches / "
 				<< instances << L" instances\n";
 		}
-    }
-
-    void print_field_summary(const fjr::scene::StaticScene& scene) {
-        using Scene = fjr::scene::StaticScene;
-        std::array<std::uint32_t, 6> bindings{};
-        std::uint32_t emissive = 0;
-        std::uint32_t opacity_threshold = 0;
-        std::uint32_t ior = 0;
-        std::uint32_t specular = 0;
-        std::uint32_t clearcoat = 0;
-        std::uint32_t clearcoat_roughness = 0;
-        for (const auto& material : scene.materials) {
-            emissive += material.emissive.x != 0.0f ||
-                material.emissive.y != 0.0f || material.emissive.z != 0.0f;
-            opacity_threshold += material.opacity_threshold != 0.0f;
-            ior += material.ior != 1.5f;
-            specular += material.specular != 0.5f;
-            clearcoat += material.clearcoat != 0.0f;
-            clearcoat_roughness += material.clearcoat_roughness != 0.01f;
-            const std::array material_bindings{
-                material.texture_binding_base_color,
-                material.texture_binding_normal,
-                material.texture_binding_roughness,
-                material.texture_binding_metallic,
-                material.texture_binding_opacity,
-                material.texture_binding_emissive,
-            };
-            for (std::size_t i = 0; i < material_bindings.size(); ++i) {
-                bindings[i] += material_bindings[i] != Scene::INVALID_INDEX;
-            }
-        }
-        const auto& camera = scene.camera;
-        std::wcout
-            << L"  material fields (non-default): emissive " << emissive
-            << L", opacity threshold " << opacity_threshold
-            << L", ior " << ior << L", specular " << specular
-            << L", clearcoat " << clearcoat
-            << L", clearcoat roughness " << clearcoat_roughness << L'\n'
-            << L"  material texture bindings (base/normal/roughness/metallic/opacity/emissive): "
-            << bindings[0] << L" / " << bindings[1] << L" / "
-            << bindings[2] << L" / " << bindings[3] << L" / "
-            << bindings[4] << L" / " << bindings[5] << L'\n'
-            << L"  auxiliary streams (triangle bool/corner float/corner color/corner texcoord): "
-            << scene.triangle_bool_streams.size() << L" / "
-            << scene.corner_float_streams.size() << L" / "
-            << scene.corner_color3_streams.size() << L" / "
-            << scene.corner_texcoord2_streams.size() << L'\n'
-            << L"  auxiliary values (triangle bool/corner float/corner color/corner texcoord): "
-            << scene.triangle_bool_values.size() << L" / "
-            << scene.corner_float_values.size() << L" / "
-            << scene.corner_color3_values.size() << L" / "
-            << scene.corner_texcoord2_values.size() << L'\n'
-            << L"  camera (focal/horizontal aperture/vertical aperture/offset x/offset y/focus/f-stop/clip): "
-            << camera.focal_length << L" / " << camera.horizontal_aperture
-            << L" / " << camera.vertical_aperture << L" / "
-            << camera.horizontal_aperture_offset << L" / "
-            << camera.vertical_aperture_offset << L" / "
-            << camera.focus_distance << L" / " << camera.f_stop << L" / "
-            << camera.clipping_range.x << L", " << camera.clipping_range.y
-            << L'\n';
     }
 
     void print_scene_summary(const fjr::scene::StaticScene& scene) {
@@ -245,7 +185,6 @@ namespace {
 				<< lod_index_counts[3] << L'\n';
 		}
 		print_component_summary(scene);
-		print_field_summary(scene);
     }
 
     [[nodiscard]] int run_cooker(int argc, wchar_t** argv) {
