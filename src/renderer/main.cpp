@@ -251,6 +251,27 @@ int WINAPI wWinMain(
     _In_ int show_command) {
 
     auto options = get_renderer_launch_options();
+
+    /*
+    
+    struct RendererLaunchOptions {
+        std::filesystem::path scene = std::filesystem::path{ FASTJUNGLE_DEFAULT_COOKED_DIR } / "JungleRuins.fjscene";
+        fjr::render::RendererOptions renderer;
+        std::optional<std::filesystem::path> benchmark_output;
+        std::uint32_t benchmark_warmup_frames = 60;
+        std::uint32_t benchmark_frames = 240;
+    };
+    */
+    options.renderer.frame_entire_scene = false;
+    options.renderer.lod_selection = fjr::render::LodSelectionMode::AUTOMATIC;
+    options.renderer.objects.other = true;
+    options.renderer.objects.other_foliage = true;
+    options.renderer.objects.pyramid_moss = true;
+    options.renderer.objects.river_forest = true;
+    options.renderer.objects.river_seedling = true;
+    options.renderer.objects.terrain = true;
+    options.renderer.vsync = false;
+
     HWND hwnd = create_window(instance, 1280, 720);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
     MSVC_ASSUME(hwnd != nullptr);

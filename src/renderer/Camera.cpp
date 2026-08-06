@@ -39,34 +39,24 @@ namespace fjr::render {
     }
 
     Camera::Camera(
-        const DirectX::XMFLOAT3& position,
-        const DirectX::XMFLOAT4& rotation,
-        float vertical_fov,
-        float aspect_ratio,
-        float near_plane,
-        float far_plane,
-        float move_speed,
-        float rotate_speed) noexcept {
+        const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT4& rotation,
+        float vertical_fov, float aspect_ratio,
+        float near_plane, float far_plane,
+        float move_speed, float rotate_speed) noexcept {
+
         init(
-            position,
-            rotation,
-            vertical_fov,
-            aspect_ratio,
-            near_plane,
-            far_plane,
-            move_speed,
-            rotate_speed);
+            position, rotation,
+            vertical_fov, aspect_ratio,
+            near_plane, far_plane,
+            move_speed, rotate_speed);
     }
 
     void Camera::init(
-        const DirectX::XMFLOAT3& position,
-        const DirectX::XMFLOAT4& rotation,
-        float vertical_fov,
-        float aspect_ratio,
-        float near_plane,
-        float far_plane,
-        float move_speed,
-        float rotate_speed) noexcept {
+        const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT4& rotation,
+        float vertical_fov, float aspect_ratio,
+        float near_plane, float far_plane,
+        float move_speed, float rotate_speed) noexcept {
+
         position_ = position;
 
         vertical_fov_ = std::clamp(
@@ -94,7 +84,53 @@ namespace fjr::render {
             rotate_speed,
             0.0f);
 
-        set_rotation(rotation);
+        if (rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z < 0.01)
+            set_rotation({ 0.0f, 0.0f, 0.0f, 1.0f });
+        else
+            set_rotation(rotation);
+    }
+
+    void Camera::frame_at(const math::AABB& bounds) noexcept {
+
+        using namespace DirectX;
+
+        XMFLOAT3 center{};
+        XMFLOAT3 size{ 1.0f, 1.0f, 1.0f };
+        if (bounds.is_valid()) {
+            center = bounds.get_center();
+            size = bounds.get_size();
+        }
+
+        const float radius = std::max({
+            size.x, size.y, size.z, 1.0f,
+            });
+
+        const XMVECTOR position_vector = XMVectorSet(
+            center.x,
+            center.y + radius * 0.25f,
+            center.z - radius * 1.75f,
+            1.0f);
+
+        const XMMATRIX view = XMMatrixLookAtLH(
+            position_vector,
+            XMLoadFloat3(&center),
+            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+
+        const XMMATRIX world = XMMatrixInverse(nullptr, view);
+
+        XMFLOAT3 position{};
+        XMFLOAT4 rotation{};
+        XMStoreFloat3(&position, position_vector);
+        XMStoreFloat4(
+            &rotation,
+            XMQuaternionRotationMatrix(world));
+
+        this->init(
+            position, rotation,
+            vertical_fov_, aspect_ratio_,
+            std::max(near_plane_, radius * 0.001f),
+            std::max(far_plane_, radius * 10.0f),
+            move_speed_, rotate_speed_);
     }
 
     void Camera::set_position(

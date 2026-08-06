@@ -28,58 +28,6 @@ namespace fjr::render {
             return std::isfinite(value) && value > 1.0e-6f;
         }
 
-        void frame_camera(
-            Camera& camera,
-            const math::AABB& bounds,
-            float aspect_ratio) noexcept {
-
-            using namespace DirectX;
-
-            XMFLOAT3 center{};
-            XMFLOAT3 size{1.0f, 1.0f, 1.0f};
-            if (bounds.is_valid()) {
-                center = bounds.get_center();
-                size = bounds.get_size();
-            }
-
-            const float radius = std::max({
-                size.x,
-                size.y,
-                size.z,
-                1.0f,
-            });
-
-            const XMVECTOR position_vector = XMVectorSet(
-                center.x,
-                center.y + radius * 0.25f,
-                center.z - radius * 1.75f,
-                1.0f);
-
-            const XMMATRIX view = XMMatrixLookAtLH(
-                position_vector,
-                XMLoadFloat3(&center),
-                XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-
-            const XMMATRIX world = XMMatrixInverse(nullptr, view);
-
-            XMFLOAT3 position{};
-            XMFLOAT4 rotation{};
-            XMStoreFloat3(&position, position_vector);
-            XMStoreFloat4(
-                &rotation,
-                XMQuaternionRotationMatrix(world));
-
-            camera.init(
-                position,
-                rotation,
-                XM_PIDIV4,
-                aspect_ratio,
-                std::max(0.01f, radius * 0.001f),
-                std::max(100.0f, radius * 10.0f),
-                1.0f,
-                0.04f);
-        }
-
         void initialize_camera(
             Camera& camera,
             const scene::StaticScene::Camera& source,
@@ -93,7 +41,12 @@ namespace fjr::render {
                 static_cast<float>(std::max(height, 1u));
 
             if (frame_entire_scene) {
-                frame_camera(camera, bounds, aspect_ratio);
+                camera.init(
+                    {}, {},
+                    DirectX::XM_PIDIV4, aspect_ratio,
+                    0.01f, 100.0f,
+                    1.0f, 0.04f);
+                camera.frame_at(bounds);
                 return;
             }
 
@@ -116,7 +69,12 @@ namespace fjr::render {
                 source.clipping_range.y > source.clipping_range.x;
 
             if (!valid_transform || !valid_lens) {
-                frame_camera(camera, bounds, aspect_ratio);
+                camera.init(
+                    {}, {},
+                    DirectX::XM_PIDIV4, aspect_ratio,
+                    0.01f, 100.0f,
+                    1.0f, 0.04f);
+                camera.frame_at(bounds);
                 return;
             }
 
@@ -141,101 +99,6 @@ namespace fjr::render {
                 0.04f);
         }
 
-        [[nodiscard]]
-        bool contains(
-            scene::StaticScene::IndexRange range,
-            std::uint32_t index) noexcept {
-
-            return index >= range.offset &&
-                index - range.offset < range.count;
-        }
-
-        [[nodiscard]]
-        bool category_enabled(
-            const data::DrawFinalGPUIndirect& draw,
-            const scene::StaticScene& scene,
-            const ObjectCategoryOptions& options) noexcept {
-
-            const auto& components = scene.components;
-
-            if (draw.instnace_class ==
-                data::EnumPointOrMatrix::POINT) {
-
-                if (draw.point_category ==
-                    scene::StaticScene::EnumPointCategory::
-                        RIVER_SEEDLING) {
-                    return options.river_seedling;
-                }
-
-                if (draw.point_category ==
-                    scene::StaticScene::EnumPointCategory::
-                        RIVER_FOREST) {
-                    return options.river_forest;
-                }
-
-                if (draw.point_category ==
-                    scene::StaticScene::EnumPointCategory::
-                        PYRAMID_MOSS) {
-                    return options.pyramid_moss;
-                }
-
-                return options.other_foliage;
-            }
-
-            const std::uint32_t instance_index =
-                draw.constants.offset_instance;
-
-            const bool is_terrain =
-                contains(
-                    components.terrain.extended,
-                    instance_index) ||
-                contains(
-                    components.terrain.cinematic,
-                    instance_index);
-
-            return is_terrain
-                ? options.terrain
-                : options.other;
-        }
-
-        void filter_draw_categories(
-            data::SceneResourcesTemp& resources,
-            const scene::StaticScene& scene,
-            const ObjectCategoryOptions& options) {
-
-            std::erase_if(
-                resources.draw_items,
-                [&](const data::DrawFinalGPUIndirect& draw) {
-                    return !category_enabled(
-                        draw,
-                        scene,
-                        options);
-                });
-        }
-
-        void log_cpu_culled_draw_list(
-            std::span<const data::DrawFinalCPU> draws) {
-
-            std::uint64_t instance_references = 0;
-            std::uint64_t index_invocations = 0;
-
-            for (const auto& draw : draws) {
-                instance_references += draw.count_instance;
-                index_invocations +=
-                    static_cast<std::uint64_t>(
-                        draw.count_index) *
-                    draw.count_instance;
-            }
-
-            log::Logger::g_logger
-                << "CPU culled renderer draw list:\n"
-                << "  draws: " << draws.size() << '\n'
-                << "  instance references: "
-                << instance_references << '\n'
-                << "  index invocations: "
-                << index_invocations << '\n';
-        }
-
     } // namespace
 
 
@@ -254,6 +117,8 @@ namespace fjr::render {
         const HWND hwnd = static_cast<HWND>(window);
         options_ = options;
         environment_light_ = scene.environment_light;
+
+        // basic resources
 
         const auto factory = dx::DeviceUtils::create_factory();
         device_ = dx::DeviceUtils::create_device(factory.Get());
@@ -279,35 +144,23 @@ namespace fjr::render {
             1,
             FRAME_COUNT);
 
-        desc_rtv_ =
-            descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
-        desc_dsv_ =
-            descriptor_heaps.heap_dsv.alloc();
+        desc_rtv_ = descriptor_heaps.heap_rtv.alloc(FRAME_COUNT);
+        desc_dsv_ = descriptor_heaps.heap_dsv.alloc();
 
-        for (std::uint32_t frame = 0;
-            frame < FRAME_COUNT;
-            ++frame) {
-
+        for (std::uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             command_contexts_[frame].init(
                 device_.Get(),
                 D3D12_COMMAND_LIST_TYPE_DIRECT,
                 frame);
         }
 
-        const auto point_culling =
-            PointCullingDataBuilder::build(scene);
+        // scene
 
-        const auto bounds =
-            SceneBoundsBuilder::build(
-                scene,
-                point_culling);
+        const auto point_culling = PointCullingDataBuilder::build(scene);
+        const auto bounds = SceneBoundsBuilder::build(scene, point_culling);
 
-        scene_resources_temp_ =
-            std::make_unique<data::SceneResourcesTemp>(
-                SceneResourcesTempBuilder::build(
-                    scene,
-                    bounds,
-                    options));
+        scene_resources_temp_ = std::make_unique<data::SceneResourcesTemp>(
+            SceneResourcesTempBuilder::build(scene, bounds, options));
 
         SceneResourcesBuilder::Context build_context;
         build_context.device = device_.Get();
@@ -317,26 +170,32 @@ namespace fjr::render {
             &command_contexts_[1],
         };
 
-        scene_resources_ =
-            std::make_unique<data::SceneResources>(
+        scene_resources_ = std::make_unique<data::SceneResources>(
                 SceneResourcesBuilder::build(
-                    build_context,
-                    scene,
-                    *scene_resources_temp_,
-                    point_culling.instance_order));
+                    build_context, scene, *scene_resources_temp_, point_culling.instance_order));
 
-        filter_draw_categories(
-            *scene_resources_temp_,
-            scene,
-            options_.objects);
+        // remove category by option
+        std::erase_if(scene_resources_temp_->draw_items, [&](const data::DrawFinalGPUIndirect& draw) {
 
-        initialize_camera(
-            camera,
-            scene.camera,
-            bounds.world_bounds,
-            width,
-            height,
-            options.frame_entire_scene);
+            if (draw.instnace_class == data::EnumPointOrMatrix::POINT) {
+                if (draw.point_category == scene::StaticScene::EnumPointCategory::RIVER_SEEDLING)
+                    return !options_.objects.river_seedling;
+                if (draw.point_category == scene::StaticScene::EnumPointCategory::RIVER_FOREST)
+                    return !options_.objects.river_forest;
+                if (draw.point_category == scene::StaticScene::EnumPointCategory::PYRAMID_MOSS)
+                    return !options_.objects.pyramid_moss;
+                return !options_.objects.other_foliage;
+            }
+
+            const bool is_terrain =
+                scene.components.terrain.extended.contains(draw.constants.offset_instance) ||
+                scene.components.terrain.cinematic.contains(draw.constants.offset_instance);
+
+            return is_terrain ? !options_.objects.terrain : !options_.objects.other;
+            });
+
+
+        initialize_camera(camera, scene.camera, bounds.world_bounds, width, height, options.frame_entire_scene);
 
         for (auto& frame : frame_const_data_) {
             SceneFrameConstDataBuilder::build(
@@ -346,14 +205,14 @@ namespace fjr::render {
                 environment_light_);
         }
 
+        // frame resources
+
         SceneDynamicDataBuilder::build(
             dynamic_scene_data_,
             *scene_resources_temp_,
             camera,
-            options_.lod_selection);
-
-        log_cpu_culled_draw_list(
-            dynamic_scene_data_.visible_draws);
+            options_.lod_selection,
+            swap_chain_.get_height());
 
         forward_pass_.init(
             device_.Get(),

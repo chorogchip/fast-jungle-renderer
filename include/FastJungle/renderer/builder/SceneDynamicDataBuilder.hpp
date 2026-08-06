@@ -15,7 +15,8 @@ namespace fjr::render {
             data::DynamicSceneData& output,
             const data::SceneResourcesTemp& scene,
             const Camera& camera,
-            LodSelectionMode lod_selection);
+            LodSelectionMode lod_selection,
+            uint32_t viewport_height);
     };
 
 } // namespace fjr::render

@@ -52,6 +52,10 @@ namespace fjr::scene {
 		struct IndexRange {
 			uint32_t offset = INVALID_INDEX;
 			uint32_t count = 0;
+
+			[[nodiscard]] inline bool contains(uint32_t index) const noexcept {
+				return offset <= index && index - offset < count;
+			}
 		};
 
 		struct Vertex {

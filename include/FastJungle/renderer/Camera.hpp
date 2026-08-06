@@ -3,6 +3,8 @@
 #include <cmath>
 #include <DirectXMath.h>
 
+#include "FastJungle/core/math/AABB.hpp"
+
 namespace fjr::render {
 
     class Camera {
@@ -28,6 +30,8 @@ namespace fjr::render {
             float far_plane,
             float move_speed,
             float rotate_speed) noexcept;
+
+        void frame_at(const math::AABB& bounds) noexcept;
 
         void set_position(
             const DirectX::XMFLOAT3& position) noexcept;

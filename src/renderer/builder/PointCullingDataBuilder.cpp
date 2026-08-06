@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "FastJungle/renderer/data/RenderConsts.hpp"
+#include "SpacialPoint.hpp"
 
 namespace fjr::render {
 
@@ -155,9 +156,157 @@ namespace fjr::render {
             data::PointCullingData& output,
             const scene::StaticScene& scene) {
 
-            // TODO
+            output.batches.clear();
 
+            if (output.instance_order.size() !=
+                scene.point_instances.size()) {
 
+                throw std::logic_error(
+                    "Point instance order size is inconsistent.");
+            }
+
+            output.batches.reserve(
+                scene.point_instances.size() /
+                data::Consts::PNT_CLUSTER_SZ +
+                scene.point_category_spans.size());
+
+            std::vector<SpatialPoint> spatial_points;
+
+            std::size_t write_cursor = 0;
+
+            for (const auto& mesh_batch :
+                scene.point_mesh_batches) {
+
+                for (std::uint32_t local_span = 0;
+                    local_span <
+                    mesh_batch.category_spans.count;
+                    ++local_span) {
+
+                    const std::size_t span_index =
+                        static_cast<std::size_t>(
+                            mesh_batch.category_spans.offset) +
+                        local_span;
+
+                    const auto& span =
+                        scene.point_category_spans[
+                            span_index];
+
+                    if (span.instances.count == 0) {
+                        continue;
+                    }
+
+                    const float cell_size =
+                        point_cluster_cell_size(
+                            span.category);
+
+                    spatial_points.clear();
+                    spatial_points.reserve(
+                        span.instances.count);
+
+                    for (std::uint32_t local_instance = 0;
+                        local_instance <
+                        span.instances.count;
+                        ++local_instance) {
+
+                        const std::uint32_t source_index =
+                            span.instances.offset +
+                            local_instance;
+
+                        spatial_points.push_back(
+                            make_spatial_point(
+                                scene,
+                                source_index,
+                                cell_size));
+                    }
+
+                    std::sort(
+                        spatial_points.begin(),
+                        spatial_points.end(),
+                        [](const SpatialPoint& left,
+                            const SpatialPoint& right) {
+
+                                return std::tie(
+                                    left.cell_x,
+                                    left.cell_z,
+                                    left.morton,
+                                    left.source_index) <
+                                    std::tie(
+                                        right.cell_x,
+                                        right.cell_z,
+                                        right.morton,
+                                        right.source_index);
+                        });
+
+                    std::size_t cluster_offset =
+                        write_cursor;
+
+                    std::uint32_t cluster_count = 0;
+                    std::int32_t active_cell_x = 0;
+                    std::int32_t active_cell_z = 0;
+
+                    const auto flush_cluster = [&]() {
+                        if (cluster_count == 0) {
+                            return;
+                        }
+
+                        data::PointCullingBatch cluster;
+                        cluster.instances.offset =
+                            static_cast<std::uint32_t>(
+                                cluster_offset);
+
+                        cluster.instances.count =
+                            cluster_count;
+
+                        output.batches.push_back(
+                            cluster);
+
+                        cluster_offset = write_cursor;
+                        cluster_count = 0;
+                        };
+
+                    for (const auto& point :
+                        spatial_points) {
+
+                        const bool cell_changed =
+                            cluster_count != 0 &&
+                            (point.cell_x != active_cell_x ||
+                                point.cell_z != active_cell_z);
+
+                        const bool instance_limit_reached =
+                            cluster_count >=
+                            data::Consts::PNT_CLUSTER_SZ;
+
+                        if (cell_changed ||
+                            instance_limit_reached) {
+
+                            flush_cluster();
+                        }
+
+                        if (cluster_count == 0) {
+                            active_cell_x = point.cell_x;
+                            active_cell_z = point.cell_z;
+                            cluster_offset = write_cursor;
+                        }
+
+                        output.instance_order[
+                            write_cursor] =
+                            point.source_index;
+
+                            ++write_cursor;
+                            ++cluster_count;
+                    }
+
+                    flush_cluster();
+                }
+            }
+
+            if (write_cursor !=
+                output.instance_order.size()) {
+
+                throw std::logic_error(
+                    "Spatial clustering did not emit "
+                    "every point instance.");
+            }
         }
 
     } // namespace
