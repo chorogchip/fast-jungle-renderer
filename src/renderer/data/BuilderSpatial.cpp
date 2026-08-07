@@ -19,12 +19,11 @@ namespace fjr::render::data {
 
     namespace {
 
-        using Fixed = DataPersistent::Fixed;
         using InstanceTransform =
-            Fixed::InstanceTransform;
+            DataPersistent::InstanceTransform;
         using SpatialCluster =
-            Fixed::SpatialCluster;
-        using Mesh = Fixed::Mesh;
+            DataPersistent::SpatialCluster;
+        using Mesh = DataPersistent::Mesh;
 
         [[nodiscard]]
         std::uint32_t checked_u32(
@@ -746,12 +745,12 @@ namespace fjr::render::data {
     } // namespace
 
     BuilderSpatial::Result BuilderSpatial::build(
-            data::DataPersistent::Fixed& output,
+            data::DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene,
             std::span<const data::DataPersistent::
-            Fixed::Mesh> meshes) {
+            Mesh> meshes) {
 
         if (meshes.size() != scene.meshes.size()) {
             log::Logger::g_logger << log::abrt(

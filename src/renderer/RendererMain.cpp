@@ -51,7 +51,9 @@ namespace fjr::render {
 
         for (auto& frame : data_per_frame_) {
             frame = data::DataPerFrame::build(
-                device_.Get(), camera, environment_light_);
+                device_.Get(),
+                data_persistant_.instnace_cnt,
+                data_persistant_.bin_cnt);
         }
 
         // init pass
@@ -70,6 +72,8 @@ namespace fjr::render {
 
     void RendererMain::render() {
 
+        // start
+
         const std::uint32_t frame =
             swap_chain_.get_current_frame();
 
@@ -78,6 +82,12 @@ namespace fjr::render {
             context.get_fence_value());
 
         context.reset();
+
+        // camera
+
+        data_per_frame_[frame].camera.data().fill_from_camera(camera);
+
+        // prepare pass
 
         swap_chain_.get_current_buffer().transition(
             context.get(),
@@ -91,6 +101,8 @@ namespace fjr::render {
 
         swap_chain_.get_current_buffer().transition(
             context.get(), D3D12_RESOURCE_STATE_PRESENT);
+
+        // end
 
         context.close();
         command_queue_.execute(context.get());

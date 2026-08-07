@@ -22,11 +22,11 @@ namespace fjr::render::data {
 
         [[nodiscard]]
         static Result build(
-            data::DataPersistent::Fixed& output,
+            data::DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene,
-            std::span<const data::DataPersistent::Fixed::Mesh> meshes);
+            std::span<const data::DataPersistent::Mesh> meshes);
     };
 
 } // namespace fjr::render

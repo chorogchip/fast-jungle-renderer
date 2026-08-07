@@ -16,8 +16,6 @@ namespace fjr::render::data {
 
     namespace {
 
-        using Fixed = data::DataPersistent::Fixed;
-
         constexpr UINT MATERIAL_SAMPLER_COUNT = 2;
 
 
@@ -142,7 +140,7 @@ namespace fjr::render::data {
 
 
         void create_textures(
-            Fixed& output,
+            DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene) {
@@ -244,7 +242,7 @@ namespace fjr::render::data {
 
 
         void create_texture_descriptors(
-            Fixed& output,
+            DataPersistent& output,
             ID3D12Device* device,
             const scene::StaticScene& scene) {
 
@@ -332,7 +330,7 @@ namespace fjr::render::data {
 
 
         void create_samplers(
-            Fixed& output,
+            DataPersistent& output,
             ID3D12Device* device,
             dx::DescriptorHeap& heap_sampler,
             const scene::StaticScene& scene) {
@@ -389,12 +387,12 @@ namespace fjr::render::data {
 
 
         void create_materials(
-            Fixed& output,
+            DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene) {
 
-            std::vector<Fixed::Material> materials;
+            std::vector<DataPersistent::Material> materials;
             materials.resize(scene.materials.size());
 
             for (std::size_t material_id = 0;
@@ -441,14 +439,14 @@ namespace fjr::render::data {
                 output.material,
                 uploader,
                 device,
-                std::span<const Fixed::Material>{ materials },
+                std::span<const DataPersistent::Material>{ materials },
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         }
 
     } // namespace
 
     void BuilderMaterial::build(
-        data::DataPersistent::Fixed& output,
+        data::DataPersistent& output,
         dx::ResourceUploader& uploader,
         ID3D12Device* device,
         dx::DescriptorHeap& heap_srv_cbv_uav,

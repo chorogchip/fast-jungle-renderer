@@ -14,7 +14,7 @@ namespace fjr::render::data {
         BuilderMaterial() = delete;
 
         static void build(
-            data::DataPersistent::Fixed& output,
+            data::DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             dx::DescriptorHeap& heap_srv_cbv_uav,

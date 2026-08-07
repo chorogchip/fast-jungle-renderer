@@ -15,8 +15,6 @@ namespace fjr::render::data {
 
     namespace {
 
-        using Fixed = DataPersistent::Fixed;
-
         constexpr std::uint32_t MAX_SUBMESH_COUNT =
             256u * data::Consts::LOD_CNT;
 
@@ -130,7 +128,7 @@ namespace fjr::render::data {
         }
 
         [[nodiscard]]
-        Fixed::Mesh build_mesh(
+        DataPersistent::Mesh build_mesh(
             const scene::StaticScene& scene,
             std::size_t mesh_id) {
 
@@ -182,7 +180,7 @@ namespace fjr::render::data {
                 }
             }
 
-            Fixed::Mesh result;
+            DataPersistent::Mesh result;
             result.bounds_center = bounds.center();
             result.lod_offset = source_mesh.lod_offset;
             result.lod_count = source_mesh.lod_count;
@@ -233,7 +231,7 @@ namespace fjr::render::data {
     } // namespace
 
     BuilderGeometry::Result BuilderGeometry::build(
-        data::DataPersistent::Fixed& output,
+        data::DataPersistent& output,
         dx::ResourceUploader& uploader,
         ID3D12Device* device,
         const scene::StaticScene& scene) {
@@ -285,7 +283,7 @@ namespace fjr::render::data {
             std::span<const std::uint32_t>{ scene.indices },
             D3D12_RESOURCE_STATE_INDEX_BUFFER);
 
-        std::vector<Fixed::SubMesh> submeshes;
+        std::vector<DataPersistent::SubMesh> submeshes;
         submeshes.resize(scene.submeshes.size());
 
         for (std::size_t index = 0;
@@ -322,7 +320,7 @@ namespace fjr::render::data {
                     source.vertex_offset);
         }
 
-        std::vector<Fixed::MeshLod> mesh_lods;
+        std::vector<DataPersistent::MeshLod> mesh_lods;
         mesh_lods.resize(scene.mesh_lods.size());
 
         for (const auto& mesh : scene.meshes) {
@@ -391,21 +389,21 @@ namespace fjr::render::data {
             output.submesh,
             uploader,
             device,
-            std::span<const Fixed::SubMesh>{ submeshes },
+            std::span<const DataPersistent::SubMesh>{ submeshes },
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         upload_buffer(
             output.mesh_lod,
             uploader,
             device,
-            std::span<const Fixed::MeshLod>{ mesh_lods },
+            std::span<const DataPersistent::MeshLod>{ mesh_lods },
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         upload_buffer(
             output.mesh,
             uploader,
             device,
-            std::span<const Fixed::Mesh>{ result.meshes },
+            std::span<const DataPersistent::Mesh>{ result.meshes },
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         return result;
