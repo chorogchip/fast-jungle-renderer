@@ -62,6 +62,11 @@ namespace {
                 scene.components.terrain.cinematic, mesh, scene);
     }
 
+    [[nodiscard]]
+    bool is_pyramid_mesh(std::uint32_t mesh, const StaticScene& scene) {
+        return scene.static_mesh_instances[scene.components.pyramid.instance].mesh == mesh;
+    }
+
     void validate_settings(const MeshLodCookSettings& settings) {
         if (settings.triangle_ratios[0] != 1.0f ||
             settings.max_relative_errors[0] != 0.0f ||
@@ -212,7 +217,10 @@ namespace {
             }
             scene.mesh_lods.push_back(lod0);
 
-            const bool lock_border = is_terrain_mesh(mesh_index, scene);
+            const bool lock_border =
+                is_terrain_mesh(mesh_index, scene) ||
+                is_pyramid_mesh(mesh_index, scene);
+
             for (std::size_t lod_index = 1;
                  lod_index < MeshLodCookSettings::LOD_COUNT;
                  ++lod_index) {

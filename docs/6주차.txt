@@ -49,6 +49,52 @@ _______________________________
 그 상태에서는 prepass가 정석이지만 visbuf를 사용한다! (약간의 오버드로우 비용을 지불해 정점 처리 부하가 유지되는 걸 보여준다)
 
 
+_______________________________
+
+
+
+최적화 계획!
+일단 IA병목을 다른 곳으로 이동시키는 것을 목표로 한다
+
+
+
+executeindirect (draw_id), visibli instance id compaction
+GPU per instnace LOD + screen size culling + instnace compaction
+GPU에서는 (mesh(batch?), lod, submesh) 단위 bin에 (배치 58 x LOD 4 x submesh ?) 모든걸 compaction한다
+
+
+
+loc3 뒤에 CULLED를 추가. (이거 구현량 낮음)
+
+
+
+16bit index (submesh내의 local index이므로, 이거 submesh들에 대해 검토해야함)
+vertex packing (pos RGBA 16bit UNORM, normal R16G16 SNORM, uv R16B16 합 16 B으로 절반)
+lod0 vertex optimization
+vegetation impostor LOD
+
+
+
+LOD를 원본에도 optimizevertexcahce 할수있고
+아니면 LODn가 원본정점을 쓰지말고 추가 append한뒤에 optimize해볼수있다
+
+
+
+
+
+loc3 뒤에 CULLED를 추가한뒤에 (임계값은 나중에 정하고)
+draw/barch 구조 파악하면서 indirect draw를 만들자.
+
+
+
+
+이거 다른데 힘뺴지 말고 GPU culling을 만들자.
+
+
+
+
+
+
 
 
 
