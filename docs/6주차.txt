@@ -102,6 +102,9 @@ _______________________________
 submesh 최대크기도 알아내서 버퍼 잡아야 하고
 ScenePreBuilder에서 담당하던 알파-사이드 뭉개는거 cooker로 옮겨야함
 할게많구만
+texture cook할 때 RGBA 포맷 G이런거 없이 항상 R로 해야함
+resource uploader도 수리해야함 지금 땜빵코드임
+
 
 
 

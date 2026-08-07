@@ -16,7 +16,7 @@ namespace fjr::render {
         dx::ResourceUploader uploader{};
         uploader.init(
             device_.Get(), command_queue_,
-            1ull * 1024ull * 1024ull, 2);
+            128ull * 1024ull * 1024ull, 2);
 
         data_persistant_ = data::DataPersistent::build(
             scene, device_.Get(), uploader, heap_srv_cbv_uav_, heap_sampler_);

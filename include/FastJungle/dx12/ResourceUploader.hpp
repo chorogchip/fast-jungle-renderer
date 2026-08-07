@@ -62,6 +62,12 @@ namespace fjr::dx {
         void reset();
 
     private:
+        void begin_recording();
+
+        UINT64 reserve_upload_space(
+            UINT64 size,
+            UINT64 alignment);
+
         CommandQueue* command_queue_ = nullptr;
         std::vector<CommandContext> contexts_;
         std::vector<Buffer> upload_buffers_;
