@@ -3,18 +3,14 @@
 #include <cstdint>
 #include <DirectXMath.h>
 
-#include "FastJungle/renderer/data/RenderConsts.hpp"
 #include "FastJungle/dx12/MappedCBuffer.hpp"
-
-namespace fjr::scene {
-    class StaticScene::EnvironmentLight;
-}
+#include "FastJungle/renderer/Camera.hpp"
+#include "FastJungle/renderer/data/RenderConsts.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render::data {
 
-    class Camera;
-
-    struct FrameConstData {
+    struct DataPerFrame {
 
         struct alignas(Consts::CBUF_ALIGN) CameraConstants {
             DirectX::XMFLOAT4X4 view_projection = Consts::I_MAT;
@@ -27,13 +23,12 @@ namespace fjr::render::data {
             float environment_intensity = 0.0f;
 
             uint32_t environment_texture_id = Consts::IND_ERR;
-            uint32_t padding_1[3]{};
         };
 
         dx::MappedCBuffer<CameraConstants> camera_constants;
         bool initialized = false;
 
-        static FrameConstData build(
+        static DataPerFrame build(
             ID3D12Device* device,
             const Camera& camera,
             const scene::StaticScene::EnvironmentLight& environment);

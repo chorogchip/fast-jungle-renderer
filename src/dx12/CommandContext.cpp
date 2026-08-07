@@ -38,6 +38,7 @@ namespace fjr::dx {
         abort_failed(command_list_->Reset(
             allocator_.Get(),
             initial_pipeline_state));
+
     }
 
     void CommandContext::close() {

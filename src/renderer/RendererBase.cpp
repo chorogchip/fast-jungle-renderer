@@ -6,8 +6,7 @@ namespace fjr::render {
 
     void RendererBase::init(
         void* window,
-        std::uint32_t width,
-        std::uint32_t height,
+        uint32_t width, uint32_t height,
         bool vsync) {
 
         const HWND hwnd = static_cast<HWND>(window);
@@ -82,37 +81,27 @@ namespace fjr::render {
         std::uint32_t width,
         std::uint32_t height) {
 
-        for (std::uint32_t frame = 0;
-            frame < FRAME_COUNT;
-            ++frame) {
-
+        for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             swap_chain_.get_buffer(frame).create_rtv(
                 device_.Get(),
                 desc_rtv_.get_cpu(frame),
-                0,
-                0,
-                1,
-                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+                0, 0, 1, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
         }
 
         buffer_depth_.reset();
 
-        constexpr DXGI_FORMAT DEPTH_FORMAT =
-            DXGI_FORMAT_D32_FLOAT;
+        constexpr DXGI_FORMAT DEPTH_FORMAT = DXGI_FORMAT_D32_FLOAT;
 
         D3D12_RESOURCE_DESC depth_description{};
-        depth_description.Dimension =
-            D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        depth_description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         depth_description.Width = width;
         depth_description.Height = height;
         depth_description.DepthOrArraySize = 1;
         depth_description.MipLevels = 1;
         depth_description.Format = DEPTH_FORMAT;
         depth_description.SampleDesc.Count = 1;
-        depth_description.Layout =
-            D3D12_TEXTURE_LAYOUT_UNKNOWN;
-        depth_description.Flags =
-            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+        depth_description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        depth_description.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
         D3D12_CLEAR_VALUE clear_value{};
         clear_value.Format = DEPTH_FORMAT;
@@ -126,13 +115,8 @@ namespace fjr::render {
             &clear_value);
 
         buffer_depth_.create_dsv(
-            device_.Get(),
-            desc_dsv_.get_cpu(),
-            0,
-            0,
-            1,
-            DEPTH_FORMAT,
-            D3D12_DSV_FLAG_NONE);
+            device_.Get(), desc_dsv_.get_cpu(),
+            0, 0, 1, DEPTH_FORMAT, D3D12_DSV_FLAG_NONE);
     }
 
 } // namespace fjr::render

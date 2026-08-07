@@ -10,9 +10,8 @@
 
 namespace fjr::scene {
 
-	class StaticScene {
+	struct StaticScene {
 
-	public:
 		static constexpr inline uint32_t INVALID_INDEX = UINT32_MAX;
 		static constexpr inline uint64_t INVALID_INDEX_64 = UINT64_MAX;
 		static constexpr DirectX::XMFLOAT4X4 IDENTITY_TRANSFORM{

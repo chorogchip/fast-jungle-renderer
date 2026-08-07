@@ -3,13 +3,14 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
-#include <limits>
-#include <d3d12.h>
-#include <DirectXMath.h>
+#include <vector>
 
+#include "FastJungle/dx12/ResourceUploader.hpp"
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/Texture.hpp"
+#include "FastJungle/dx12/View.hpp"
 #include "FastJungle/dx12/DescriptorHeap.hpp"
+#include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 
 namespace fjr::render::data {
@@ -133,5 +134,12 @@ namespace fjr::render::data {
         };
 
         Dynamic dynamic{};
-    }
+
+        static DataPersistent build(
+            const scene::StaticScene& scene,
+            ID3D12Device* device,
+            dx::ResourceUploader& uploader,
+            dx::DescriptorHeap& heap_srv_cbv_uav,
+            dx::DescriptorHeap& heap_sampler);
+    };
 }

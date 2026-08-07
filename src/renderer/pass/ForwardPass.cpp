@@ -1,3 +1,5 @@
+#if 0
+
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 
 #include <cstdint>
@@ -7,7 +9,6 @@
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
-#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 
 namespace fjr::render {
 
@@ -253,3 +254,6 @@ namespace fjr::render {
     }
 
 } // namespace fjr::render
+
+
+#endif

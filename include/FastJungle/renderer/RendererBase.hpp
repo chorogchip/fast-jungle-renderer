@@ -25,15 +25,12 @@ namespace fjr::render {
 
         void init(
             void* window,
-            std::uint32_t width,
-            std::uint32_t height,
+            uint32_t width, uint32_t height,
             bool vsync);
 
         void reset();
 
-        void resize(
-            std::uint32_t width,
-            std::uint32_t height);
+        void resize(uint32_t width, uint32_t height);
 
         Camera camera;
 
@@ -57,9 +54,8 @@ namespace fjr::render {
         dx::DescAlloc desc_dsv_;
 
     private:
-        void create_size_dependent_resources(
-            std::uint32_t width,
-            std::uint32_t height);
+
+        void create_size_dependent_resources(uint32_t width, uint32_t height);
     };
 
 } // namespace fjr::render

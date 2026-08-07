@@ -1,3 +1,5 @@
+#if 0
+
 #pragma once
 
 #include <d3d12.h>
@@ -10,7 +12,6 @@
 #include "FastJungle/dx12/CommandContext.hpp"
 #include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/dx12/View.hpp"
-#include "FastJungle/renderer/data/RenderTypesDraw.hpp"
 
 namespace fjr::render {
 
@@ -67,3 +68,5 @@ namespace fjr::render {
     };
 
 } // namespace fjr::render
+
+#endif

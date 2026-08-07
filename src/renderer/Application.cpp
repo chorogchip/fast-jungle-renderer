@@ -21,13 +21,14 @@ namespace fjr {
     }
 
     void Application::init(
-        void* native_window, uint32_t width, uint32_t height,
-        const scene::StaticScene& scene,
-        const render::RendererOptions& options) {
+        void* native_window,
+        uint32_t width, uint32_t height,
+        const scene::StaticScene& scene) {
 
         renderer_.init(
-            native_window, width, height,
-            scene, options);
+            native_window,
+            width, height,
+            scene);
 
         camera_controller_.bind(&renderer_.camera);
         camera_controller_.set_speed(1.0f);
@@ -45,7 +46,7 @@ namespace fjr {
 
         std::uint64_t frame_index = 0;
 
-        while (!renderer_.to_close() && pump_messages()) {
+        while (pump_messages()) {
 
             const auto time_begin = Clock::now();
             renderer_.render();

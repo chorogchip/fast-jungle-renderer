@@ -4,7 +4,6 @@
 
 namespace fjr::dx {
 
-
     class DescAlloc {
     public:
         DescAlloc() = default;
