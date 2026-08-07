@@ -648,6 +648,8 @@ endif()
     )
     target_include_directories(FastJungleCooker PRIVATE
         "${FASTJUNGLE_INCLUDE_DIR}"
+    )
+    target_include_directories(FastJungleCooker SYSTEM PRIVATE
         "${FASTJUNGLE_OPENUSD_INSTALL}/include"
         "${FASTJUNGLE_TBB_INSTALL}/include"
     )

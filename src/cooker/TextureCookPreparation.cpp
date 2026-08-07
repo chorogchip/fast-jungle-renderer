@@ -104,7 +104,7 @@ namespace fjr::cooker {
                 fail("Failed to open texture for content hashing: ",
                     path.generic_string());
             }
-            std::array<UCHAR, 1024 * 1024> buffer{};
+            std::vector<UCHAR> buffer(1024 * 1024);
             while (input) {
                 input.read(
                     reinterpret_cast<char*>(buffer.data()),
@@ -221,7 +221,7 @@ namespace fjr::cooker {
                 if (reference == scene.texture_payload_refs.end()) {
                     fail("Texture payload reference is missing during deduplication.");
                 }
-                auto destination_reference = *reference;
+                scene::StaticScene::TexturePayloadRef destination_reference = *reference;
                 destination_reference.texture = remap[source];
                 payload_refs.push_back(destination_reference);
             }
