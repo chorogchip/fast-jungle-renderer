@@ -15,6 +15,7 @@ cbuffer CameraConstants : register(b0) {
 
 cbuffer DrawConstants : register(b1) {
     uint draw_id;
+    uint instance_offset;
 };
 
 struct DrawMetadata {

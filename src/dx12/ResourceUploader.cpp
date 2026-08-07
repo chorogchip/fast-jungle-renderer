@@ -53,6 +53,8 @@ namespace fjr::dx {
             return;
         }
 
+        destination.transition(contexts_[current_page_].get(), D3D12_RESOURCE_STATE_COPY_DEST);
+
         const UINT64 byte_size = static_cast<UINT64>(source.size());
         UINT64 source_offset = 0;
         while (source_offset < byte_size) {
@@ -103,6 +105,8 @@ namespace fjr::dx {
             return;
         }
 
+        destination.transition(contexts_[current_page_].get(), D3D12_RESOURCE_STATE_COPY_DEST);
+
         std::size_t destination_index = 0;
         while (destination_index < source_order.size()) {
             if (!recording_) {
@@ -144,10 +148,7 @@ namespace fjr::dx {
             cursors_[current_page_] += copy_size;
             destination_index += element_count;
         }
-
-        destination.transition(
-            contexts_[current_page_].get(),
-            final_state);
+        destination.transition(contexts_[current_page_].get(), final_state);
     }
 
     void ResourceUploader::upload_texture(
@@ -182,6 +183,8 @@ namespace fjr::dx {
             }
             flush();
         }
+
+        destination.transition(contexts_[current_page_].get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
         for (UINT index = 0;
              index < static_cast<UINT>(source.subresources.size());

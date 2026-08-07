@@ -34,7 +34,11 @@ float3 rotate_by_quaternion(float3 value, float4 quaternion) {
         cross(quaternion.xyz, twice_cross);
 }
 
-PixelInput main(VertexInput input, uint instance_id : SV_InstanceID) {
+PixelInput main(VertexInput input, uint local_instance_id : SV_InstanceID)
+{
+    
+    const uint instance_id = instance_offset + local_instance_id;
+    
     PixelInput output;
     const DrawMetadata metadata = draw_metadata[draw_id];
     const PointMeshBatch batch =

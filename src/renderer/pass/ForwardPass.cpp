@@ -42,7 +42,7 @@ namespace fjr::render {
 
         root_builder.set_constants(RootParameter::CONSTANT_DRAW)
             .reg(1)
-            .count(1)
+            .count(2)
             .vis_all().add();
 
         root_builder.set_root_cbv(RootParameter::ROOT_CBUF_CAMERA)
@@ -233,17 +233,22 @@ namespace fjr::render {
                 static_cast<UINT>(RootParameter::ROOT_SRV_INSTANCES),
                 instances);
 
-            context->SetGraphicsRoot32BitConstant(
-                static_cast<UINT>(RootParameter::CONSTANT_DRAW),
+            const uint32_t draw_constants[] = {
                 draw.draw_id,
-                0);
+                draw.instance_offset
+            };
+
+            context->SetGraphicsRoot32BitConstants(
+                static_cast<UINT>(RootParameter::CONSTANT_DRAW),
+                2, draw_constants, 0);
 
             context->DrawIndexedInstanced(
                 draw.count_index,
                 draw.count_instance,
                 draw.offset_index,
                 static_cast<INT>(draw.offset_vertex),
-                draw.instance_offset);
+                0);
+                // error fix: draw.instance_offset);
         }
     }
 

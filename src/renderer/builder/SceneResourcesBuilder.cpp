@@ -30,7 +30,7 @@ namespace fjr::render {
                         sizeof(scene::StaticScene::Vertex),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     geometry.vertices,
                     std::as_bytes(
@@ -51,7 +51,7 @@ namespace fjr::render {
                         sizeof(std::uint32_t),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     geometry.indices,
                     std::as_bytes(std::span<const std::uint32_t>{
@@ -77,7 +77,7 @@ namespace fjr::render {
                         sizeof(data::StbufMaterial),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.materials.materials,
                     std::as_bytes(std::span<const data::StbufMaterial>{
@@ -91,7 +91,7 @@ namespace fjr::render {
                         sizeof(data::StbufTextureBinding),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.materials.texture_bindings,
                     std::as_bytes(
@@ -115,7 +115,7 @@ namespace fjr::render {
                         sizeof(scene::StaticScene::PointInstance),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer_gathered(
                     output.instances.point_instances,
                     std::as_bytes(
@@ -132,7 +132,7 @@ namespace fjr::render {
                         sizeof(data::StbufMatrixInstance),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.instances.matrix_instances,
                     std::as_bytes(
@@ -158,7 +158,7 @@ namespace fjr::render {
                         sizeof(data::StbufDrawMetadata),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.draws.metadata,
                     std::as_bytes(
@@ -184,7 +184,7 @@ namespace fjr::render {
                         sizeof(data::StbufPointCluster),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.points.clusters,
                     std::as_bytes(std::span<const data::StbufPointCluster>{
@@ -198,7 +198,7 @@ namespace fjr::render {
                         sizeof(data::StbufPointMeshBatch),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.points.mesh_batches,
                     std::as_bytes(
@@ -213,7 +213,7 @@ namespace fjr::render {
                         sizeof(data::StbufPointDef),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.points.definitions,
                     std::as_bytes(std::span<const data::StbufPointDef>{
@@ -227,7 +227,7 @@ namespace fjr::render {
                         sizeof(data::StbufPointDraw),
                     D3D12_HEAP_TYPE_DEFAULT,
                     D3D12_RESOURCE_FLAG_NONE,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 uploader.upload_buffer(
                     output.points.draw_templates,
                     std::as_bytes(
@@ -315,13 +315,13 @@ namespace fjr::render {
                 byte_size,
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
             result.points.visible_instance_ids.init(
                 device,
                 byte_size,
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
         }
 
         if (bin_count != 0) {
@@ -332,19 +332,19 @@ namespace fjr::render {
                 byte_size,
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
             result.points.bin_offsets.init(
                 device,
                 byte_size + sizeof(std::uint32_t),
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
             result.points.bin_cursors.init(
                 device,
                 byte_size,
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
         }
 
         if (command_count != 0) {
@@ -354,7 +354,7 @@ namespace fjr::render {
                     sizeof(data::IndirectDrawCommand),
                 D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                D3D12_RESOURCE_STATE_COMMON);
         }
         return result;
     }

@@ -95,7 +95,7 @@ namespace fjr::render {
                     device,
                     description,
                     dx::TextureType::texture2d,
-                    D3D12_RESOURCE_STATE_COPY_DEST);
+                    D3D12_RESOURCE_STATE_COMMON);
                 subresources.clear();
                 subresources.resize(mip_count);
                 footprints.resize(mip_count);

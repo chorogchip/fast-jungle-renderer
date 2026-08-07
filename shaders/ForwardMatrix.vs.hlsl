@@ -39,7 +39,10 @@ float3 transform_normal_rows(float3 normal, uint byte_offset) {
         normal.z * row2;
 }
 
-PixelInput main(VertexInput input, uint instance_id : SV_InstanceID) {
+PixelInput main(VertexInput input, uint local_instance_id : SV_InstanceID)
+{
+    const uint instance_id = instance_offset + local_instance_id;
+    
     PixelInput output;
     const uint byte_offset = instance_id * MATRIX_INSTANCE_SIZE;
     const float4 world_position = transform_position_rows(
