@@ -3,11 +3,16 @@
 #include <cstdint>
 #include <DirectXMath.h>
 
-#include "FastJungle/dx12/MappedCBuffer.hpp"
-#include "FastJungle/renderer/data/FrameConstData.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
+#include "FastJungle/dx12/MappedCBuffer.hpp"
+
+namespace fjr::scene {
+    class StaticScene::EnvironmentLight;
+}
 
 namespace fjr::render::data {
+
+    class Camera;
 
     struct FrameConstData {
 
@@ -27,6 +32,11 @@ namespace fjr::render::data {
 
         dx::MappedCBuffer<CameraConstants> camera_constants;
         bool initialized = false;
+
+        static FrameConstData build(
+            ID3D12Device* device,
+            const Camera& camera,
+            const scene::StaticScene::EnvironmentLight& environment);
     };
 
 }  // namespace fjr::render::data

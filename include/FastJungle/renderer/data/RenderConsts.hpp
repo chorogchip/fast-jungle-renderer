@@ -19,7 +19,7 @@ namespace fjr::render::data {
 
     struct Consts {
         static inline constexpr uint32_t CBUF_ALIGN = 256; // TODO compile error
-            // D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+        // D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
         static inline constexpr uint32_t IND_ERR = UINT32_MAX;
         static inline constexpr uint64_t IND_ERR_64 = UINT64_MAX;
         static inline constexpr DirectX::XMFLOAT4X4 I_MAT{
