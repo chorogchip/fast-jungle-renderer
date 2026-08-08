@@ -2,8 +2,9 @@
 
 cbuffer CameraConstants : register(b0)
 {
-	float4x4 cam_view_projection;
+	row_major float4x4 cam_view_projection;
 	float3 cam_world_position;
+	float cam_world_position_padding;
 	float4 cam_normalized_frustum_planes[6];
     
 	float lod_projection_scale;

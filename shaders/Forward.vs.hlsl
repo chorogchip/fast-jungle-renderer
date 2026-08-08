@@ -1,31 +1,50 @@
 
-#include "common/CameraConstants.hlsli"
+#include "common/ForwardConstants.hlsli"
 
-StructuredBuffer<SpatialCluster> spatial_clusters : register(t0);
+StructuredBuffer<uint> visible_instances : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
-StructuredBuffer<Mesh> meshes : register(t2);
-StructuredBuffer<MeshLod> mesh_lods : register(t3);
-StructuredBuffer<SubMesh> submeshes : register(t4);
 
-RWStructuredBuffer<IndirectGPUDraw> indirect_draws : register(u0);
-RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
-RWStructuredBuffer<uint> visible_instances : register(u2);
-
-RWStructuredBuffer<uint> bin_counts : register(u3);
-RWStructuredBuffer<uint> bin_offsets : register(u4);
-RWStructuredBuffer<uint> bin_cursors : register(u5);
-
-struct VS_In
+struct VertexInput
 {
     float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
 };
 
-struct VS_Out
+float3 RotateForwardVector(float3 value, float4 quaternion)
 {
-    
-};
+    const float3 twice_cross = 2.0f * cross(quaternion.xyz, value);
+    return value +
+        quaternion.w * twice_cross +
+        cross(quaternion.xyz, twice_cross);
+}
 
-void main(uint instance_id : SV_InstanceID)
+ForwardPixelInput main(
+    VertexInput input,
+    uint local_instance_id : SV_InstanceID)
 {
-    
+    const uint instance_id = visible_instances[
+        visible_instance_offset + local_instance_id];
+    const InstanceTransform instance = instances[instance_id];
+
+    const float3 world_position =
+        instance.position +
+        RotateForwardVector(
+            input.position * instance.scale,
+            instance.rotation);
+
+    const float3 inverse_scale =
+        sign(instance.scale) /
+        max(abs(instance.scale), 1.0e-8f);
+
+    ForwardPixelInput output;
+    output.position = mul(
+        float4(world_position, 1.0f),
+        cam_view_projection);
+    output.world_normal = normalize(
+        RotateForwardVector(
+            input.normal * inverse_scale,
+            instance.rotation));
+    output.uv = input.uv;
+    return output;
 }

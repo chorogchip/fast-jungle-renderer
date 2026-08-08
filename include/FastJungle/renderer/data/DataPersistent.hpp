@@ -107,9 +107,10 @@ namespace fjr::render::data {
         dx::Buffer spatial_cluster{};
 
 
-        // temp
-        uint32_t instnace_cnt = 0;
-        uint32_t bin_cnt = 0;
+        uint32_t instance_count = 0;
+        uint32_t spatial_cluster_count = 0;
+        uint32_t mesh_lod_count = 0;
+        uint32_t submesh_count = 0;
 
         static DataPersistent build(
             const scene::StaticScene& scene,

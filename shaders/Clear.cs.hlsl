@@ -1,11 +1,7 @@
 
 
-cbuffer ClearConsts : register(b1)
-{
-    uint cnt_indirect_draw_counts;
-    uint cnt_bin_counts;
-    uint cnt_bin_cursors;
-}
+#include "common/CameraConstants.hlsli"
+#include "common/CullingDispatchConstants.hlsli"
 
 RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
 RWStructuredBuffer<uint> bin_counts : register(u3);
@@ -16,17 +12,17 @@ void main(uint3 dtid : SV_DispatchThreadID)
 {
     uint tid = dtid.x;
     
-    if (tid < cnt_indirect_draw_counts)
+    if (tid < raster_class_count)
     {
         indirect_draw_counts[tid] = 0;
     }
     
-    if (tid < cnt_bin_counts)
+    if (tid < mesh_lod_count)
     {
         bin_counts[tid] = 0;
     }
     
-    if (tid < cnt_bin_cursors)
+    if (tid < mesh_lod_count)
     {
         bin_cursors[tid] = 0;
     }

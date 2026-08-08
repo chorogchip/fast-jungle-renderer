@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <DirectXMath.h>
 
@@ -19,6 +20,7 @@ namespace fjr::render::data {
         struct alignas(Consts::CBUF_ALIGN) CameraConstants {
             DirectX::XMFLOAT4X4 view_projection = Consts::I_MAT;
             DirectX::XMFLOAT3 world_position{};
+            float world_position_padding = 0.0f;
             DirectX::XMFLOAT4 normalized_frustum_planes[6];
 
             float lod_projection_scale;
@@ -26,8 +28,15 @@ namespace fjr::render::data {
             uint32_t spatial_cluster_count;
             uint32_t mesh_lod_count;
 
-            void fill_from_camera(const Camera& camera);
+            void fill_from_camera(
+                const Camera& camera,
+                uint32_t viewport_height,
+                uint32_t scene_spatial_cluster_count,
+                uint32_t scene_mesh_lod_count);
         };
+        static_assert(sizeof(CameraConstants) == Consts::CBUF_ALIGN);
+        static_assert(
+            offsetof(CameraConstants, normalized_frustum_planes) == 80);
 
         dx::MappedCBuffer<CameraConstants> camera;
 
@@ -59,6 +68,8 @@ namespace fjr::render::data {
             static constexpr inline uint32_t ROOT_CONST_CNT = 2;
         };
         static_assert(sizeof(IndirectGPUDraw) == 32);
+        static_assert(offsetof(IndirectGPUDraw, draw_arguments) == 8);
+        static_assert(offsetof(IndirectGPUDraw, padding) == 28);
         static_assert(std::is_trivially_copyable_v<IndirectGPUDraw>);
 
         dx::Buffer indirect_gpu_draw{};
@@ -72,7 +83,8 @@ namespace fjr::render::data {
         static DataPerFrame build(
             ID3D12Device* device,
             uint32_t instance_count,
-            uint32_t spacial_cluster_count);
+            uint32_t mesh_lod_count,
+            uint32_t indirect_draw_capacity_per_class);
     };
 
 }  // namespace fjr::render::data

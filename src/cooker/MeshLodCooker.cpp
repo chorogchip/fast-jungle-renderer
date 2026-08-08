@@ -197,6 +197,15 @@ namespace {
                     scene.indices.begin() + submesh.index_offset,
                     scene.indices.begin() +
                         submesh.index_offset + submesh.index_count);
+                meshopt_optimizeVertexCache(
+                    state.indices.data(),
+                    state.indices.data(),
+                    state.indices.size(),
+                    submesh.vertex_count);
+                std::copy(
+                    state.indices.begin(),
+                    state.indices.end(),
+                    scene.indices.begin() + submesh.index_offset);
                 state.scale = meshopt_simplifyScale(
                     &scene.vertices[submesh.vertex_offset].position.x,
                     submesh.vertex_count,

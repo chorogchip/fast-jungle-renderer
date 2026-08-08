@@ -15,9 +15,6 @@ namespace fjr::render::data {
 
     namespace {
 
-        constexpr std::uint32_t MAX_SUBMESH_COUNT =
-            256u * data::Consts::LOD_CNT;
-
         struct BoundsAccumulator {
             DirectX::XMFLOAT3 minimum{};
             DirectX::XMFLOAT3 maximum{};
@@ -236,9 +233,10 @@ namespace fjr::render::data {
         ID3D12Device* device,
         const scene::StaticScene& scene) {
 
-        if (scene.submeshes.size() > MAX_SUBMESH_COUNT) {
+        if (scene.submeshes.size() >
+            std::numeric_limits<std::uint32_t>::max()) {
             log::Logger::g_logger << log::abrt(
-                "Scene submesh count exceeds indirect draw capacity.");
+                "Scene submesh count exceeds uint32_t.");
         }
 
         std::vector<DirectX::XMFLOAT3> positions;

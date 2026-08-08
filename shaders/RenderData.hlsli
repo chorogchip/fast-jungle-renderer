@@ -1,5 +1,7 @@
 #pragma once
 
+static const uint MESH_LOD_CULLED = 0xffffffffu;
+
 struct InstanceTransform
 {
     float3 position;
@@ -30,7 +32,7 @@ struct SubMesh
 struct MeshLod
 {
     uint submesh_offset;
-    uint suemesh_count;
+    uint submesh_count;
     float lod_error;
     float next_lod_error;
 };
@@ -53,7 +55,7 @@ struct SpatialCluster
     uint padding_for_fun;
 };
 
-struct IndirectGpuDraw
+struct IndirectGPUDraw
 {
     uint visible_instance_offset;
     uint material_id;

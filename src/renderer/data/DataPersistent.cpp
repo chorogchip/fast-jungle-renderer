@@ -14,6 +14,23 @@
 
 namespace fjr::render::data {
 
+    namespace {
+
+        [[nodiscard]]
+        std::uint32_t checked_u32(
+            std::size_t value,
+            const char* subject) {
+
+            if (value > std::numeric_limits<std::uint32_t>::max()) {
+                log::Logger::g_logger
+                    << subject << " exceeds uint32_t."
+                    << log::abrt();
+            }
+            return static_cast<std::uint32_t>(value);
+        }
+
+    } // namespace
+
     DataPersistent DataPersistent::build(
         const scene::StaticScene& scene,
         ID3D12Device* device,
@@ -36,8 +53,14 @@ namespace fjr::render::data {
             uploader, device, scene,
             geometry.meshes);
 
-        result.instnace_cnt = spatial.instance_count;
-        result.bin_cnt = spatial.spatial_cluster_count;
+        result.instance_count = spatial.instance_count;
+        result.spatial_cluster_count = spatial.spatial_cluster_count;
+        result.mesh_lod_count = checked_u32(
+            scene.mesh_lods.size(),
+            "Scene mesh LOD count");
+        result.submesh_count = checked_u32(
+            scene.submeshes.size(),
+            "Scene submesh count");
 
         return result;
     }

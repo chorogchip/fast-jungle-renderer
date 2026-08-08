@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "FastJungle/renderer/RendererBase.hpp"
+#include "FastJungle/renderer/pass/GpuCullingPass.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/DataPersistent.hpp"
@@ -32,7 +33,8 @@ namespace fjr::render {
         void render();
 
     private:
-        // ForwardPass forward_pass_;
+        GpuCullingPass gpu_culling_pass_;
+        ForwardPass forward_pass_;
 
         scene::StaticScene::EnvironmentLight environment_light_;
 

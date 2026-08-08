@@ -1,0 +1,43 @@
+{
+  "scene": "assets/cooked/spatial-audit/JungleRuins-spatial-audit.fjscene",
+  "texture_file": "assets/cooked/spatial-audit/JungleRuins-spatial-audit.fjtex",
+  "materials": 187,
+  "texture_bindings": 644,
+  "textures": 242,
+  "samplers": 2,
+  "material_slot_referenced_bindings": 607,
+  "unreferenced_bindings": 37,
+  "folded_opacity_bindings": 37,
+  "material_slot_referenced_textures": 241,
+  "textures_not_referenced_by_material_slots": 1,
+  "empty_texture_slots": [
+    "emissive"
+  ],
+  "metallic_constant_nonzero_materials": 0,
+  "metallic_texture_materials": 64,
+  "metallic_slot_or_constant_materials": 64,
+  "metallic_effective_nonzero_materials": 0,
+  "metallic_effect_unknown_materials": 0,
+  "metallic_unique_texture_ids": [
+    47
+  ],
+  "metallic_source_channel_observations": [
+    {
+      "texture_id": 47,
+      "channel": "B",
+      "status": "decoded",
+      "path": "assets/scene/JungleRuins_1_0_1b/textures/Terrain/Metallic-Roughness.png",
+      "minimum": 0,
+      "maximum": 0,
+      "mean": 0.0,
+      "nonzero": 0,
+      "total": 1024
+    }
+  ],
+  "unused_materials": 0,
+  "fjtex_payload_bytes": 2092264688,
+  "validation": {
+    "errors": [],
+    "all_passed": true
+  }
+}

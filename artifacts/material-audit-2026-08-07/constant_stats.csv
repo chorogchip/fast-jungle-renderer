@@ -1,0 +1,11 @@
+﻿constant,forward_shader_use,default,materials,default_count,non_default_count,nonzero_count,unique_value_count,minimum,maximum,most_common_values
+base_color,used (multiplied by base-color texture),"[0.18, 0.18, 0.18, 1.0]",187,0,187,187,4,"[0.029557, 0.05127, 0.007499, 1.0]","[1.0, 1.0, 1.0, 1.0]","[1.0, 1.0, 1.0, 1.0]:175; [0.029557, 0.05127, 0.007499, 1.0]:6; [0.059047, 0.053222, 0.048145, 1.0]:3; [0.114436, 0.070361, 0.049707, 1.0]:3"
+emissive,used (multiplied by emissive texture),"[0.0, 0.0, 0.0]",187,187,0,0,1,"[0.0, 0.0, 0.0]","[0.0, 0.0, 0.0]","[0.0, 0.0, 0.0]:187"
+roughness,used unless roughness texture overrides it,0.5,187,174,13,186,3,0.0,1.0,0.5:174; 1.0:12; 0.0:1
+metallic,used unless metallic texture overrides it,0.0,187,187,0,0,1,0.0,0.0,0.0:187
+opacity,used (multiplies albedo alpha and opacity texture),1.0,187,187,0,187,1,1.0,1.0,1.0:187
+opacity_threshold,used by clip(),0.0,187,130,57,57,2,0.0,0.5,0.0:130; 0.5:57
+ior,uploaded but not read by Forward.ps.hlsl,1.5,187,8,179,187,2,1.45,1.5,1.45:179; 1.5:8
+specular,uploaded but not read by Forward.ps.hlsl,0.5,187,93,94,101,4,0.0,1.333,0.5:93; 0.0:86; 0.355:7; 1.333:1
+clearcoat,uploaded but not read by Forward.ps.hlsl,0.0,187,187,0,0,1,0.0,0.0,0.0:187
+clearcoat_roughness,uploaded but not read by Forward.ps.hlsl,0.01,187,0,187,187,1,0.03,0.03,0.03:187

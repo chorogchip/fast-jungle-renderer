@@ -215,6 +215,13 @@ if(FASTJUNGLE_BUILD STREQUAL "renderer")
     file(GLOB_RECURSE FASTJUNGLE_HLSL_INCLUDES CONFIGURE_DEPENDS
         "${FASTJUNGLE_SHADER_DIR}/*.hlsli"
     )
+    # These kernels still depend on the external donut visibility-buffer ABI.
+    # Keep the sources in-tree, but do not treat them as standalone shaders
+    # until that ABI is replaced by RenderData.hlsli.
+    list(REMOVE_ITEM FASTJUNGLE_HLSL_SOURCES
+        "${FASTJUNGLE_SHADER_DIR}/material_binning.cs.hlsl"
+        "${FASTJUNGLE_SHADER_DIR}/material_flatten.cs.hlsl"
+    )
     list(SORT FASTJUNGLE_HLSL_SOURCES)
     list(SORT FASTJUNGLE_HLSL_INCLUDES)
 

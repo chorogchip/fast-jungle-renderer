@@ -11,11 +11,20 @@
 
 namespace fjr::dx {
 
+    ResourceUploader::~ResourceUploader() {
+        reset();
+    }
+
     void ResourceUploader::init(
         ID3D12Device* device,
         CommandQueue& command_queue,
         std::size_t page_size,
         std::size_t page_count) {
+
+        if (device == nullptr || page_size == 0 || page_count == 0) {
+            log::Logger::g_logger << log::abrt(
+                "ResourceUploader requires a device and non-zero pages.");
+        }
 
         this->reset();
 
@@ -64,7 +73,10 @@ namespace fjr::dx {
     }
 
     UINT64 ResourceUploader::reserve_upload_space(UINT64 size, UINT64 alignment) {
-        log::Logger::g_logger << log::asrt(size <= page_size_);
+        if (alignment == 0 || size > page_size_) {
+            log::Logger::g_logger << log::abrt(
+                "ResourceUploader reservation is invalid.");
+        }
 
         int i = 0;
         do {
@@ -72,7 +84,7 @@ namespace fjr::dx {
 
             const UINT64 remainder = cursors_[current_page_] % alignment;
             UINT64 offset = cursors_[current_page_];
-            if (remainder == 0) offset += alignment - remainder;
+            if (remainder != 0) offset += alignment - remainder;
 
             if (offset <= page_size_ && size <= page_size_ - offset)
                 return offset;
@@ -155,6 +167,17 @@ namespace fjr::dx {
             log::asrt(source.size() >= element_size);
 
         const std::size_t total_size = source_order.size() * element_size;
+        const std::size_t source_element_count = source.size() / element_size;
+
+        if (source.size() % element_size != 0 ||
+            std::ranges::any_of(
+                source_order,
+                [source_element_count](std::uint32_t source_index) {
+                    return source_index >= source_element_count;
+                })) {
+            log::Logger::g_logger << log::abrt(
+                "Gathered upload source order is out of bounds.");
+        }
 
         this->begin_recording();
 
@@ -241,6 +264,11 @@ namespace fjr::dx {
         D3D12_RESOURCE_STATES final_state) {
 
         if (source.subresources.empty()) return;
+        if (source.subresources.size() > std::numeric_limits<UINT>::max() ||
+            source.required_upload_size == 0) {
+            log::Logger::g_logger << log::abrt(
+                "Texture upload description is invalid.");
+        }
 
         bool transitioned_to_copy_dest = false;
 
@@ -251,14 +279,47 @@ namespace fjr::dx {
             const auto& source_data = source.subresources[index];
             auto footprint = source_data.base_footprint;
 
-            const UINT64 upload_slice_pitch =
-                static_cast<UINT64>(footprint.Footprint.RowPitch) *
-                source_data.row_count;
+            const bool upload_slice_pitch_valid =
+                source_data.row_count == 0 ||
+                footprint.Footprint.RowPitch <=
+                    std::numeric_limits<UINT64>::max() /
+                        source_data.row_count;
+            const UINT64 upload_slice_pitch = upload_slice_pitch_valid
+                ? static_cast<UINT64>(footprint.Footprint.RowPitch) *
+                    source_data.row_count
+                : 0;
+            const bool upload_size_valid =
+                footprint.Footprint.Depth == 0 ||
+                upload_slice_pitch <=
+                    std::numeric_limits<UINT64>::max() /
+                        footprint.Footprint.Depth;
+            const UINT64 subresource_upload_size = upload_size_valid
+                ? upload_slice_pitch * footprint.Footprint.Depth
+                : 0;
 
-            const UINT64 subresource_upload_size =
-                upload_slice_pitch * footprint.Footprint.Depth;
+            const bool source_slice_pitch_valid =
+                source_data.row_count == 0 ||
+                source_data.source_row_pitch <=
+                    std::numeric_limits<UINT64>::max() /
+                        source_data.row_count;
+            const UINT64 minimum_source_slice_pitch =
+                source_slice_pitch_valid
+                    ? source_data.source_row_pitch * source_data.row_count
+                    : 0;
 
-            log::Logger::g_logger << log::asrt(subresource_upload_size <= page_size_);
+            if (source_data.source == nullptr ||
+                source_data.row_count == 0 ||
+                footprint.Footprint.Depth == 0 ||
+                !upload_slice_pitch_valid ||
+                !upload_size_valid ||
+                source_data.row_size > source_data.source_row_pitch ||
+                source_data.row_size > footprint.Footprint.RowPitch ||
+                !source_slice_pitch_valid ||
+                source_data.source_slice_pitch < minimum_source_slice_pitch ||
+                subresource_upload_size > page_size_) {
+                log::Logger::g_logger << log::abrt(
+                    "Texture upload subresource is invalid.");
+            }
 
             const UINT64 upload_offset =
                 reserve_upload_space(

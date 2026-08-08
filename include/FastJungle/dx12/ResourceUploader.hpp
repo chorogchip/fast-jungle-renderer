@@ -31,6 +31,7 @@ namespace fjr::dx {
     class ResourceUploader final {
     public:
         ResourceUploader() = default;
+        ~ResourceUploader();
 
         ResourceUploader(const ResourceUploader&) = delete;
         ResourceUploader& operator=(const ResourceUploader&) = delete;

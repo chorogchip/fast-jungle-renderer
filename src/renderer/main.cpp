@@ -17,7 +17,6 @@
 
 #include "FastJungle/core/util/Assume.h"
 #include "FastJungle/core/util/Logger.hpp"
-#include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/renderer/Application.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
@@ -124,22 +123,6 @@ int WINAPI wWinMain(
 
     auto scene = fjr::scene::StaticSceneReader::load(scene_path);
 
-
-    // temp code
-    {
-        using Flag = fjr::scene::StaticScene::EnumSubmeshFlag;
-
-        for (auto& submesh : scene->submeshes) {
-            auto flags = static_cast<std::uint32_t>(submesh.flags);
-            if (fjr::enm::has(submesh.flags, Flag::ALPHA_TESTED)) {
-                flags |= static_cast<std::uint32_t>(Flag::DOUBLE_SIDED);
-            }
-            else {
-                flags &= ~static_cast<std::uint32_t>(Flag::DOUBLE_SIDED);
-            }
-            submesh.flags = static_cast<Flag>(flags);
-        }
-    }
 
     app->init(hwnd, width, height, *scene);
 

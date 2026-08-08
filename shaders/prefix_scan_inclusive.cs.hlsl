@@ -13,7 +13,7 @@ static const uint GBUFFER_THREADS_PER_GROUP = 256;
 groupshared uint shared_mem[THREAD_CNT];
 
 [numthreads(THREAD_CNT, 1, 1)]
-void kernel_prefix_block(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID)
+void main(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID)
 {
     const uint idx = gid.x * THREAD_CNT + tid.x;
 

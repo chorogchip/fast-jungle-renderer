@@ -52,11 +52,21 @@ namespace fjr::render {
         for (auto& frame : data_per_frame_) {
             frame = data::DataPerFrame::build(
                 device_.Get(),
-                data_persistant_.instnace_cnt,
-                data_persistant_.bin_cnt);
+                data_persistant_.instance_count,
+                data_persistant_.mesh_lod_count,
+                data_persistant_.submesh_count);
         }
 
         // init pass
+
+        gpu_culling_pass_.init(
+            device_.Get(),
+            data_persistant_.submesh_count);
+        forward_pass_.init(
+            device_.Get(),
+            data_persistant_.texture_descriptors.get_count(),
+            data_persistant_.samplers.get_count(),
+            data_persistant_.submesh_count);
 
     }
 
@@ -85,7 +95,11 @@ namespace fjr::render {
 
         // camera
 
-        data_per_frame_[frame].camera.data().fill_from_camera(camera);
+        data_per_frame_[frame].camera.data().fill_from_camera(
+            camera,
+            swap_chain_.get_height(),
+            data_persistant_.spatial_cluster_count,
+            data_persistant_.mesh_lod_count);
 
         // prepare pass
 
@@ -98,6 +112,21 @@ namespace fjr::render {
             heap_srv_cbv_uav_.get());
 
         // record
+
+        gpu_culling_pass_.record(
+            context,
+            data_persistant_,
+            data_per_frame_[frame]);
+
+        forward_pass_.record(
+            context,
+            data_persistant_,
+            data_per_frame_[frame],
+            data_per_frame_[frame].camera.get_address(),
+            desc_rtv_.get_cpu(frame),
+            desc_dsv_.get_cpu(),
+            swap_chain_.get_width(),
+            swap_chain_.get_height());
 
         swap_chain_.get_current_buffer().transition(
             context.get(), D3D12_RESOURCE_STATE_PRESENT);

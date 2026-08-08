@@ -1,17 +1,20 @@
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
 
+#include <algorithm>
+
 #include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render::data {
 
     void DataPerFrame::CameraConstants::fill_from_camera(
-        const Camera& camera) {
+        const Camera& camera,
+        uint32_t viewport_height,
+        uint32_t scene_spatial_cluster_count,
+        uint32_t scene_mesh_lod_count) {
 
         view_projection = camera.get_view_projection_mat();
         world_position = camera.get_position();
-
-        const auto vp = XMLoadFloat4x4(&view_projection);
 
         const auto colx = DirectX::XMVectorSet(
             view_projection._11,
@@ -59,28 +62,27 @@ namespace fjr::render::data {
         // buf.environment_intensity = environment.intensity * std::exp2(environment.exposure);
         // buf.environment_texture_id = environment.texture;
 
-        // TODO
-        lod_projection_scale = 0.0f;
-        lod_pixel_threshold = 1.0f;
-        spatial_cluster_count = 88888888;
-        mesh_lod_count = 12312;
+        lod_projection_scale =
+            0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
+            camera.get_projection_mat()._22;
+        lod_pixel_threshold = 2.0f;
+        spatial_cluster_count = scene_spatial_cluster_count;
+        mesh_lod_count = scene_mesh_lod_count;
     }
 
     DataPerFrame DataPerFrame::build(
         ID3D12Device* device,
         uint32_t instance_count,
-        uint32_t spacial_cluster_count) {
+        uint32_t mesh_lod_count,
+        uint32_t indirect_draw_capacity_per_class) {
 
         DataPerFrame ret{};
         ret.camera.init(device);
 
-        // spacial_cluster_count = scene.mesh_lods.size();
-
-        constexpr uint32_t MAX_INDIRECT_DRAW_COUNT_PER_CLASS =
-            256u * data::Consts::LOD_CNT;
-
         const UINT64 indirect_capacity =
-            static_cast<UINT64>(MAX_INDIRECT_DRAW_COUNT_PER_CLASS) *
+            static_cast<UINT64>(std::max(
+                indirect_draw_capacity_per_class,
+                1u)) *
             data::Consts::RASTER_CLASS_CNT;
 
 
@@ -100,14 +102,15 @@ namespace fjr::render::data {
 
         ret.visible_instance.init(
             device,
-            instance_count * sizeof(std::uint32_t),
+            static_cast<UINT64>(std::max(instance_count, 1u)) *
+                sizeof(std::uint32_t),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
 
 
         const UINT64 bin_byte_size =
-            static_cast<UINT64>(spacial_cluster_count) *
+            static_cast<UINT64>(std::max(mesh_lod_count, 1u)) *
             sizeof(std::uint32_t);
 
         ret.bin_counts.init(

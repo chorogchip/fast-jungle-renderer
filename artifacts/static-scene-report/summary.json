@@ -1,0 +1,194 @@
+{
+  "source": "C:\\Users\\mkkim\\myfolder\\mydev1\\fast-jungle-renderer\\assets\\cooked\\JungleRuins.fjscene",
+  "scene_file_bytes": 2004526905,
+  "texture_payload_bytes": 2589290992,
+  "counts": {
+    "vertices": 32264161,
+    "indices": 73995633,
+    "meshes": 137,
+    "mesh_lods": 548,
+    "submeshes": 816,
+    "point_batches": 778,
+    "point_instances": 8674676,
+    "static_mesh_instances": 84,
+    "materials": 187,
+    "textures": 243
+  },
+  "scene_world_bounds_m": {
+    "min": [
+      -3487.997802734375,
+      -88.19159698486328,
+      -3487.998291015625
+    ],
+    "max": [
+      4512.0,
+      411.19189453125,
+      4511.99951171875
+    ],
+    "extent": [
+      7999.997802734375,
+      499.3834915161133,
+      7999.997802734375
+    ]
+  },
+  "vertex_indexing": {
+    "before": 46666014,
+    "after": 32264161,
+    "reduction_fraction": 0.3086154519218205
+  },
+  "batch_instance_quantiles": {
+    "0": 2.0,
+    "25": 3055.0,
+    "50": 9194.0,
+    "75": 13337.0,
+    "90": 22335.500000000025,
+    "95": 35653.799999999916,
+    "99": 67885.36,
+    "100": 78914.0
+  },
+  "batches_for_instance_share": {
+    "0.5": 140,
+    "0.8": 342,
+    "0.9": 437,
+    "0.95": 544
+  },
+  "lod_total_triangles": [
+    15555338,
+    6200083,
+    2632831,
+    669131
+  ],
+  "lod_retention": [
+    1.0,
+    0.3985823387444233,
+    0.16925578859167187,
+    0.04301616589752019
+  ],
+  "component_instances": {
+    "Anthurium": 138,
+    "Nettle": 330,
+    "Shrub Sorrel": 630176,
+    "Shrub": 11337,
+    "Grass B": 339865,
+    "Grass A": 280985,
+    "Pyramid Grass B": 44000,
+    "Pyramid Moss": 2034610,
+    "Queen Forest": 613806,
+    "River Forest": 2407967,
+    "River Sapling": 45000,
+    "River Seedling": 2266462
+  },
+  "component_batches": {
+    "Anthurium": 6,
+    "Nettle": 6,
+    "Shrub Sorrel": 133,
+    "Shrub": 4,
+    "Grass B": 5,
+    "Grass A": 6,
+    "Pyramid Grass B": 5,
+    "Pyramid Moss": 138,
+    "Queen Forest": 195,
+    "River Forest": 195,
+    "River Sapling": 5,
+    "River Seedling": 80
+  },
+  "grid_partition_metrics": [
+    {
+      "cell_size_m": 8,
+      "nonempty_cells": 909620,
+      "instances_p50": 3.0,
+      "instances_p90": 6.0,
+      "instances_p99": 109.0,
+      "instances_max": 140159,
+      "batch_cells_p50": 1763.5,
+      "batch_cells_p90": 8862.6,
+      "batch_cells_max": 9949,
+      "batch_cell_links": 2345314
+    },
+    {
+      "cell_size_m": 16,
+      "nonempty_cells": 241869,
+      "instances_p50": 13.0,
+      "instances_p90": 18.0,
+      "instances_p99": 432.0,
+      "instances_max": 393356,
+      "batch_cells_p50": 1322.5,
+      "batch_cells_p90": 3726.9,
+      "batch_cells_max": 3897,
+      "batch_cell_links": 1136907
+    },
+    {
+      "cell_size_m": 32,
+      "nonempty_cells": 61363,
+      "instances_p50": 52.0,
+      "instances_p90": 68.0,
+      "instances_p99": 1730.3799999999974,
+      "instances_max": 907703,
+      "batch_cells_p50": 642.0,
+      "batch_cells_p90": 1021.0,
+      "batch_cells_max": 1025,
+      "batch_cell_links": 370655
+    },
+    {
+      "cell_size_m": 64,
+      "nonempty_cells": 15582,
+      "instances_p50": 208.0,
+      "instances_p90": 262.0,
+      "instances_p99": 7023.890000000016,
+      "instances_max": 996425,
+      "batch_cells_p50": 212.5,
+      "batch_cells_p90": 273.0,
+      "batch_cells_max": 290,
+      "batch_cell_links": 106651
+    },
+    {
+      "cell_size_m": 128,
+      "nonempty_cells": 3969,
+      "instances_p50": 813.0,
+      "instances_p90": 1011.0,
+      "instances_p99": 27245.40000000004,
+      "instances_max": 2696409,
+      "batch_cells_p50": 64.0,
+      "batch_cells_p90": 82.0,
+      "batch_cells_max": 82,
+      "batch_cell_links": 31154
+    },
+    {
+      "cell_size_m": 256,
+      "nonempty_cells": 1024,
+      "instances_p50": 3127.0,
+      "instances_p90": 3914.4,
+      "instances_p99": 104123.64,
+      "instances_max": 2827159,
+      "batch_cells_p50": 18.0,
+      "batch_cells_p90": 26.0,
+      "batch_cells_max": 26,
+      "batch_cell_links": 10212
+    },
+    {
+      "cell_size_m": 512,
+      "nonempty_cells": 256,
+      "instances_p50": 12042.0,
+      "instances_p90": 14868.5,
+      "instances_p99": 549999.6999999967,
+      "instances_max": 3099057,
+      "batch_cells_p50": 5.5,
+      "batch_cells_p90": 10.0,
+      "batch_cells_max": 10,
+      "batch_cell_links": 3943
+    },
+    {
+      "cell_size_m": 1024,
+      "nonempty_cells": 64,
+      "instances_p50": 48425.0,
+      "instances_p90": 56812.5,
+      "instances_p99": 2054719.5699999954,
+      "instances_max": 3191278,
+      "batch_cells_p50": 2.0,
+      "batch_cells_p90": 5.0,
+      "batch_cells_max": 5,
+      "batch_cell_links": 2016
+    }
+  ],
+  "scene_resources_included": false
+}

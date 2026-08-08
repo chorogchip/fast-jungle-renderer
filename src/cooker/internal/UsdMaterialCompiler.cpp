@@ -19,17 +19,11 @@ namespace fjr::cooker::internal {
     using StaticScene = scene::StaticScene;
 
     StaticScene::EnumSubmeshFlag MaterialProduct::submesh_flags(
-        bool double_sided) const noexcept {
+        bool) const noexcept {
 
-        std::uint32_t flags = double_sided
-            ? static_cast<std::uint32_t>(
-                StaticScene::EnumSubmeshFlag::DOUBLE_SIDED)
-            : 0u;
-        if (alpha_tested) {
-            flags |= static_cast<std::uint32_t>(
-                StaticScene::EnumSubmeshFlag::ALPHA_TESTED);
-        }
-        return static_cast<StaticScene::EnumSubmeshFlag>(flags);
+        return alpha_tested
+            ? StaticScene::EnumSubmeshFlag::DOUBLE_SIDED_AND_ALPHA_TESTED
+            : StaticScene::EnumSubmeshFlag::DEFAULT;
     }
 
     UsdMaterialCompiler::UsdMaterialCompiler(
