@@ -35,26 +35,6 @@ namespace {
                 static_cast<UINT>(HIWORD(lparam)));
             return 0;
 
-        case WM_KEYDOWN:
-        {
-            std::uint32_t virtual_key =
-                static_cast<std::uint32_t>(wparam);
-
-            // WM_KEYDOWN reports both Shift keys as VK_SHIFT. Recover the
-            // side from the scan code so CameraController can keep distinct
-            // left/right bindings.
-            if (virtual_key == VK_SHIFT) {
-                const UINT scan_code =
-                    static_cast<UINT>((lparam >> 16) & 0xff);
-                virtual_key = MapVirtualKeyW(
-                    scan_code,
-                    MAPVK_VSC_TO_VK_EX);
-            }
-
-            gp_application->handle_key_down(virtual_key);
-            return 0;
-        }
-
         case WM_CLOSE:
             DestroyWindow(hwnd);
             return 0;

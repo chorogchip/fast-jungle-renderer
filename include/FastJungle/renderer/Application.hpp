@@ -25,7 +25,6 @@ namespace fjr {
         void run(std::function<bool()> pump_messages);
 
         void resize(uint32_t width, uint32_t height);
-        void handle_key_down(uint32_t virtual_key);
 
     private:
         render::CameraController camera_controller_;

@@ -44,6 +44,7 @@ namespace fjr::render {
 
         void move_up(float delta_time) noexcept;
         void move_forward(float delta_time) noexcept;
+        void move_right(float delta_time) noexcept;
         void rotate_right(float delta_time) noexcept;
         void rotate_up(float delta_time) noexcept;
 

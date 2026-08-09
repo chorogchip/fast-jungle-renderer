@@ -11,4 +11,9 @@ cbuffer CameraConstants : register(b0)
 	float lod_pixel_threshold;
 	uint spatial_cluster_count;
 	uint mesh_lod_count;
+
+	float3 environment_color;
+	float environment_intensity;
+	uint environment_texture;
+	float3 environment_padding;
 };

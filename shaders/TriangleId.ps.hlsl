@@ -2,7 +2,7 @@
 
 StructuredBuffer<Material> materials : register(t2);
 Texture2D<float4> scene_textures[] : register(t3);
-SamplerState scene_samplers[] : register(s0);
+SamplerState material_sampler : register(s0);
 
 struct TriangleIdPixelInput
 {
@@ -31,12 +31,12 @@ float4 main(
     if (material.texture_basecolor != INVALID_INDEX)
     {
         opacity *= scene_textures[material.texture_basecolor].Sample(
-            scene_samplers[0], input.uv).a;
+            material_sampler, input.uv).a;
     }
     if (material.texture_opacity != INVALID_INDEX)
     {
         opacity *= scene_textures[material.texture_opacity].Sample(
-            scene_samplers[0], input.uv).r;
+            material_sampler, input.uv).r;
     }
     clip(opacity - 0.5f);
 

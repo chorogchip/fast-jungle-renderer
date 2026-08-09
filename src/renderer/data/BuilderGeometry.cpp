@@ -116,8 +116,50 @@ namespace fjr::render::data {
             }
 
             return alpha_tested
-                ? data::EnumRasterClass::ALPHA_TESTED_DOUBLE_SIDED
+                ? data::EnumRasterClass::ALPHA_TESTED
                 : data::EnumRasterClass::OPAQUE_SINGLE_SIDED;
+        }
+
+        void set_static_mesh_raster_class(
+            std::span<DataPersistent::SubMesh> destination,
+            const scene::StaticScene& scene,
+            std::uint32_t instance_id,
+            data::EnumRasterClass raster_class) {
+
+            const auto& instance = scene.static_mesh_instances[instance_id];
+            const auto& mesh = scene.meshes[instance.mesh];
+            for (std::uint32_t local_lod = 0;
+                local_lod < mesh.lod_count;
+                ++local_lod) {
+
+                const auto& lod = scene.mesh_lods[
+                    mesh.lod_offset + local_lod];
+                for (std::uint32_t local_submesh = 0;
+                    local_submesh < lod.submesh_count;
+                    ++local_submesh) {
+
+                    destination[lod.submesh_offset + local_submesh]
+                        .raster_class = raster_class;
+                }
+            }
+        }
+
+        void set_static_range_raster_class(
+            std::span<DataPersistent::SubMesh> destination,
+            const scene::StaticScene& scene,
+            scene::StaticScene::IndexRange instances,
+            data::EnumRasterClass raster_class) {
+
+            for (std::uint32_t local_instance = 0;
+                local_instance < instances.count;
+                ++local_instance) {
+
+                set_static_mesh_raster_class(
+                    destination,
+                    scene,
+                    instances.offset + local_instance,
+                    raster_class);
+            }
         }
 
         void validate_vertex_range(
@@ -334,6 +376,27 @@ namespace fjr::render::data {
                 static_cast<std::int32_t>(
                     source.vertex_offset);
         }
+
+        set_static_range_raster_class(
+            submeshes,
+            scene,
+            scene.components.terrain.extended,
+            EnumRasterClass::TERRAIN);
+        set_static_range_raster_class(
+            submeshes,
+            scene,
+            scene.components.terrain.cinematic,
+            EnumRasterClass::TERRAIN);
+        set_static_mesh_raster_class(
+            submeshes,
+            scene,
+            scene.components.river.instance,
+            EnumRasterClass::RIVER);
+        set_static_mesh_raster_class(
+            submeshes,
+            scene,
+            scene.components.creek.instance,
+            EnumRasterClass::RIVER);
 
         std::vector<DataPersistent::MeshLod> mesh_lods;
         mesh_lods.resize(scene.mesh_lods.size());

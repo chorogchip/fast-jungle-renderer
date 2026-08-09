@@ -16,6 +16,7 @@ namespace fjr::render {
         RendererBase::init(window, width, height, false);
         
         // init scene
+        environment_light_ = scene.environment_light;
 
         dx::ResourceUploader uploader{};
         uploader.init(
@@ -69,12 +70,10 @@ namespace fjr::render {
         forward_pass_.init(
             device_.Get(),
             data_persistant_.texture_descriptors.get_count(),
-            data_persistant_.samplers.get_count(),
             data_persistant_.submesh_count);
         triangle_id_pass_.init(
             device_.Get(),
             data_persistant_.texture_descriptors.get_count(),
-            data_persistant_.samplers.get_count(),
             data_persistant_.submesh_count);
 
     }
@@ -108,7 +107,8 @@ namespace fjr::render {
             camera,
             swap_chain_.get_height(),
             data_persistant_.spatial_cluster_count,
-            data_persistant_.mesh_lod_count);
+            data_persistant_.mesh_lod_count,
+            environment_light_);
 
         // prepare pass
 

@@ -8,49 +8,43 @@
 
 namespace fjr::render {
 
-    void CameraController::move(
-        std::uint32_t virtual_key) {
+    void CameraController::update(float delta_seconds) {
         if (camera_ == nullptr) {
             return;
         }
 
-        const float speed = std::abs(speed_);
-
-        switch (virtual_key) {
-        case 'W':
-            camera_->move_forward(speed);
-            break;
-
-        case 'S':
-            camera_->move_forward(-speed);
-            break;
-
-        case VK_SPACE:
-            camera_->move_up(speed);
-            break;
-
-        case VK_LSHIFT:
-            camera_->move_up(-speed);
-            break;
-
-        case VK_RIGHT:
-            camera_->rotate_right(speed);
-            break;
-
-        case VK_LEFT:
-            camera_->rotate_right(-speed);
-            break;
-
-        case VK_UP:
-            camera_->rotate_up(speed);
-            break;
-
-        case VK_DOWN:
-            camera_->rotate_up(-speed);
-            break;
-
-        default:
-            break;
+        const float base_step = std::abs(speed_) * delta_seconds;
+        const float move_step = base_step * 5.0f;
+        const float rotate_step = base_step * 10.0f;
+        if ((GetAsyncKeyState('W') & 0x8000) != 0) {
+            camera_->move_forward(move_step);
+        }
+        if ((GetAsyncKeyState('S') & 0x8000) != 0) {
+            camera_->move_forward(-move_step);
+        }
+        if ((GetAsyncKeyState('A') & 0x8000) != 0) {
+            camera_->move_right(-move_step);
+        }
+        if ((GetAsyncKeyState('D') & 0x8000) != 0) {
+            camera_->move_right(move_step);
+        }
+        if ((GetAsyncKeyState(VK_SPACE) & 0x8000) != 0) {
+            camera_->move_up(move_step);
+        }
+        if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0) {
+            camera_->move_up(-move_step);
+        }
+        if ((GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0) {
+            camera_->rotate_right(rotate_step);
+        }
+        if ((GetAsyncKeyState(VK_LEFT) & 0x8000) != 0) {
+            camera_->rotate_right(-rotate_step);
+        }
+        if ((GetAsyncKeyState(VK_UP) & 0x8000) != 0) {
+            camera_->rotate_up(rotate_step);
+        }
+        if ((GetAsyncKeyState(VK_DOWN) & 0x8000) != 0) {
+            camera_->rotate_up(-rotate_step);
         }
     }
 

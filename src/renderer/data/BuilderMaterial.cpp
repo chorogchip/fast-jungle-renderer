@@ -1,6 +1,7 @@
 #include "FastJungle/renderer/data/BuilderMaterial.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <cstddef>
@@ -243,18 +244,75 @@ namespace fjr::render::data {
         }
 
 
+        [[nodiscard]] std::uint32_t create_water_sky_texture(
+            DataPersistent& output,
+            dx::ResourceUploader& uploader,
+            ID3D12Device* device) {
+
+            constexpr std::array<std::byte, 4> pixels{
+                std::byte{0x78},
+                std::byte{0xc9},
+                std::byte{0xf4},
+                std::byte{0xff},
+            };
+
+            D3D12_RESOURCE_DESC description{};
+            description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            description.Width = 1;
+            description.Height = 1;
+            description.DepthOrArraySize = 1;
+            description.MipLevels = 1;
+            description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            description.SampleDesc.Count = 1;
+            description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+            D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+            UINT row_count = 0;
+            UINT64 row_size = 0;
+            UINT64 required_upload_size = 0;
+            device->GetCopyableFootprints(
+                &description,
+                0,
+                1,
+                0,
+                &footprint,
+                &row_count,
+                &row_size,
+                &required_upload_size);
+
+            const auto texture_id = static_cast<std::uint32_t>(
+                output.textures.size());
+            auto& texture = output.textures.emplace_back();
+            texture.init(
+                device,
+                description,
+                dx::TextureType::texture2d,
+                D3D12_RESOURCE_STATE_COMMON);
+            const std::array subresources{
+                dx::TextureSubresourceData{
+                    pixels.data(),
+                    pixels.size(),
+                    pixels.size(),
+                    footprint,
+                    row_count,
+                    row_size,
+                },
+            };
+            uploader.upload_texture(
+                texture,
+                dx::TextureUploadDesc{
+                    subresources,
+                    required_upload_size,
+                },
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            return texture_id;
+        }
+
+
         void create_texture_descriptors(
             DataPersistent& output,
             ID3D12Device* device,
             const scene::StaticScene& scene) {
-
-            const UINT descriptor_count =
-                std::max(
-                    1u,
-                    static_cast<UINT>(scene.textures.size()));
-
-            output.texture_descriptors =
-                output.texture_descriptors;
 
             const auto srgb =
                 build_srgb_table(scene);
@@ -308,6 +366,19 @@ namespace fjr::render::data {
         }
 
 
+        void create_water_sky_texture_descriptor(
+            DataPersistent& output,
+            ID3D12Device* device,
+            std::uint32_t texture_id) {
+
+            output.textures[texture_id].create_srv(
+                device,
+                output.texture_descriptors.get_cpu(texture_id),
+                dx::TextureViewRange{0, 1, 0, 1},
+                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+        }
+
+
         [[nodiscard]]
         D3D12_SAMPLER_DESC make_default_sampler() noexcept {
 
@@ -328,6 +399,42 @@ namespace fjr::render::data {
             description.MaxLOD = FLT_MAX;
 
             return description;
+        }
+
+
+        void select_pipeline_samplers(
+            DataPersistent& output,
+            const scene::StaticScene& scene) {
+
+            output.wrap_sampler = Consts::IND_ERR;
+            output.clamp_sampler = Consts::IND_ERR;
+            for (std::uint32_t sampler_id = 0;
+                sampler_id < scene.samplers.size();
+                ++sampler_id) {
+
+                const auto& sampler = scene.samplers[sampler_id];
+                if (sampler.address_u ==
+                    scene::StaticScene::EnumSamplerAddressMode::WRAP &&
+                    sampler.address_v ==
+                    scene::StaticScene::EnumSamplerAddressMode::WRAP) {
+
+                    output.wrap_sampler = sampler_id;
+                }
+                if (sampler.address_u ==
+                    scene::StaticScene::EnumSamplerAddressMode::CLAMP &&
+                    sampler.address_v ==
+                    scene::StaticScene::EnumSamplerAddressMode::CLAMP) {
+
+                    output.clamp_sampler = sampler_id;
+                }
+            }
+
+            if (output.wrap_sampler == Consts::IND_ERR ||
+                output.clamp_sampler == Consts::IND_ERR) {
+
+                log::Logger::g_logger << log::abrt(
+                    "Scene must provide WRAP and CLAMP samplers.");
+            }
         }
 
 
@@ -393,10 +500,37 @@ namespace fjr::render::data {
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene,
-            std::span<const DataPersistent::Mesh> meshes) {
+            std::span<const DataPersistent::Mesh> meshes,
+            std::uint32_t water_sky_texture) {
 
             std::vector<DataPersistent::Material> materials;
             materials.resize(scene.materials.size());
+
+            std::vector<bool> water_materials(scene.materials.size());
+            const auto collect_water_materials =
+                [&scene, &water_materials](std::uint32_t instance_id) {
+
+                    const auto& instance = scene.static_mesh_instances[
+                        instance_id];
+                    const auto& mesh = scene.meshes[instance.mesh];
+                    for (std::uint32_t lod_id = 0;
+                        lod_id < mesh.lod_count;
+                        ++lod_id) {
+
+                        const auto& lod = scene.mesh_lods[
+                            mesh.lod_offset + lod_id];
+                        for (std::uint32_t submesh_id = 0;
+                            submesh_id < lod.submesh_count;
+                            ++submesh_id) {
+
+                            water_materials[scene.submeshes[
+                                lod.submesh_offset + submesh_id]
+                                .material] = true;
+                        }
+                    }
+                };
+            collect_water_materials(scene.components.river.instance);
+            collect_water_materials(scene.components.creek.instance);
 
             for (const auto& impostor : scene.impostors) {
                 const auto center = meshes[impostor.mesh].bounds_center;
@@ -469,6 +603,12 @@ namespace fjr::render::data {
                     get_texture_id(
                         scene,
                         source.texture_binding_opacity);
+
+                if (water_materials[material_id]) {
+                    destination.base_color = {1.0f, 1.0f, 1.0f};
+                    destination.texture_basecolor = water_sky_texture;
+                    destination.texture_opacity = Consts::IND_ERR;
+                }
             }
 
             upload_buffer(
@@ -490,10 +630,8 @@ namespace fjr::render::data {
             const scene::StaticScene& scene,
             std::span<const DataPersistent::Mesh> meshes) {
 
-        const UINT descriptor_count =
-            std::max(
-                1u,
-                static_cast<UINT>(scene.textures.size()));
+        const UINT descriptor_count = static_cast<UINT>(
+            scene.textures.size() + 1);
 
         output.texture_descriptors =
             heap_srv_cbv_uav.alloc(descriptor_count);
@@ -504,10 +642,20 @@ namespace fjr::render::data {
             device,
             scene);
 
+        const auto water_sky_texture = create_water_sky_texture(
+            output,
+            uploader,
+            device);
+
         create_texture_descriptors(
             output,
             device,
             scene);
+
+        create_water_sky_texture_descriptor(
+            output,
+            device,
+            water_sky_texture);
 
         create_samplers(
             output,
@@ -515,12 +663,15 @@ namespace fjr::render::data {
             heap_sampler,
             scene);
 
+        select_pipeline_samplers(output, scene);
+
         create_materials(
             output,
             uploader,
             device,
             scene,
-            meshes);
+            meshes,
+            water_sky_texture);
     }
 
 } // namespace fjr::render

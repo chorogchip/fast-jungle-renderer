@@ -17,7 +17,6 @@ namespace fjr::render {
         void init(
             ID3D12Device* device,
             UINT texture_descriptor_count,
-            UINT sampler_descriptor_count,
             std::uint32_t indirect_draw_capacity_per_class);
 
         void record(

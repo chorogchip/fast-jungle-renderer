@@ -37,9 +37,16 @@ namespace fjr {
     void Application::run(std::function<bool()> pump_messages) {
 
         using Clock = std::chrono::steady_clock;
+        auto time_previous = Clock::now();
 
         while (pump_messages()) {
             const auto time_begin = Clock::now();
+            const float delta_seconds =
+                std::chrono::duration<float>(
+                    time_begin - time_previous).count();
+            time_previous = time_begin;
+
+            camera_controller_.update(delta_seconds);
             renderer_.render();
             const auto time_end = Clock::now();
 
@@ -61,10 +68,6 @@ namespace fjr {
     void Application::resize(uint32_t width, uint32_t height) {
         if (width != 0 && height != 0)
             renderer_.resize(width, height);
-    }
-
-    void Application::handle_key_down(uint32_t virtual_key) {
-        camera_controller_.move(virtual_key);
     }
 
 } // namespace fjr

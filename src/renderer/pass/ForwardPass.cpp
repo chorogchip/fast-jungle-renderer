@@ -22,7 +22,8 @@ namespace fjr::render {
             INSTANCES,
             MATERIALS,
             TEXTURES,
-            SAMPLERS,
+            MATERIAL_SAMPLER,
+            ENVIRONMENT_SAMPLER,
             COUNT,
         };
 
@@ -42,7 +43,6 @@ namespace fjr::render {
     void ForwardPass::init(
         ID3D12Device* device,
         UINT texture_descriptor_count,
-        UINT sampler_descriptor_count,
         std::uint32_t indirect_draw_capacity_per_class) {
 
         indirect_draw_capacity_per_class_ =
@@ -78,10 +78,17 @@ namespace fjr::render {
             .add_range()
             .vis_pixel()
             .add();
-        root_builder.set_sampler_table(RootParameter::SAMPLERS)
+        root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
             .sampler()
             .reg(0)
-            .count(std::max(sampler_descriptor_count, 1u))
+            .count(1)
+            .add_range()
+            .vis_pixel()
+            .add();
+        root_builder.set_sampler_table(RootParameter::ENVIRONMENT_SAMPLER)
+            .sampler()
+            .reg(1)
+            .count(1)
             .add_range()
             .vis_pixel()
             .add();
@@ -175,7 +182,7 @@ namespace fjr::render {
             auto description = base;
             description.RasterizerState.CullMode =
                 raster_class == static_cast<std::uint32_t>(
-                    data::EnumRasterClass::ALPHA_TESTED_DOUBLE_SIDED)
+                    data::EnumRasterClass::ALPHA_TESTED)
                 ? D3D12_CULL_MODE_NONE
                 : D3D12_CULL_MODE_BACK;
             pipeline_states_[raster_class] =
@@ -227,9 +234,8 @@ namespace fjr::render {
             static_cast<UINT>(RootParameter::TEXTURES),
             persistent.texture_descriptors.get_gpu());
         command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::SAMPLERS),
-            persistent.samplers.get_gpu());
-
+            static_cast<UINT>(RootParameter::ENVIRONMENT_SAMPLER),
+            persistent.samplers.get_gpu(persistent.wrap_sampler));
         const std::array<D3D12_VERTEX_BUFFER_VIEW, 3> vertex_views{
             D3D12_VERTEX_BUFFER_VIEW{
                 .BufferLocation =
@@ -275,6 +281,14 @@ namespace fjr::render {
         for (std::uint32_t raster_class = 0;
             raster_class < data::Consts::RASTER_CLASS_CNT;
             ++raster_class) {
+
+            const auto sampler = raster_class == static_cast<std::uint32_t>(
+                data::EnumRasterClass::TERRAIN)
+                ? persistent.clamp_sampler
+                : persistent.wrap_sampler;
+            command_list->SetGraphicsRootDescriptorTable(
+                static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
+                persistent.samplers.get_gpu(sampler));
 
             command_list->SetPipelineState(
                 pipeline_states_[raster_class].Get());

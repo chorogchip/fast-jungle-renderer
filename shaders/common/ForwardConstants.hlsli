@@ -14,6 +14,7 @@ static const uint INVALID_INDEX = 0xffffffffu;
 struct ForwardPixelInput
 {
     float4 position : SV_POSITION;
+    float3 world_position : WORLD_POSITION;
     float3 world_normal : NORMAL;
     float2 uv : TEXCOORD0;
 };

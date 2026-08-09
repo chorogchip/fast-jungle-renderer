@@ -77,6 +77,7 @@ ForwardPixelInput main(
     output.position = mul(
         float4(world_position, 1.0f),
         cam_view_projection);
+    output.world_position = world_position;
     output.world_normal = normalize(
         RotateForwardVector(
             object_normal * inverse_scale,

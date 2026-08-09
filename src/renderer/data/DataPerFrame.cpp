@@ -1,6 +1,7 @@
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
@@ -11,7 +12,8 @@ namespace fjr::render::data {
         const Camera& camera,
         uint32_t viewport_height,
         uint32_t scene_spatial_cluster_count,
-        uint32_t scene_mesh_lod_count) {
+        uint32_t scene_mesh_lod_count,
+        const scene::StaticScene::EnvironmentLight& environment) {
 
         view_projection = camera.get_view_projection_mat();
         world_position = camera.get_position();
@@ -57,10 +59,10 @@ namespace fjr::render::data {
                 &normalized_frustum_planes[i], planes[i]);
         }
 
-        // buf.environment_world_transform = environment.world_transform;
-        // buf.environment_color = environment.color;
-        // buf.environment_intensity = environment.intensity * std::exp2(environment.exposure);
-        // buf.environment_texture_id = environment.texture;
+        environment_color = environment.color;
+        environment_intensity =
+            environment.intensity * std::exp2(environment.exposure);
+        environment_texture = environment.texture;
 
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 namespace fjr::render {
 
     class Camera;
@@ -12,7 +10,7 @@ namespace fjr::render {
 
         void bind(Camera* camera) { camera_ = camera; }
         void set_speed(float speed) { speed_ = speed; }
-        void move(uint32_t virtual_key);
+        void update(float delta_seconds);
 
     private:
         float speed_ = 1.0f;

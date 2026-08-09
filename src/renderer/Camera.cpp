@@ -213,6 +213,16 @@ namespace fjr::render {
         calc_matrix();
     }
 
+    void Camera::move_right(float delta_time) noexcept {
+        const float distance =
+            move_speed_ * delta_time;
+
+        position_.x += std::cos(yaw_) * distance;
+        position_.z -= std::sin(yaw_) * distance;
+
+        calc_matrix();
+    }
+
     void Camera::rotate_right(float delta_time) noexcept {
         yaw_ = std::remainder(
             yaw_ + rotate_speed_ * delta_time,

@@ -430,8 +430,10 @@ namespace fjr::cooker::internal {
                 mesh.GetDoubleSidedAttr().Get(&double_sided);
                 pxr::TfToken orientation;
                 mesh.GetOrientationAttr().Get(&orientation);
+                // SceneSpace swaps Y/Z, so the stage's default right-handed
+                // winding must be reversed for StaticScene's CW front face.
                 const bool reverse_winding =
-                    orientation == pxr::UsdGeomTokens->leftHanded;
+                    orientation != pxr::UsdGeomTokens->leftHanded;
                 const auto normal_interpolation =
                     mesh.GetNormalsInterpolation();
 				auto auxiliary = read_mesh_aux_data(prim);

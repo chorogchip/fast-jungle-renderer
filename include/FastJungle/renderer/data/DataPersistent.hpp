@@ -40,6 +40,8 @@ namespace fjr::render::data {
         std::vector<dx::Texture> textures;
         dx::DescAlloc texture_descriptors{};
         dx::DescAlloc samplers{};  // only 2 samplers
+        uint32_t wrap_sampler = 0;
+        uint32_t clamp_sampler = 0;
 
         struct PackedNormal {
             uint32_t value = 0;
@@ -66,7 +68,8 @@ namespace fjr::render::data {
 
         struct SubMesh {
             uint32_t material_id = Consts::IND_ERR;
-            EnumRasterClass raster_class = EnumRasterClass::OPAQUE_SINGLE_SIDED;
+            EnumRasterClass raster_class =
+                EnumRasterClass::OPAQUE_SINGLE_SIDED;
             uint32_t index_offset = Consts::IND_ERR;
             uint32_t index_count = 0;
             int32_t base_vertex = 0;

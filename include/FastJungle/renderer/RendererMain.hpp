@@ -40,6 +40,7 @@ namespace fjr::render {
 
         data::DataPersistent data_persistant_;
         std::array<data::DataPerFrame, FRAME_COUNT> data_per_frame_;
+        scene::StaticScene::EnvironmentLight environment_light_;
 
     };
 

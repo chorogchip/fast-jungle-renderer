@@ -39,7 +39,7 @@ namespace {
     // Incremented because mesh LOD contents are part of the cooked scene
     // payload. The cache check otherwise sees a valid binary header and
     // reuses a scene cooked with the previous LOD recipe.
-    constexpr std::uint32_t SCENE_VERSION = 11;
+    constexpr std::uint32_t SCENE_VERSION = 12;
     constexpr std::uint32_t TEXTURE_VERSION = 5;
 
     struct CookedFileHeader final {

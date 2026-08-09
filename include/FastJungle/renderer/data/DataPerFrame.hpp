@@ -28,11 +28,17 @@ namespace fjr::render::data {
             uint32_t spatial_cluster_count;
             uint32_t mesh_lod_count;
 
+            DirectX::XMFLOAT3 environment_color{};
+            float environment_intensity = 0.0f;
+            uint32_t environment_texture = Consts::IND_ERR;
+            DirectX::XMFLOAT3 environment_padding{};
+
             void fill_from_camera(
                 const Camera& camera,
                 uint32_t viewport_height,
                 uint32_t scene_spatial_cluster_count,
-                uint32_t scene_mesh_lod_count);
+                uint32_t scene_mesh_lod_count,
+                const scene::StaticScene::EnvironmentLight& environment);
         };
         static_assert(sizeof(CameraConstants) == Consts::CBUF_ALIGN);
         static_assert(
