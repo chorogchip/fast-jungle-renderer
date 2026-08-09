@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 #include "FastJungle/renderer/RendererBase.hpp"
 #include "FastJungle/renderer/pass/GpuCullingPass.hpp"
@@ -36,10 +37,15 @@ namespace fjr::render {
         GpuCullingPass gpu_culling_pass_;
         ForwardPass forward_pass_;
 
-        scene::StaticScene::EnvironmentLight environment_light_;
-
         data::DataPersistent data_persistant_;
         std::array<data::DataPerFrame, FRAME_COUNT> data_per_frame_;
+
+        std::vector<uint32_t> impostor_probe_final_lod_ids_;
+        std::array<bool, FRAME_COUNT> impostor_probe_readback_ready_{};
+        uint32_t impostor_probe_readback_count_ = 0;
+
+        [[nodiscard]] uint64_t read_impostor_probe_candidate_count(
+            const data::DataPerFrame& frame) const;
     };
 
 } // namespace fjr

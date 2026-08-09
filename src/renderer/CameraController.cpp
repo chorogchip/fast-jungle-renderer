@@ -25,11 +25,11 @@ namespace fjr::render {
             camera_->move_forward(-speed);
             break;
 
-        case 'E':
+        case VK_SPACE:
             camera_->move_up(speed);
             break;
 
-        case 'Q':
+        case VK_LSHIFT:
             camera_->move_up(-speed);
             break;
 

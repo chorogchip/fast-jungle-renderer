@@ -230,6 +230,20 @@ namespace fjr::render {
             1);
         global_uav_barrier(command_list);
 
+        // The CPU reads this only when this frame slot's fence has completed.
+        // It is a temporary probe for final-LOD forest instances that could be
+        // replaced by an impostor; it has no effect on culling or drawing.
+        frame.bin_counts.transition(
+            command_list, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        command_list->CopyBufferRegion(
+            frame.bin_counts_readback.get(),
+            0,
+            frame.bin_counts.get(),
+            0,
+            static_cast<UINT64>(std::max(
+                persistent.mesh_lod_count,
+                1u)) * sizeof(std::uint32_t));
+
         frame.indirect_gpu_draw.transition(
             command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         frame.indirect_gpu_draw_counts.transition(

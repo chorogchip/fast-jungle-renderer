@@ -9,18 +9,18 @@
 namespace fjr::cooker {
 
     struct MeshLodCookSettings final {
-        static constexpr std::size_t LOD_COUNT = 4;
+        static constexpr std::size_t LOD_COUNT = 7;
 
         // Triangle targets relative to the original LOD0 topology.
         std::array<float, LOD_COUNT> triangle_ratios{
-            1.0f, 0.40f, 0.15f, 0.04f};
+            1.0f, 0.50f, 0.25f, 0.12f, 0.06f, 0.03f, 0.01f};
 
         // Cumulative object-space error limits relative to meshopt's scale.
         std::array<float, LOD_COUNT> max_relative_errors{
-            0.0f, 0.001f, 0.005f, 0.02f};
+            0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 
-        std::uint32_t minimum_triangle_count = 128;
-        float minimum_reduction = 0.20f;
+        std::uint32_t minimum_triangle_count = 0;
+        float minimum_reduction = 0.0f;
     };
 
     struct MeshLodCookStats final {

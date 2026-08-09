@@ -14,7 +14,7 @@ float4 main(ForwardPixelInput input) : SV_TARGET
     if (material.texture_basecolor != INVALID_INDEX)
     {
         const float4 sample = scene_textures[
-            NonUniformResourceIndex(material.texture_basecolor)].Sample(
+            material.texture_basecolor].Sample(
                 scene_samplers[0],
                 input.uv);
         albedo *= sample.rgb;
@@ -24,7 +24,7 @@ float4 main(ForwardPixelInput input) : SV_TARGET
     if (material.texture_opacity != INVALID_INDEX)
     {
         opacity *= scene_textures[
-            NonUniformResourceIndex(material.texture_opacity)].Sample(
+            material.texture_opacity].Sample(
                 scene_samplers[0],
                 input.uv).r;
     }

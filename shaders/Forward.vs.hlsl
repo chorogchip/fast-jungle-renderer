@@ -26,6 +26,7 @@ ForwardPixelInput main(
     const uint instance_id = visible_instances[
         visible_instance_offset + local_instance_id];
     const InstanceTransform instance = instances[instance_id];
+    const float3 object_normal = input.normal * 2.0f - 1.0f;
 
     const float3 world_position =
         instance.position +
@@ -43,7 +44,7 @@ ForwardPixelInput main(
         cam_view_projection);
     output.world_normal = normalize(
         RotateForwardVector(
-            input.normal * inverse_scale,
+            object_normal * inverse_scale,
             instance.rotation));
     output.uv = input.uv;
     return output;

@@ -1,13 +1,42 @@
 #include "FastJungle/renderer/RendererMain.hpp"
 
+#include <string_view>
+
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/dx12/WindowsUtils.hpp"
+
 namespace fjr::render {
+
+    uint64_t RendererMain::read_impostor_probe_candidate_count(
+        const data::DataPerFrame& frame) const {
+
+        if (impostor_probe_final_lod_ids_.empty()) {
+            return 0;
+        }
+
+        const UINT64 byte_size = static_cast<UINT64>(std::max(
+            data_persistant_.mesh_lod_count,
+            1u)) * sizeof(uint32_t);
+        D3D12_RANGE read_range{0, byte_size};
+        void* mapped = nullptr;
+        dx::abort_failed(frame.bin_counts_readback->Map(
+            0, &read_range, &mapped));
+
+        const auto* counts = static_cast<const uint32_t*>(mapped);
+        uint64_t total = 0;
+        for (const uint32_t mesh_lod_id : impostor_probe_final_lod_ids_) {
+            total += counts[mesh_lod_id];
+        }
+
+        const D3D12_RANGE no_cpu_writes{0, 0};
+        frame.bin_counts_readback->Unmap(0, &no_cpu_writes);
+        return total;
+    }
 
     void RendererMain::init(
         void* window,
         uint32_t width, uint32_t height,
         const scene::StaticScene& scene) {
-
-        environment_light_ = scene.environment_light;
 
         RendererBase::init(window, width, height, false);
         
@@ -57,6 +86,20 @@ namespace fjr::render {
                 data_persistant_.submesh_count);
         }
 
+        // This is deliberately a narrow probe, not an impostor policy.
+        // These are the high-cost tree families for which an 8-direction card
+        // would replace the final mesh LOD.
+        for (const auto& mesh : scene.meshes) {
+            const std::string_view name{
+                scene.strings.data() + mesh.name};
+            if (!name.starts_with("RiverForest_") &&
+                !name.starts_with("QueenForest_")) {
+                continue;
+            }
+            impostor_probe_final_lod_ids_.push_back(
+                mesh.lod_offset + mesh.lod_count - 1u);
+        }
+
         // init pass
 
         gpu_culling_pass_.init(
@@ -91,6 +134,18 @@ namespace fjr::render {
         command_queue_.wait(
             context.get_fence_value());
 
+        if (impostor_probe_readback_ready_[frame]) {
+            const uint64_t candidate_count =
+                read_impostor_probe_candidate_count(data_per_frame_[frame]);
+            if (++impostor_probe_readback_count_ % 8u == 0u) {
+                log::Logger::g_logger_debug_out
+                    << "[ImpostorProbe] final-LOD RiverForest/QueenForest "
+                    << "visible instances (card candidates): "
+                    << candidate_count << '\n';
+                log::Logger::g_logger_debug_out.flush_debug_string();
+            }
+        }
+
         context.reset();
 
         // camera
@@ -117,6 +172,7 @@ namespace fjr::render {
             context,
             data_persistant_,
             data_per_frame_[frame]);
+        impostor_probe_readback_ready_[frame] = true;
 
         forward_pass_.record(
             context,

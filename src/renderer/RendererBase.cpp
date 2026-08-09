@@ -34,7 +34,7 @@ namespace fjr::render {
         heap_sampler_.init(
             device_.Get(),
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-            128,
+            32,
             true);
         heap_dsv_.init(
             device_.Get(),

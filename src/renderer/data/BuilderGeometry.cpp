@@ -87,6 +87,17 @@ namespace fjr::render::data {
         }
 
         [[nodiscard]]
+        std::uint32_t pack_normal_component(float value) noexcept {
+
+            const float normalized = std::clamp(
+                value * 0.5f + 0.5f,
+                0.0f,
+                1.0f);
+            return static_cast<std::uint32_t>(
+                std::lround(normalized * 1023.0f));
+        }
+
+        [[nodiscard]]
         data::EnumRasterClass select_raster_class(
             scene::StaticScene::EnumSubmeshFlag flags) {
 
@@ -240,7 +251,7 @@ namespace fjr::render::data {
         }
 
         std::vector<DirectX::XMFLOAT3> positions;
-        std::vector<DirectX::XMFLOAT3> normals;
+        std::vector<DataPersistent::PackedNormal> normals;
         std::vector<DirectX::XMFLOAT2> uvs;
 
         positions.reserve(scene.vertices.size());
@@ -249,7 +260,13 @@ namespace fjr::render::data {
 
         for (const auto& vertex : scene.vertices) {
             positions.push_back(vertex.position);
-            normals.push_back(vertex.normal);
+            normals.push_back({
+                .value =
+                    pack_normal_component(vertex.normal.x) |
+                    (pack_normal_component(vertex.normal.y) << 10u) |
+                    (pack_normal_component(vertex.normal.z) << 20u) |
+                    (3u << 30u),
+            });
             uvs.push_back(vertex.uv);
         }
 
@@ -264,7 +281,7 @@ namespace fjr::render::data {
             output.vertex_normal,
             uploader,
             device,
-            std::span<const DirectX::XMFLOAT3>{ normals },
+            std::span<const DataPersistent::PackedNormal>{ normals },
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
         upload_buffer(

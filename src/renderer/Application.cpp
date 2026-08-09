@@ -34,50 +34,28 @@ namespace fjr {
         camera_controller_.set_speed(1.0f);
     }
 
-    std::vector<double> Application::run(
-        std::function<bool()> pump_messages,
-        std::uint32_t warmup_frames,
-        std::uint32_t measured_frames) {
+    void Application::run(std::function<bool()> pump_messages) {
 
         using Clock = std::chrono::steady_clock;
 
-        std::vector<double> measurements;
-        measurements.reserve(measured_frames);
-
-        std::uint64_t frame_index = 0;
-
         while (pump_messages()) {
-
             const auto time_begin = Clock::now();
             renderer_.render();
             const auto time_end = Clock::now();
 
-            const double frame_time_ms = 
+            const double frame_time_ms =
                 std::chrono::duration<double, std::milli>(
                     time_end - time_begin).count();
 
-            if (measured_frames != 0 && frame_index >= warmup_frames) {
-
-                measurements.push_back(frame_time_ms);
-
-                if (measurements.size() >= measured_frames) {
-                    break;
-                }
-            } else if (measured_frames == 0) {
-                fjr::log::Logger::g_logger_debug_out <<
-                    "Frame Time: [" << frame_time_ms <<
-                    " ms] EMA: [" <<
-                    calc_ema(&frame_time_ema_, frame_time_ms) <<
-                    " ms]\n";
-                fjr::log::Logger::g_logger_debug_out.flush_debug_string();
-            }
-
-            ++frame_index;
+            fjr::log::Logger::g_logger_debug_out <<
+                "Frame Time: [" << frame_time_ms <<
+                " ms] EMA: [" <<
+                calc_ema(&frame_time_ema_, frame_time_ms) <<
+                " ms]\n";
+            fjr::log::Logger::g_logger_debug_out.flush_debug_string();
         }
 
         renderer_.reset();
-
-        return measurements;
     }
 
     void Application::resize(uint32_t width, uint32_t height) {

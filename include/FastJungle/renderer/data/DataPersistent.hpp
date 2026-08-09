@@ -35,10 +35,16 @@ namespace fjr::render::data {
         dx::DescAlloc texture_descriptors{};
         dx::DescAlloc samplers{};  // only 2 samplers
 
-        dx::Buffer vertex_pos{};  // first R32 G32 B32, later RGBA 16bit UNORM
-        dx::Buffer vertex_normal{};  // first R32 G32 B32, later R16 G16 SNORM
-        dx::Buffer vertex_uv{};  // first R32 G32, later R16 G16
-        dx::Buffer index{};  // uint32_t. later cosider uint16_t
+        struct PackedNormal {
+            uint32_t value = 0;
+        };
+        static_assert(sizeof(PackedNormal) == 4);
+        static_assert(std::is_trivially_copyable_v<PackedNormal>);
+
+        dx::Buffer vertex_pos{};
+        dx::Buffer vertex_normal{};
+        dx::Buffer vertex_uv{};
+        dx::Buffer index{};
 
 
         struct InstanceTransform {

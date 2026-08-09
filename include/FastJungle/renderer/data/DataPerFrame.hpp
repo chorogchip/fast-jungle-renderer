@@ -79,6 +79,9 @@ namespace fjr::render::data {
         dx::Buffer bin_counts{};  // uint32_t. per meshlod
         dx::Buffer bin_offsets{};  // uint32_t, exclusive prefix sum of bin_counts
         dx::Buffer bin_cursors{};  // uint32_t, result of scatter
+        // Temporary impostor probe: a post-cull copy of bin_counts for CPU
+        // aggregation. It is never consumed by the render path.
+        dx::Buffer bin_counts_readback{};
 
         static DataPerFrame build(
             ID3D12Device* device,

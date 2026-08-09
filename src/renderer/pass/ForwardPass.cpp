@@ -137,7 +137,7 @@ namespace fjr::render {
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "NORMAL",
                 .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .Format = DXGI_FORMAT_R10G10B10A2_UNORM,
                 .InputSlot = 1,
                 .AlignedByteOffset = 0,
                 .InputSlotClass =
@@ -243,7 +243,8 @@ namespace fjr::render {
                     persistent.vertex_normal->GetGPUVirtualAddress(),
                 .SizeInBytes = buffer_size(
                     persistent.vertex_normal, "Normal buffer"),
-                .StrideInBytes = sizeof(DirectX::XMFLOAT3),
+                .StrideInBytes =
+                    sizeof(data::DataPersistent::PackedNormal),
             },
             D3D12_VERTEX_BUFFER_VIEW{
                 .BufferLocation =

@@ -65,7 +65,7 @@ namespace fjr::render::data {
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
             camera.get_projection_mat()._22;
-        lod_pixel_threshold = 2.0f;
+        lod_pixel_threshold = 4.0f;
         spatial_cluster_count = scene_spatial_cluster_count;
         mesh_lod_count = scene_mesh_lod_count;
     }
@@ -133,6 +133,13 @@ namespace fjr::render::data {
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
+
+        ret.bin_counts_readback.init(
+            device,
+            bin_byte_size,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST);
 
         return ret;
     }
