@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "FastJungle/renderer/RendererBase.hpp"
@@ -40,11 +41,18 @@ namespace fjr::render {
         data::DataPersistent data_persistant_;
         std::array<data::DataPerFrame, FRAME_COUNT> data_per_frame_;
 
-        std::vector<uint32_t> impostor_probe_final_lod_ids_;
+        struct ImpostorProbeTarget final {
+            std::string name;
+            uint64_t total_instance_count = 0;
+            std::vector<uint32_t> mesh_lod_ids;
+            std::vector<uint32_t> triangles_per_lod;
+        };
+
+        std::vector<ImpostorProbeTarget> impostor_probe_targets_;
         std::array<bool, FRAME_COUNT> impostor_probe_readback_ready_{};
         uint32_t impostor_probe_readback_count_ = 0;
 
-        [[nodiscard]] uint64_t read_impostor_probe_candidate_count(
+        void log_impostor_probe(
             const data::DataPerFrame& frame) const;
     };
 

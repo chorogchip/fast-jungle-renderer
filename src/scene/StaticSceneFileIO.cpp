@@ -18,7 +18,7 @@ namespace fjr::scene::static_scene_file_io {
         constexpr std::array<char, 8> SCENE_MAGIC{
             'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
         };
-        constexpr std::uint32_t SCENE_VERSION = 8;
+        constexpr std::uint32_t SCENE_VERSION = 9;
         constexpr std::array<char, 8> TEXTURE_MAGIC{
             'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
         };
