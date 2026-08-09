@@ -104,7 +104,7 @@ namespace fjr::render::data {
             uint32_t mesh_id = Consts::IND_ERR;
             uint32_t instance_offset = Consts::IND_ERR;
             uint32_t instance_count = 0;
-            uint32_t padding_for_fun = 0;
+            uint32_t impostor_probe = 0;
         };
         static_assert(sizeof(SpatialCluster) == 32);
         static_assert(std::is_trivially_copyable_v<SpatialCluster>);

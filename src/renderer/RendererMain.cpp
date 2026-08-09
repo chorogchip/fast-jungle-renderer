@@ -9,6 +9,12 @@
 
 namespace fjr::render {
 
+    namespace {
+
+        constexpr bool DRAW_TRIANGLE_IDS = false;
+
+    } // namespace
+
     void RendererMain::log_impostor_probe(
         const data::DataPerFrame& frame) const {
 
@@ -221,6 +227,11 @@ namespace fjr::render {
             data_persistant_.texture_descriptors.get_count(),
             data_persistant_.samplers.get_count(),
             data_persistant_.submesh_count);
+        triangle_id_pass_.init(
+            device_.Get(),
+            data_persistant_.texture_descriptors.get_count(),
+            data_persistant_.samplers.get_count(),
+            data_persistant_.submesh_count);
 
     }
 
@@ -279,15 +290,28 @@ namespace fjr::render {
             data_per_frame_[frame]);
         impostor_probe_readback_ready_[frame] = true;
 
-        forward_pass_.record(
-            context,
-            data_persistant_,
-            data_per_frame_[frame],
-            data_per_frame_[frame].camera.get_address(),
-            desc_rtv_.get_cpu(frame),
-            desc_dsv_.get_cpu(),
-            swap_chain_.get_width(),
-            swap_chain_.get_height());
+        if constexpr (DRAW_TRIANGLE_IDS) {
+            triangle_id_pass_.record(
+                context,
+                data_persistant_,
+                data_per_frame_[frame],
+                data_per_frame_[frame].camera.get_address(),
+                desc_rtv_.get_cpu(frame),
+                desc_dsv_.get_cpu(),
+                swap_chain_.get_width(),
+                swap_chain_.get_height());
+        }
+        else {
+            forward_pass_.record(
+                context,
+                data_persistant_,
+                data_per_frame_[frame],
+                data_per_frame_[frame].camera.get_address(),
+                desc_rtv_.get_cpu(frame),
+                desc_dsv_.get_cpu(),
+                swap_chain_.get_width(),
+                swap_chain_.get_height());
+        }
 
         swap_chain_.get_current_buffer().transition(
             context.get(), D3D12_RESOURCE_STATE_PRESENT);

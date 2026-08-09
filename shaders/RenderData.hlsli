@@ -52,7 +52,7 @@ struct SpatialCluster
     uint mesh_id;
     uint instance_offset;
     uint instance_count;
-    uint padding_for_fun;
+    uint impostor_probe;
 };
 
 struct IndirectGPUDraw

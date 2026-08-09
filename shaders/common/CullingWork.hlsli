@@ -41,6 +41,15 @@ bool ResolveVisibleMeshLod(
         return false;
     }
 
+    // Temporary impostor upper-bound probe: exclude only the forest instances
+    // that a final-L6 card would replace. No card is drawn in this mode.
+    if (cluster.impostor_probe != 0 &&
+        local_lod + 1 == mesh.lod_count)
+    {
+        mesh_lod_id = MESH_LOD_CULLED;
+        return false;
+    }
+
     mesh_lod_id = mesh.lod_offset + local_lod;
     return mesh_lod_id < mesh_lod_count;
 }

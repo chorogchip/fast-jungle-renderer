@@ -8,6 +8,7 @@
 #include "FastJungle/renderer/RendererBase.hpp"
 #include "FastJungle/renderer/pass/GpuCullingPass.hpp"
 #include "FastJungle/renderer/pass/ForwardPass.hpp"
+#include "FastJungle/renderer/pass/TriangleIdPass.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/DataPersistent.hpp"
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
@@ -37,6 +38,7 @@ namespace fjr::render {
     private:
         GpuCullingPass gpu_culling_pass_;
         ForwardPass forward_pass_;
+        TriangleIdPass triangle_id_pass_;
 
         data::DataPersistent data_persistant_;
         std::array<data::DataPerFrame, FRAME_COUNT> data_per_frame_;
