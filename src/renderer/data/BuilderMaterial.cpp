@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -17,6 +18,7 @@ namespace fjr::render::data {
     namespace {
 
         constexpr UINT MATERIAL_SAMPLER_COUNT = 2;
+        constexpr std::uint32_t MATERIAL_FLAG_IMPOSTOR = 1u << 0u;
 
 
         [[nodiscard]]
@@ -390,10 +392,44 @@ namespace fjr::render::data {
             DataPersistent& output,
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
-            const scene::StaticScene& scene) {
+            const scene::StaticScene& scene,
+            std::span<const DataPersistent::Mesh> meshes) {
 
             std::vector<DataPersistent::Material> materials;
             materials.resize(scene.materials.size());
+
+            for (const auto& impostor : scene.impostors) {
+                const auto center = meshes[impostor.mesh].bounds_center;
+                for (std::uint32_t direction = 0;
+                    direction < impostor.direction_count;
+                    ++direction) {
+                    const auto& card_mesh = scene.meshes[
+                        impostor.card_mesh_offset + direction];
+                    const auto& card_lod = scene.mesh_lods[card_mesh.lod_offset];
+                    const auto& card = scene.submeshes[card_lod.submesh_offset];
+
+                    float half_width = 0.0f;
+                    float half_height = 0.0f;
+                    for (std::uint32_t vertex = 0;
+                        vertex < card.vertex_count;
+                        ++vertex) {
+                        const auto& position = scene.vertices[
+                            card.vertex_offset + vertex].position;
+                        const float x = position.x - center.x;
+                        const float y = position.y - center.y;
+                        const float z = position.z - center.z;
+                        half_width = (std::max)(
+                            half_width,
+                            std::sqrt(x * x + z * z));
+                        half_height = (std::max)(half_height, std::abs(y));
+                    }
+                    auto& material = materials[card.material];
+                    material.flags |= MATERIAL_FLAG_IMPOSTOR;
+                    material.impostor_center = center;
+                    material.impostor_half_width = half_width;
+                    material.impostor_half_height = half_height;
+                }
+            }
 
             for (std::size_t material_id = 0;
                 material_id < scene.materials.size();
@@ -449,9 +485,10 @@ namespace fjr::render::data {
         data::DataPersistent& output,
         dx::ResourceUploader& uploader,
         ID3D12Device* device,
-        dx::DescriptorHeap& heap_srv_cbv_uav,
-        dx::DescriptorHeap& heap_sampler,
-        const scene::StaticScene& scene) {
+            dx::DescriptorHeap& heap_srv_cbv_uav,
+            dx::DescriptorHeap& heap_sampler,
+            const scene::StaticScene& scene,
+            std::span<const DataPersistent::Mesh> meshes) {
 
         const UINT descriptor_count =
             std::max(
@@ -482,7 +519,8 @@ namespace fjr::render::data {
             output,
             uploader,
             device,
-            scene);
+            scene,
+            meshes);
     }
 
 } // namespace fjr::render

@@ -437,8 +437,7 @@ namespace fjr::render::data {
             std::vector<SpatialCluster>& clusters,
             std::span<const PreparedPoint> points,
             std::uint32_t mesh_id,
-            const Mesh& mesh,
-            bool impostor_probe) {
+            const Mesh& mesh) {
 
             if (points.empty()) {
                 return;
@@ -455,7 +454,6 @@ namespace fjr::render::data {
                     points.size(),
                     "Spatial cluster instance count "
                     "exceeds uint32_t.");
-            cluster.impostor_probe = impostor_probe ? 1u : 0u;
 
             SphereAccumulator bounds;
 
@@ -591,13 +589,7 @@ namespace fjr::render::data {
                             end - cursor,
                     },
                         batch.mesh,
-                        meshes[batch.mesh],
-                        batch.category ==
-                            scene::StaticScene::EnumPointCategory::
-                            RIVER_FOREST ||
-                        batch.category ==
-                            scene::StaticScene::EnumPointCategory::
-                            QUEEN_FOREST);
+                        meshes[batch.mesh]);
 
                     cursor = end;
                 }

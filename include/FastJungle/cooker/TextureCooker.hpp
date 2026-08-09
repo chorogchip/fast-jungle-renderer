@@ -2,6 +2,10 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
+#include <vector>
+
+#include "FastJungle/cooker/GeneratedTexture.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::cooker {
@@ -20,7 +24,8 @@ namespace fjr::cooker {
         static std::uint64_t cook(
             scene::StaticScene& scene,
             const std::filesystem::path& payload_path,
-            TextureCookOptions options = {});
+            TextureCookOptions options = {},
+            std::span<const GeneratedTexture> generated_textures = {});
 
         [[nodiscard]]
         static std::uint64_t reuse(

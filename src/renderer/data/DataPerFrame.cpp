@@ -134,13 +134,6 @@ namespace fjr::render::data {
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
 
-        ret.bin_counts_readback.init(
-            device,
-            bin_byte_size,
-            D3D12_HEAP_TYPE_READBACK,
-            D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_COPY_DEST);
-
         return ret;
     }
 

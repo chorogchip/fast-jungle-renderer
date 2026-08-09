@@ -26,8 +26,14 @@ namespace fjr::render::data {
             uint32_t texture_normal = Consts::IND_ERR;
             uint32_t texture_roughness = Consts::IND_ERR;
             uint32_t texture_opacity = Consts::IND_ERR;
+
+            uint32_t flags = 0;
+            DirectX::XMFLOAT3 impostor_center{};
+            float impostor_half_width = 0.0f;
+            float impostor_half_height = 0.0f;
+            DirectX::XMFLOAT2 padding{};
         };
-        static_assert(sizeof(Material) == 32);
+        static_assert(sizeof(Material) == 64);
         static_assert(std::is_trivially_copyable_v<Material>);
 
         dx::Buffer material{};
@@ -90,8 +96,10 @@ namespace fjr::render::data {
 
             uint32_t lod_offset = 0;
             uint32_t lod_count = 0;
+            uint32_t impostor_card_lod_offset = Consts::IND_ERR;
+            uint32_t impostor_direction_count = 0;
         };
-        static_assert(sizeof(Mesh) == 24);
+        static_assert(sizeof(Mesh) == 32);
         static_assert(std::is_trivially_copyable_v<Mesh>);
 
         dx::Buffer mesh{};
@@ -104,7 +112,7 @@ namespace fjr::render::data {
             uint32_t mesh_id = Consts::IND_ERR;
             uint32_t instance_offset = Consts::IND_ERR;
             uint32_t instance_count = 0;
-            uint32_t impostor_probe = 0;
+            uint32_t padding = 0;
         };
         static_assert(sizeof(SpatialCluster) == 32);
         static_assert(std::is_trivially_copyable_v<SpatialCluster>);

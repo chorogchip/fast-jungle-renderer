@@ -4,7 +4,6 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -19,6 +18,7 @@
 #endif
 
 #include "FastJungle/cooker/StaticSceneBuilder.hpp"
+#include "FastJungle/cooker/ImpostorCooker.hpp"
 #include "FastJungle/cooker/MeshLodCooker.hpp"
 #include "FastJungle/cooker/TextureCooker.hpp"
 #include "FastJungle/core/util/Logger.hpp"
@@ -39,8 +39,8 @@ namespace {
     // Incremented because mesh LOD contents are part of the cooked scene
     // payload. The cache check otherwise sees a valid binary header and
     // reuses a scene cooked with the previous LOD recipe.
-    constexpr std::uint32_t SCENE_VERSION = 9;
-    constexpr std::uint32_t TEXTURE_VERSION = 3;
+    constexpr std::uint32_t SCENE_VERSION = 11;
+    constexpr std::uint32_t TEXTURE_VERSION = 5;
 
     struct CookedFileHeader final {
         std::array<char, 8> magic{};
@@ -86,110 +86,6 @@ namespace {
             << L" MiB\n";
     }
 
-	void print_component_summary(const fjr::scene::StaticScene& scene) {
-		using Category = fjr::scene::StaticScene::EnumPointCategory;
-		const std::array category_names{
-			std::pair{Category::ANTHURIUM, L"Anthurium"},
-			std::pair{Category::NETTLE, L"Nettle"},
-			std::pair{Category::SHRUB_SORREL, L"ShrubSorrel"},
-			std::pair{Category::SHRUB, L"Shrub"},
-			std::pair{Category::GRASS_B, L"Grass_B"},
-			std::pair{Category::GRASS_A, L"Grass_A"},
-			std::pair{Category::PYRAMID_GRASS_B, L"Pyramid_Grass_B"},
-			std::pair{Category::PYRAMID_MOSS, L"Pyramid_Moss"},
-			std::pair{Category::QUEEN_FOREST, L"QueenForest"},
-			std::pair{Category::RIVER_FOREST, L"RiverForest"},
-			std::pair{Category::RIVER_SAPLING, L"RiverSapling"},
-			std::pair{Category::RIVER_SEEDLING, L"RiverSeedling"},
-		};
-
-		std::wcout << L"  compiler-known components:\n";
-		std::wcout << L"    Pyramid, River, Creek, Banyan: one static instance each\n";
-		std::wcout << L"    Terrain: "
-			<< scene.components.terrain.extended.count << L" extended / "
-			<< scene.components.terrain.cinematic.count << L" cinematic\n";
-		for (const auto& [category, name] : category_names) {
-			std::uint64_t instances = 0;
-			std::uint32_t batches = 0;
-			for (const auto& batch : scene.point_batches) {
-				if (batch.category == category) {
-					++batches;
-					instances += batch.instances.count;
-				}
-			}
-			std::wcout << L"    " << name << L": "
-				<< batches << L" point batches / "
-				<< instances << L" instances\n";
-		}
-    }
-
-    void print_scene_summary(const fjr::scene::StaticScene& scene) {
-        constexpr std::uint64_t OLD_VERTEX_SIZE = 48;
-        constexpr std::uint64_t MEBIBYTE = 1024 * 1024;
-        const auto before = scene.info.vertex_count_before_indexing;
-        const auto after = scene.info.vertex_count_after_indexing;
-        const double reduction = before == 0
-            ? 0.0
-            : 100.0 * static_cast<double>(before - after) /
-                static_cast<double>(before);
-        const auto old_unindexed_bytes = before * OLD_VERTEX_SIZE;
-        const auto no_tangent_unindexed_bytes =
-            before * sizeof(fjr::scene::StaticScene::Vertex);
-        const auto indexed_no_tangent_bytes =
-            after * sizeof(fjr::scene::StaticScene::Vertex);
-		std::array<std::uint64_t, 4> lod_index_counts{};
-		bool has_four_lods = !scene.meshes.empty();
-		for (const auto& mesh : scene.meshes) {
-			has_four_lods &= mesh.lod_count ==
-				static_cast<std::uint32_t>(lod_index_counts.size());
-			for (std::uint32_t local_lod = 0;
-				 local_lod < mesh.lod_count &&
-				 local_lod < static_cast<std::uint32_t>(lod_index_counts.size());
-				 ++local_lod) {
-				const auto& lod = scene.mesh_lods[mesh.lod_offset + local_lod];
-				for (std::uint32_t local_submesh = 0;
-					 local_submesh < lod.submesh_count;
-					 ++local_submesh) {
-					lod_index_counts[local_lod] += scene.submeshes[
-						lod.submesh_offset + local_submesh].index_count;
-				}
-			}
-		}
-
-        std::wcout
-            << L"  vertices before indexing: " << before << L'\n'
-            << L"  vertices after indexing: " << after << L'\n'
-            << L"  indexing reduction: " << std::fixed
-            << std::setprecision(2) << reduction << L"%\n"
-            << L"  vertex memory (tangent, unindexed): "
-            << old_unindexed_bytes / static_cast<double>(MEBIBYTE)
-            << L" MiB\n"
-            << L"  vertex memory (no tangent, unindexed): "
-            << no_tangent_unindexed_bytes / static_cast<double>(MEBIBYTE)
-            << L" MiB\n"
-            << L"  vertex memory (no tangent, indexed): "
-            << indexed_no_tangent_bytes / static_cast<double>(MEBIBYTE)
-            << L" MiB\n"
-            << L"  indices: " << scene.indices.size() << L'\n'
-            << L"  textures: " << scene.textures.size() << L'\n'
-            << L"  materials: " << scene.materials.size() << L'\n'
-			<< L"  meshes: " << scene.meshes.size() << L'\n'
-			<< L"  point batches: "
-			<< scene.point_batches.size() << L'\n'
-			<< L"  point instances: " << scene.point_instances.size() << L'\n'
-			<< L"  static mesh instances: "
-			<< scene.static_mesh_instances.size() << L'\n';
-		if (has_four_lods) {
-			std::wcout
-				<< L"  LOD logical indices (100/40/15/4): "
-				<< lod_index_counts[0] << L" / "
-				<< lod_index_counts[1] << L" / "
-				<< lod_index_counts[2] << L" / "
-				<< lod_index_counts[3] << L'\n';
-		}
-		print_component_summary(scene);
-    }
-
     [[nodiscard]] int run_cooker(int argc, wchar_t** argv) {
         if (argc >= 2 && std::wstring_view{argv[1]} == L"--verify-scene") {
             if (argc != 3) {
@@ -202,7 +98,6 @@ namespace {
                 fjr::scene::StaticSceneReader::load_metadata(input_path);
             std::wcout << L"StaticScene read and validated: "
                        << input_path << L'\n';
-            print_scene_summary(*metadata.scene);
             std::wcout
                 << L"  texture payload: "
                 << metadata.texture_payload.size /
@@ -230,7 +125,6 @@ namespace {
 				<< stats.reused_submeshes << L'\n'
 				<< L"  sloppy fallback submesh levels: "
 				<< stats.sloppy_fallback_submeshes << L'\n';
-			print_scene_summary(*metadata.scene);
 			return EXIT_SUCCESS;
 		}
 
@@ -291,25 +185,18 @@ namespace {
             << L"StaticScene metadata built; OpenUSD stage released\n";
         print_memory_usage(L"scene metadata");
 
-        std::wcout
-            << L"Cooking mesh LODs at 100% / 40% / 15% / 4%...\n"
-            << std::flush;
-        const auto lod_stats = fjr::cooker::MeshLodCooker::cook(*scene);
-        std::wcout
-            << L"Mesh LOD logical index counts: "
-            << lod_stats.logical_index_counts[0] << L" / "
-            << lod_stats.logical_index_counts[1] << L" / "
-            << lod_stats.logical_index_counts[2] << L" / "
-            << lod_stats.logical_index_counts[3] << L'\n'
-            << L"  generated index storage: "
-            << lod_stats.generated_index_count << L" indices\n"
-            << L"  simplified/reused submesh levels: "
-            << lod_stats.simplified_submeshes << L" / "
-            << lod_stats.reused_submeshes << L'\n'
-            << L"  sloppy fallback submesh levels: "
-            << lod_stats.sloppy_fallback_submeshes << L'\n';
+        std::wcout << L"Cooking mesh LODs...\n" << std::flush;
+        [[maybe_unused]] const auto lod_stats =
+            fjr::cooker::MeshLodCooker::cook(*scene);
         print_memory_usage(L"mesh LOD cook");
-        print_scene_summary(*scene);
+
+        std::wcout
+            << L"Baking 8-direction impostors for the four highest-cost "
+            << L"final-LOD foliage meshes...\n"
+            << std::flush;
+        auto impostor_result = fjr::cooker::ImpostorCooker::cook(
+            *scene,
+            !has_textures);
         std::wcout << std::flush;
 
         if (has_textures) {
@@ -341,7 +228,9 @@ namespace {
             const std::uint64_t texture_payload_size =
                 fjr::cooker::TextureCooker::cook(
                     *scene,
-                    texture_payload.path());
+                    texture_payload.path(),
+                    {},
+                    impostor_result.generated_textures);
             std::wcout
                 << L"Texture payload cooked: "
                 << texture_payload_size / static_cast<double>(1024 * 1024)

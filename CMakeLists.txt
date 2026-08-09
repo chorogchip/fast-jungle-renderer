@@ -642,9 +642,98 @@ endif()
     )
     add_library(FastJungle::OpenUSD ALIAS FastJungleOpenUSDLibrary)
 
+    # The impostor baker is an offline D3D12 renderer.  Keep its two shaders
+    # separate from the runtime shader target: the cooker build has no reason
+    # to compile the complete runtime shader set.
+    set(FASTJUNGLE_DXC_VERSION "1.8.2505.32")
+    set(FASTJUNGLE_DXC_EXECUTABLE "" CACHE FILEPATH
+        "Optional dxc.exe override"
+    )
+    if(NOT FASTJUNGLE_DXC_EXECUTABLE)
+        find_program(FASTJUNGLE_FOUND_DXC NAMES dxc.exe dxc)
+        if(FASTJUNGLE_FOUND_DXC)
+            set(FASTJUNGLE_DXC_EXECUTABLE
+                "${FASTJUNGLE_FOUND_DXC}"
+                CACHE FILEPATH "Optional dxc.exe override" FORCE
+            )
+        endif()
+    endif()
+    if(NOT FASTJUNGLE_DXC_EXECUTABLE)
+        FetchContent_Declare(
+            fastjungle_dxc
+            URL
+                "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.DXC/${FASTJUNGLE_DXC_VERSION}"
+            URL_HASH
+                SHA256=C6E82B70C14552F1DD58E4A79C93EEAB1567EEB0A9EE63A51564C410429BCE3E
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        FetchContent_MakeAvailable(fastjungle_dxc)
+        set(FASTJUNGLE_DXC_EXECUTABLE
+            "${fastjungle_dxc_SOURCE_DIR}/build/native/bin/x64/dxc.exe"
+        )
+    endif()
+    if(NOT EXISTS "${FASTJUNGLE_DXC_EXECUTABLE}")
+        message(FATAL_ERROR "dxc.exe was not found: ${FASTJUNGLE_DXC_EXECUTABLE}")
+    endif()
+
+    set(FASTJUNGLE_COOKER_SHADER_OUTPUT_DIR
+        "${FASTJUNGLE_RUNTIME_DIR}/cooker-shaders"
+    )
+    set(FASTJUNGLE_COOKER_HLSL_SOURCES
+        "${FASTJUNGLE_SHADER_DIR}/cooker/ImpostorBake.vs.hlsl"
+        "${FASTJUNGLE_SHADER_DIR}/cooker/ImpostorBake.ps.hlsl"
+    )
+    set(FASTJUNGLE_COOKER_COMPILED_SHADERS "")
+    foreach(shader IN LISTS FASTJUNGLE_COOKER_HLSL_SOURCES)
+        if(shader MATCHES "\\.vs\\.hlsl$")
+            set(profile "vs_6_5")
+        elseif(shader MATCHES "\\.ps\\.hlsl$")
+            set(profile "ps_6_5")
+        else()
+            message(FATAL_ERROR "Unknown cooker shader stage for '${shader}'.")
+        endif()
+
+        get_filename_component(shader_name "${shader}" NAME)
+        string(REGEX REPLACE "\\.hlsl$" ".dxil"
+            shader_output_name "${shader_name}")
+        set(output
+            "${FASTJUNGLE_COOKER_SHADER_OUTPUT_DIR}/${shader_output_name}")
+
+        add_custom_command(
+            OUTPUT "${output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${FASTJUNGLE_COOKER_SHADER_OUTPUT_DIR}"
+            COMMAND "${FASTJUNGLE_DXC_EXECUTABLE}"
+                -nologo
+                -E main
+                -T "${profile}"
+                -HV 2021
+                -I "${FASTJUNGLE_SHADER_DIR}"
+                "$<$<CONFIG:Debug>:-Zi>"
+                "$<$<CONFIG:Debug>:-Qembed_debug>"
+                "$<$<CONFIG:Debug>:-Od>"
+                "$<$<CONFIG:Release>:-O3>"
+                "$<$<CONFIG:Release>:-Qstrip_debug>"
+                -Fo "${output}"
+                "${shader}"
+            DEPENDS "${shader}"
+            COMMENT "DXC ${profile}: ${shader_name}"
+            VERBATIM
+            COMMAND_EXPAND_LISTS
+        )
+        list(APPEND FASTJUNGLE_COOKER_COMPILED_SHADERS "${output}")
+    endforeach()
+    add_custom_target(FastJungleCookerShaders ALL
+        DEPENDS ${FASTJUNGLE_COOKER_COMPILED_SHADERS}
+    )
+
     add_executable(FastJungleCooker
         ${FASTJUNGLE_COMMON_SOURCES}
         ${FASTJUNGLE_COOKER_SOURCES}
+        # The cooker owns a headless D3D12 impostor bake pass.  Reuse the
+        # renderer's device/queue/resource helpers rather than maintaining a
+        # second D3D12 utility layer for offline rendering.
+        ${FASTJUNGLE_DX12_SOURCES}
     )
     fastjungle_apply_options(FastJungleCooker)
 
@@ -652,6 +741,7 @@ endif()
         "FASTJUNGLE_DEFAULT_SCENE_USD=\"${FASTJUNGLE_SCENE_USD}\""
         "FASTJUNGLE_DEFAULT_TEXTURE_DIR=\"${FASTJUNGLE_TEXTURE_DIR}\""
         "FASTJUNGLE_DEFAULT_COOKED_DIR=\"${FASTJUNGLE_COOKED_DIR}\""
+        "FASTJUNGLE_COOKER_SHADER_OUTPUT_DIR=\"${FASTJUNGLE_COOKER_SHADER_OUTPUT_DIR}\""
     )
     target_include_directories(FastJungleCooker PRIVATE
         "${FASTJUNGLE_INCLUDE_DIR}"
@@ -665,6 +755,9 @@ endif()
         meshoptimizer
         FastJungle::OpenUSD
         FastJungle::OneTBB
+        d3d12
+        dxgi
+        dxguid
         windowscodecs
         bcrypt
         ole32
@@ -673,6 +766,7 @@ endif()
         Dbghelp
         Ws2_32
     )
+    add_dependencies(FastJungleCooker FastJungleCookerShaders)
 
     if(FASTJUNGLE_ENABLE_OPENEXR)
         # DirectXTex intentionally does not publish its Auxiliary include

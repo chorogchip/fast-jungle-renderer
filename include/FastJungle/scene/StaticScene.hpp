@@ -196,6 +196,22 @@ namespace fjr::scene {
 			uint32_t reserved = 0;
 		};
 
+		struct Impostor {
+			// The source mesh replaced at its final conventional LOD.  Only meshes
+			// with a baked impostor appear in the dense impostors vector.
+			uint32_t mesh = INVALID_INDEX;
+			// Eight (currently) direction cards, stored consecutively as ordinary
+			// meshes and textures.  The card materials own albedo/alpha, normal,
+			// roughness and metallic bindings; depth is not a material semantic.
+			uint32_t card_mesh_offset = INVALID_INDEX;
+			uint32_t depth_texture_offset = INVALID_INDEX;
+			uint32_t direction_count = 0;
+			// All directions share this object-local linear-depth encoding:
+			// depth = depth_min + encoded * depth_range.
+			DirectX::XMFLOAT2 depth_min_range{};
+		};
+		static_assert(sizeof(Impostor) == 24);
+
 		struct Mesh {
 			uint32_t name = INVALID_INDEX;
 			uint32_t lod_offset = INVALID_INDEX;
@@ -366,6 +382,7 @@ namespace fjr::scene {
     X(Submesh, submeshes) \
     X(MeshLod, mesh_lods) \
     X(Mesh, meshes) \
+	X(Impostor, impostors) \
     X(TriangleBoolStream, triangle_bool_streams) \
     X(Uint8_t, triangle_bool_values) \
     X(CornerFloatStream, corner_float_streams) \
@@ -403,6 +420,7 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<Submesh>);
 		static_assert(std::is_trivially_copyable_v<MeshLod>);
 		static_assert(std::is_trivially_copyable_v<Mesh>);
+		static_assert(std::is_trivially_copyable_v<Impostor>);
 		static_assert(std::is_trivially_copyable_v<TriangleBoolStream>);
 		static_assert(std::is_trivially_copyable_v<CornerFloatStream>);
 		static_assert(std::is_trivially_copyable_v<CornerColor3Stream>);
@@ -427,6 +445,7 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<Submesh>);
 		static_assert(std::is_standard_layout_v<MeshLod>);
 		static_assert(std::is_standard_layout_v<Mesh>);
+		static_assert(std::is_standard_layout_v<Impostor>);
 		static_assert(std::is_standard_layout_v<TriangleBoolStream>);
 		static_assert(std::is_standard_layout_v<CornerFloatStream>);
 		static_assert(std::is_standard_layout_v<CornerColor3Stream>);

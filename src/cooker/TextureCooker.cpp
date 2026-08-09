@@ -12,9 +12,9 @@
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
-#include "FastJungle/cooker/CookerCommon.hpp"
 #include "FastJungle/cooker/TextureCookPreparation.hpp"
 #include "FastJungle/cooker/TextureImageProcessing.hpp"
 #include "FastJungle/cooker/TexturePayloadWriter.hpp"
@@ -63,7 +63,7 @@ namespace fjr::cooker {
                     uninitialize_ = true;
                 }
                 else if (result != RPC_E_CHANGED_MODE) {
-                    fail("CoInitializeEx failed.");
+                    log::Logger::g_logger << log::abrt("CoInitializeEx failed.");
                 }
             }
 
@@ -107,9 +107,8 @@ namespace fjr::cooker {
                     path.c_str(),
                     metadata);
 #else
-                fail(
-                    "EXR texture support is disabled: ",
-                    path.generic_string());
+                log::Logger::g_logger << log::abrt(
+                    "EXR texture support is disabled: " + path.generic_string());
 #endif
                 break;
             case TextureFileKind::WIC:
@@ -121,9 +120,8 @@ namespace fjr::cooker {
             }
 
             if (FAILED(result)) {
-                fail(
-                    "Texture metadata read failed: ",
-                    path.generic_string());
+                log::Logger::g_logger << log::abrt(
+                    "Texture metadata read failed: " + path.generic_string());
             }
         }
 
@@ -159,9 +157,8 @@ namespace fjr::cooker {
                     &metadata,
                     image);
 #else
-                fail(
-                    "EXR texture support is disabled: ",
-                    path.generic_string());
+                log::Logger::g_logger << log::abrt(
+                    "EXR texture support is disabled: " + path.generic_string());
 #endif
                 break;
             case TextureFileKind::WIC:
@@ -174,7 +171,8 @@ namespace fjr::cooker {
             }
 
             if (FAILED(result)) {
-                fail("Texture decode failed: ", path.generic_string());
+                log::Logger::g_logger << log::abrt(
+                    "Texture decode failed: " + path.generic_string());
             }
         }
 
@@ -185,9 +183,8 @@ namespace fjr::cooker {
                 metadata.arraySize != 1 ||
                 metadata.depth != 1 ||
                 metadata.mipLevels == 0) {
-                fail(
-                    "Texture is not a single 2D image: ",
-                    path.generic_string());
+                log::Logger::g_logger << log::abrt(
+                    "Texture is not a single 2D image: " + path.generic_string());
             }
         }
 
@@ -201,7 +198,7 @@ namespace fjr::cooker {
                 });
             if (found == scene.texture_payload_refs.end() ||
                 found->key >= scene.strings.size()) {
-                fail("Texture payload key is missing.");
+                log::Logger::g_logger << log::abrt("Texture payload key is missing.");
             }
             return scene.strings.data() + found->key;
         }
@@ -211,7 +208,8 @@ namespace fjr::cooker {
     std::uint64_t TextureCooker::cook(
         scene::StaticScene& scene,
         const std::filesystem::path& payload_path,
-        TextureCookOptions options) {
+        TextureCookOptions options,
+        std::span<const GeneratedTexture> generated_textures) {
         if (!scene.texture_data.empty() || !scene.texture_mips.empty()) {
             log::Logger::g_logger << log::abrt(
                 "TextureCooker requires an uncooked StaticScene.");
@@ -220,6 +218,12 @@ namespace fjr::cooker {
         const ComScope com_scope;
         const auto preparation = prepare_texture_cook(scene);
         const auto& compression_plans = preparation.compression_plans;
+        std::unordered_map<std::string_view, const GeneratedTexture*>
+            generated_by_key;
+        generated_by_key.reserve(generated_textures.size());
+        for (const auto& generated : generated_textures) {
+            generated_by_key.emplace(generated.key, &generated);
+        }
         std::vector<fjr::scene::StaticScene::Texture> cooked_textures =
             scene.textures;
         std::vector<scene::StaticScene::TextureMip> cooked_mips;
@@ -250,29 +254,59 @@ namespace fjr::cooker {
             for (std::size_t index = 0;
                  index < scene.textures.size();
                  ++index) {
+                const auto key = texture_key(
+                    scene,
+                    static_cast<std::uint32_t>(index));
                 const std::filesystem::path path{
-                    texture_key(scene, static_cast<std::uint32_t>(index))};
+                    key};
                 DirectX::TexMetadata metadata{};
-                load_texture_metadata(path, metadata);
+                const auto generated = generated_by_key.find(
+                    key);
+                if (generated != generated_by_key.end()) {
+                    metadata = generated->second->image.GetMetadata();
+                }
+                else {
+                    load_texture_metadata(path, metadata);
+                }
                 validate_texture_metadata(metadata, path);
                 if (options.maximum_decoded_texture_bytes != 0 &&
                     estimate_texture_working_memory(
                         metadata,
                         compression_plans[index]) >
                         options.maximum_decoded_texture_bytes) {
-                    fail(
-                        "Texture exceeds the working memory budget: ",
+                    log::Logger::g_logger << log::abrt(
+                        "Texture exceeds the working memory budget: " +
                         path.generic_string());
                 }
 
                 DirectX::ScratchImage decoded;
-                load_texture(path, metadata, decoded);
+                if (generated != generated_by_key.end()) {
+                    const auto* image = generated->second->image.GetImage(0, 0, 0);
+                    if (image == nullptr ||
+                        FAILED(decoded.InitializeFromImage(*image))) {
+                        log::Logger::g_logger << log::abrt(
+                            "Generated texture base image is missing.");
+                    }
+                }
+                else {
+                    load_texture(path, metadata, decoded);
+                }
                 validate_texture_metadata(metadata, path);
+                auto plan = compression_plans[index];
+                if (generated != generated_by_key.end() &&
+                    generated->second->uncompressed_output_format !=
+                        DXGI_FORMAT_UNKNOWN) {
+                    plan.dxgi_format = static_cast<std::uint32_t>(
+                        generated->second->uncompressed_output_format);
+                    plan.filter_as_srgb = false;
+                    plan.use_block_compression = false;
+                }
                 DirectX::ScratchImage processed;
                 process_texture_image(
                     decoded,
-                    compression_plans[index],
+                    plan,
                     options.fast_bc7,
+                    key,
                     processed);
                 payload.append(
                     processed,
@@ -331,7 +365,9 @@ namespace fjr::cooker {
                         key == cached.strings.data() + candidate.key;
                 });
             if (cached_reference == cached.texture_payload_refs.end()) {
-                fail("Cooked texture payload key is missing: ", key);
+                log::Logger::g_logger << log::abrt(
+                    std::string{"Cooked texture payload key is missing: "} +
+                    std::string{key});
             }
 
             const auto& source = cached.textures[cached_reference->texture];

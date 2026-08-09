@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "FastJungle/cooker/CookerCommon.hpp"
+#include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::cooker {
     namespace {
@@ -27,7 +27,7 @@ namespace fjr::cooker {
                 });
             if (found == scene.texture_payload_refs.end() ||
                 found->key >= scene.strings.size()) {
-                fail("Texture payload key is missing.");
+                log::Logger::g_logger << log::abrt("Texture payload key is missing.");
             }
             return scene.strings.data() + found->key;
         }
@@ -59,7 +59,9 @@ namespace fjr::cooker {
                 std::string_view operation) {
                 if (!BCRYPT_SUCCESS(result)) {
                     close();
-                    fail("Texture content hash operation failed: ", operation);
+                    log::Logger::g_logger << log::abrt(
+                        std::string{"Texture content hash operation failed: "} +
+                        std::string{operation});
                 }
             };
 
@@ -84,7 +86,8 @@ namespace fjr::cooker {
                 "object-size");
             if (property_bytes != sizeof(hash_object_bytes)) {
                 close();
-                fail("Texture content hash object size is invalid.");
+                log::Logger::g_logger << log::abrt(
+                    "Texture content hash object size is invalid.");
             }
             hash_object.resize(hash_object_bytes);
             require_success(
@@ -101,7 +104,8 @@ namespace fjr::cooker {
             std::ifstream input{path, std::ios::binary};
             if (!input.is_open()) {
                 close();
-                fail("Failed to open texture for content hashing: ",
+                log::Logger::g_logger << log::abrt(
+                    "Failed to open texture for content hashing: " +
                     path.generic_string());
             }
             std::vector<UCHAR> buffer(1024 * 1024);
@@ -122,7 +126,8 @@ namespace fjr::cooker {
             }
             if (!input.eof()) {
                 close();
-                fail("Failed to read texture for content hashing: ",
+                log::Logger::g_logger << log::abrt(
+                    "Failed to read texture for content hashing: " +
                     path.generic_string());
             }
 
@@ -146,7 +151,13 @@ namespace fjr::cooker {
                 left.isolate_source_channel == right.isolate_source_channel &&
                 left.linearize_source_channel ==
                     right.linearize_source_channel &&
-                left.filter_as_srgb == right.filter_as_srgb;
+                left.filter_as_srgb == right.filter_as_srgb &&
+                left.use_block_compression == right.use_block_compression;
+        }
+
+        [[nodiscard]] bool is_generated_texture_key(
+            std::string_view key) noexcept {
+            return key.starts_with("generated://");
         }
 
         [[nodiscard]] std::uint32_t deduplicate_textures(
@@ -155,16 +166,27 @@ namespace fjr::cooker {
             const std::size_t texture_count = scene.textures.size();
             std::vector<std::filesystem::path> paths;
             std::vector<std::uint64_t> source_sizes;
+            std::vector<bool> generated(texture_count, false);
             std::vector<std::optional<ContentHash>> hashes(texture_count);
             paths.reserve(texture_count);
             source_sizes.reserve(texture_count);
             for (std::size_t index = 0; index < texture_count; ++index) {
+                const auto key = texture_key(
+                    scene,
+                    static_cast<std::uint32_t>(index));
                 const std::filesystem::path path{
-                    texture_key(scene, checked_u32(index, "Texture index"))};
+                    key};
+                generated[index] = is_generated_texture_key(key);
+                if (generated[index]) {
+                    paths.emplace_back();
+                    source_sizes.push_back(0);
+                    continue;
+                }
                 std::error_code error;
                 const auto size = std::filesystem::file_size(path, error);
                 if (error) {
-                    fail("Failed to get texture source size: ",
+                    log::Logger::g_logger << log::abrt(
+                        "Failed to get texture source size: " +
                         path.generic_string());
                 }
                 paths.push_back(path);
@@ -183,9 +205,12 @@ namespace fjr::cooker {
             std::vector<std::uint32_t> canonical_sources;
             canonical_sources.reserve(texture_count);
             for (std::size_t index = 0; index < texture_count; ++index) {
-                const auto source = checked_u32(index, "Texture index");
+                const auto source = static_cast<std::uint32_t>(index);
                 remap[index] = scene::StaticScene::INVALID_INDEX;
                 for (const auto canonical : canonical_sources) {
+                    if (generated[index] || generated[canonical]) {
+                        continue;
+                    }
                     if (source_sizes[index] != source_sizes[canonical] ||
                         !same_compression_plan(plans[index], plans[canonical])) {
                         continue;
@@ -196,9 +221,8 @@ namespace fjr::cooker {
                     }
                 }
                 if (remap[index] == scene::StaticScene::INVALID_INDEX) {
-                    remap[index] = checked_u32(
-                        canonical_sources.size(),
-                        "Deduplicated texture index");
+                    remap[index] = static_cast<std::uint32_t>(
+                        canonical_sources.size());
                     canonical_sources.push_back(source);
                 }
             }
@@ -219,7 +243,8 @@ namespace fjr::cooker {
                         return candidate.texture == source;
                     });
                 if (reference == scene.texture_payload_refs.end()) {
-                    fail("Texture payload reference is missing during deduplication.");
+                    log::Logger::g_logger << log::abrt(
+                        "Texture payload reference is missing during deduplication.");
                 }
                 scene::StaticScene::TexturePayloadRef destination_reference = *reference;
                 destination_reference.texture = remap[source];
@@ -229,6 +254,10 @@ namespace fjr::cooker {
             for (auto& binding : scene.texture_bindings) {
                 binding.texture = remap[binding.texture];
             }
+            for (auto& impostor : scene.impostors) {
+                impostor.depth_texture_offset =
+                    remap[impostor.depth_texture_offset];
+            }
             if (scene.environment_light.texture !=
                 scene::StaticScene::INVALID_INDEX) {
                 scene.environment_light.texture =
@@ -236,9 +265,8 @@ namespace fjr::cooker {
             }
             scene.textures = std::move(textures);
             scene.texture_payload_refs = std::move(payload_refs);
-            return checked_u32(
-                texture_count - canonical_sources.size(),
-                "Deduplicated texture count");
+            return static_cast<std::uint32_t>(
+                texture_count - canonical_sources.size());
         }
 
         [[nodiscard]] std::uint32_t fold_base_color_alpha(

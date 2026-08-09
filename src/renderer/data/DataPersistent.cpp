@@ -46,7 +46,8 @@ namespace fjr::render::data {
         BuilderMaterial::build(
             result,
             uploader, device,
-            heap_srv_cbv_uav, heap_sampler, scene);
+            heap_srv_cbv_uav, heap_sampler, scene,
+            geometry.meshes);
 
         const auto spatial = BuilderSpatial::build(
             result,

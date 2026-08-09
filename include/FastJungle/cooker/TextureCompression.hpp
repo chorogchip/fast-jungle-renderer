@@ -13,6 +13,7 @@ namespace fjr::cooker {
         bool isolate_source_channel = false;
         bool linearize_source_channel = false;
         bool filter_as_srgb = false;
+        bool use_block_compression = true;
     };
 
     [[nodiscard]] std::vector<TextureCompressionPlan>

@@ -1,10 +1,11 @@
 #include "FastJungle/cooker/TextureImageProcessing.hpp"
 
-#include "FastJungle/cooker/CookerCommon.hpp"
+#include "FastJungle/core/util/Logger.hpp"
 
 #include <DirectXMath.h>
 
 #include <algorithm>
+#include <bit>
 #include <limits>
 #include <stdexcept>
 
@@ -12,7 +13,8 @@ namespace fjr::cooker {
     namespace {
         void checked_add(std::uint64_t& total, std::uint64_t amount) {
             if (amount > std::numeric_limits<std::uint64_t>::max() - total) {
-                fail("Texture working memory estimate exceeds uint64_t.");
+                log::Logger::g_logger << log::abrt(
+                    "Texture working memory estimate exceeds uint64_t.");
             }
             total += amount;
         }
@@ -32,7 +34,8 @@ namespace fjr::cooker {
                     height,
                     row_pitch,
                     slice_pitch))) {
-                    fail("Texture pitch calculation failed.");
+                    log::Logger::g_logger << log::abrt(
+                        "Texture pitch calculation failed.");
                 }
                 checked_add(result, slice_pitch);
                 if (!full_mip_chain || (width == 1 && height == 1)) {
@@ -59,7 +62,8 @@ namespace fjr::cooker {
             const DXGI_FORMAT source = image.GetMetadata().format;
             const DXGI_FORMAT linear = DirectX::MakeLinear(source);
             if (source != linear && !image.OverrideFormat(linear)) {
-                fail("Failed to normalize the texture color-space format.");
+                log::Logger::g_logger << log::abrt(
+                    "Failed to normalize the texture color-space format.");
             }
         }
 
@@ -79,7 +83,8 @@ namespace fjr::cooker {
             case scene::StaticScene::EnumTextureChannel::RGBA:
                 return value;
             }
-            fail("Texture source channel is invalid.");
+            log::Logger::g_logger << log::abrt(
+                "Texture source channel is invalid.");
         }
 
         void isolate_channel(
@@ -105,13 +110,19 @@ namespace fjr::cooker {
                 },
                 result);
             if (FAILED(transform_result)) {
-                fail("Failed to isolate the texture source channel.");
+                log::Logger::g_logger << log::abrt(
+                    "Failed to isolate the texture source channel.");
             }
         }
 
         [[nodiscard]] DirectX::TEX_FILTER_FLAGS mip_filter(
-            const TextureCompressionPlan& plan) noexcept {
-            std::uint32_t result = DirectX::TEX_FILTER_FANT;
+            const TextureCompressionPlan& plan,
+            std::size_t width,
+            std::size_t height) noexcept {
+            std::uint32_t result =
+                std::has_single_bit(width) && std::has_single_bit(height)
+                ? DirectX::TEX_FILTER_FANT
+                : DirectX::TEX_FILTER_LINEAR;
             if (plan.filter_as_srgb) {
                 result |= DirectX::TEX_FILTER_SRGB;
             }
@@ -180,7 +191,13 @@ namespace fjr::cooker {
         DirectX::ScratchImage& decoded,
         const TextureCompressionPlan& plan,
         bool fast_bc7,
+        std::string_view source_key,
         DirectX::ScratchImage& compressed) {
+        if (!plan.use_block_compression) {
+            compressed = std::move(decoded);
+            return;
+        }
+
         DirectX::ScratchImage decompressed;
         DirectX::ScratchImage isolated;
         DirectX::ScratchImage mip_chain;
@@ -192,7 +209,8 @@ namespace fjr::cooker {
                 *base,
                 working_format(decoded.GetMetadata().format, plan),
                 decompressed))) {
-                fail("Failed to decompress the source texture.");
+                log::Logger::g_logger << log::abrt(
+                    "Failed to decompress the source texture.");
             }
             source = &decompressed;
         }
@@ -200,13 +218,15 @@ namespace fjr::cooker {
 
         const DirectX::Image* base = source->GetImage(0, 0, 0);
         if (base == nullptr) {
-            fail("Texture base image is missing.");
+            log::Logger::g_logger << log::abrt(
+                "Texture base image is missing.");
         }
         if (plan.isolate_source_channel) {
             isolate_channel(*base, plan, isolated);
             base = isolated.GetImage(0, 0, 0);
             if (base == nullptr) {
-                fail("Isolated texture image is missing.");
+                log::Logger::g_logger << log::abrt(
+                    "Isolated texture image is missing.");
             }
         }
 
@@ -219,36 +239,29 @@ namespace fjr::cooker {
         if (base->width > 1 || base->height > 1) {
             if (FAILED(DirectX::GenerateMipMaps(
                 *base,
-                mip_filter(plan),
+                mip_filter(plan, base->width, base->height),
                 0,
                 mip_chain))) {
-                fail("Failed to generate texture mipmaps.");
+                log::Logger::g_logger << log::abrt(
+                    std::string{"Failed to generate texture mipmaps: "} +
+                    std::string{source_key});
             }
             images = mip_chain.GetImages();
             image_count = mip_chain.GetImageCount();
             metadata = mip_chain.GetMetadata();
         }
 
-        HRESULT compress_result = DirectX::Compress(
+        if (FAILED(DirectX::Compress(
             images,
             image_count,
             metadata,
             static_cast<DXGI_FORMAT>(plan.dxgi_format),
             compression_flags(plan, fast_bc7, true),
             DirectX::TEX_THRESHOLD_DEFAULT,
-            compressed);
-        if (compress_result == E_NOTIMPL) {
-            compress_result = DirectX::Compress(
-                images,
-                image_count,
-                metadata,
-                static_cast<DXGI_FORMAT>(plan.dxgi_format),
-                compression_flags(plan, fast_bc7, false),
-                DirectX::TEX_THRESHOLD_DEFAULT,
-                compressed);
-        }
-        if (FAILED(compress_result)) {
-            fail("Failed to compress the texture.");
+            compressed))) {
+            log::Logger::g_logger << log::abrt(
+                std::string{"Failed to compress the texture: "} +
+                std::string{source_key});
         }
     }
 

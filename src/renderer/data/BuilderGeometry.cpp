@@ -400,6 +400,14 @@ namespace fjr::render::data {
                 build_mesh(scene, mesh_id);
         }
 
+        for (const auto& impostor : scene.impostors) {
+            const auto first_card_lod = scene.meshes[
+                impostor.card_mesh_offset].lod_offset;
+            auto& destination = result.meshes[impostor.mesh];
+            destination.impostor_card_lod_offset = first_card_lod;
+            destination.impostor_direction_count = impostor.direction_count;
+        }
+
         upload_buffer(
             output.submesh,
             uploader,

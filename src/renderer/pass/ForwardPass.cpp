@@ -68,7 +68,7 @@ namespace fjr::render {
         root_builder.set_root_srv(RootParameter::INSTANCES)
             .reg(1).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(2).vis_pixel().add();
+            .reg(2).vis_all().add();
 
         root_builder.set_resource_table(RootParameter::TEXTURES)
             .srv()

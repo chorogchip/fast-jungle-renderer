@@ -18,6 +18,12 @@ struct Material
     uint texture_normal;
     uint texture_roughness;
     uint texture_opacity;
+
+    uint flags;
+    float3 impostor_center;
+    float impostor_half_width;
+    float impostor_half_height;
+    float2 padding;
 };
 
 struct SubMesh
@@ -43,6 +49,8 @@ struct Mesh
     float bounds_radius;
     uint lod_offset;
     uint lod_count;
+    uint impostor_card_lod_offset;
+    uint impostor_direction_count;
 };
 
 struct SpatialCluster
@@ -52,7 +60,7 @@ struct SpatialCluster
     uint mesh_id;
     uint instance_offset;
     uint instance_count;
-    uint impostor_probe;
+    uint padding;
 };
 
 struct IndirectGPUDraw
