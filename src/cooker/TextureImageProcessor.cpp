@@ -173,7 +173,8 @@ namespace fjr::cooker {
             metadata.width,
             metadata.height,
             false);
-        if (plan.preserve_alpha_coverage) {
+        if (plan.preserve_alpha_coverage &&
+            intermediate != DXGI_FORMAT_R8G8B8A8_UNORM) {
             checked_add(result, processing_base_size);
         }
         if (plan.isolate_source_channel) {
