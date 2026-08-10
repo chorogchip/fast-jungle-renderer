@@ -10,7 +10,7 @@ namespace fjr::cooker {
     struct TextureCookPreparation final {
         std::vector<TextureCompressionPlan> compression_plans;
         std::uint32_t duplicate_texture_count = 0;
-        std::uint32_t folded_base_color_alpha_count = 0;
+        std::uint32_t separated_alpha_tested_material_count = 0;
     };
 
     [[nodiscard]] TextureCookPreparation prepare_texture_cook(

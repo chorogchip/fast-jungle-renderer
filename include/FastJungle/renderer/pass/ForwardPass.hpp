@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <d3d12.h>
 #include <wrl.h>
@@ -32,9 +31,8 @@ namespace fjr::render {
     private:
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12CommandSignature> command_signature_;
-        std::array<
-            Microsoft::WRL::ComPtr<ID3D12PipelineState>,
-            data::Consts::RASTER_CLASS_CNT> pipeline_states_;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> opaque_pipeline_state_;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> alpha_pipeline_state_;
         std::uint32_t indirect_draw_capacity_per_class_ = 0;
     };
 

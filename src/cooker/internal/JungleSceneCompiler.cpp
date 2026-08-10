@@ -461,14 +461,59 @@ namespace fjr::cooker {
 								"Direct mesh belongs to a non-static component: ",
                                 prim.GetPath().GetString());
                         }
+						const auto mesh =
+							mesh_compiler_.compile(prim).value();
+						if (component == SourceComponent::RIVER) {
+							flip_mesh_facing(mesh);
+						}
 						append_static_instance(
 							component,
                             prim.GetName().GetString(),
-							mesh_compiler_.compile(prim).value(),
+							mesh,
                             world_transform(prim));
                     }
                 }
             }
+
+			void flip_mesh_facing(std::uint32_t mesh_index) {
+
+				const auto& mesh = result_->meshes[mesh_index];
+				for (std::uint32_t lod_index = 0;
+					lod_index < mesh.lod_count;
+					++lod_index) {
+
+					const auto& lod = result_->mesh_lods[
+						mesh.lod_offset + lod_index];
+					for (std::uint32_t local_submesh = 0;
+						local_submesh < lod.submesh_count;
+						++local_submesh) {
+
+						const auto& submesh = result_->submeshes[
+							lod.submesh_offset + local_submesh];
+						for (std::uint32_t index = 0;
+							index < submesh.index_count;
+							index += 3) {
+
+							std::swap(
+								result_->indices[
+									submesh.index_offset + index + 1],
+								result_->indices[
+									submesh.index_offset + index + 2]);
+						}
+
+						for (std::uint32_t vertex = 0;
+							vertex < submesh.vertex_count;
+							++vertex) {
+
+							auto& normal = result_->vertices[
+								submesh.vertex_offset + vertex].normal;
+							normal.x = -normal.x;
+							normal.y = -normal.y;
+							normal.z = -normal.z;
+						}
+					}
+				}
+			}
 
 			[[nodiscard]] ResolvedMesh resolve_single_mesh(
 				const pxr::UsdPrim& root) {

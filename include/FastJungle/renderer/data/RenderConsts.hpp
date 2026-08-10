@@ -12,10 +12,11 @@ namespace fjr::render::data {
     };
 
     enum class EnumRasterClass : uint32_t {
-        ALPHA_TESTED,
-        OPAQUE_SINGLE_SIDED,
+        PYRAMID,
         TERRAIN,
+        OPAQUE_SINGLE_SIDED,
         RIVER,
+        ALPHA_TESTED,
         COUNT,
     };
 

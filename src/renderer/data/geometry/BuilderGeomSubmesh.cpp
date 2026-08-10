@@ -51,6 +51,12 @@ namespace fjr::render::data::geom {
             destination.base_vertex = static_cast<int32_t>(source.vertex_offset);
         }
 
+        set_static_mesh_raster_class(
+            submeshes,
+            scene,
+            scene.components.pyramid.instance,
+            EnumRasterClass::PYRAMID);
+
         for (uint32_t inst = 0; inst < scene.components.terrain.extended.count; ++inst) {
             set_static_mesh_raster_class(
                 submeshes,

@@ -68,7 +68,12 @@ float3 normal_from_map(ForwardPixelInput input, Material material)
         normal * tangent_normal.z);
 }
 
-float3 apply_fog(float3 color, float distance, float3 fog_color, float fog_start, float fog_end)
+float3 apply_fog(
+    float3 color,
+    float distance,
+    float3 fog_color,
+    float fog_start,
+    float fog_end)
 {
     float fog = saturate((distance - fog_start) / (fog_end - fog_start));
     return lerp(color, fog_color, fog);
@@ -76,11 +81,12 @@ float3 apply_fog(float3 color, float distance, float3 fog_color, float fog_start
 
 float4 main(ForwardPixelInput input) : SV_TARGET
 {
-    
     const Material material = materials[material_id];
 
     float3 albedo = material.base_color;
+#if FJR_ALPHA_TEST
     float opacity = 1.0f;
+#endif
 
     if (material.texture_basecolor != INVALID_INDEX)
     {
@@ -89,9 +95,12 @@ float4 main(ForwardPixelInput input) : SV_TARGET
                 material_sampler,
                 input.uv);
         albedo *= sample.rgb;
+#if FJR_ALPHA_TEST
         opacity *= sample.a;
+#endif
     }
 
+#if FJR_ALPHA_TEST
     if (material.texture_opacity != INVALID_INDEX)
     {
         opacity *= scene_textures[
@@ -101,6 +110,7 @@ float4 main(ForwardPixelInput input) : SV_TARGET
     }
 
     clip(opacity - 0.5f);
+#endif
 
     float roughness = material.roughness;
     if (material.texture_roughness != INVALID_INDEX)
@@ -137,11 +147,14 @@ float4 main(ForwardPixelInput input) : SV_TARGET
             environment_sampler,
             environment_uv(normal)).rgb;
     }
-    
-    float3 final_color = (diffuse + specular) * n_dot_l + albedo * environment;
+
+    float3 final_color =
+        (diffuse + specular) * n_dot_l + albedo * environment;
     float3 fog_color = float3(0.015f, 0.025f, 0.04f);
     float fog_start = 3000.0f;
     float fog_end = 3500.0f;
     float dist = length(input.world_position - cam_world_position);
-    return float4(apply_fog(final_color, dist, fog_color, fog_start, fog_end), 1.0f);
+    return float4(
+        apply_fog(final_color, dist, fog_color, fog_start, fog_end),
+        1.0f);
 }

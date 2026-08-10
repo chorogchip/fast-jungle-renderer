@@ -15,15 +15,32 @@ namespace fjr::cooker {
             Emissive = 1u << 1u,
             Normal = 1u << 2u,
             Scalar = 1u << 3u,
-            Environment = 1u << 4u
+            Environment = 1u << 4u,
+            Opacity = 1u << 5u,
         };
 
         struct UsageRecord final {
             std::uint32_t usage = 0;
             std::array<bool, 5> scalar_channels{};
             bool base_color_uses_alpha = false;
+            bool preserve_alpha_coverage = false;
             bool srgb = false;
         };
+
+        [[nodiscard]] std::vector<bool> alpha_tested_materials(
+            const scene::StaticScene& scene) {
+            std::vector<bool> result(scene.materials.size(), false);
+            for (const auto& submesh : scene.submeshes) {
+                if (submesh.material != scene::StaticScene::INVALID_INDEX &&
+                    submesh.material < result.size() &&
+                    enm::has(
+                        submesh.flags,
+                        scene::StaticScene::EnumSubmeshFlag::ALPHA_TESTED)) {
+                    result[submesh.material] = true;
+                }
+            }
+            return result;
+        }
 
         [[nodiscard]] std::size_t channel_index(
             scene::StaticScene::EnumTextureChannel channel) {
@@ -55,9 +72,15 @@ namespace fjr::cooker {
             }
 
             auto usage_i = static_cast<uint32_t>(usage);
+            const bool opacity = usage == TextureUsage::Opacity;
+            if (opacity) {
+                usage_i |= static_cast<uint32_t>(TextureUsage::Scalar);
+            }
             auto& record = usages[binding.texture];
             record.usage |= usage_i;
             record.srgb = record.srgb || binding.flags == scene::StaticScene::EnumTextureBindingFlag::SRGB;
+            record.preserve_alpha_coverage =
+                record.preserve_alpha_coverage || opacity;
             if (usage_i & static_cast<uint32_t>(TextureUsage::BaseColor)) {
                 record.base_color_uses_alpha =
                     record.base_color_uses_alpha ||
@@ -83,8 +106,12 @@ namespace fjr::cooker {
     std::vector<TextureCompressionPlan>
     resolve_texture_compression(const scene::StaticScene& scene) {
         std::vector<UsageRecord> usages(scene.textures.size());
+        const auto alpha_tested = alpha_tested_materials(scene);
 
-        for (const auto& material : scene.materials) {
+        for (std::size_t material_index = 0;
+            material_index < scene.materials.size();
+            ++material_index) {
+            const auto& material = scene.materials[material_index];
             add_usage(
                 scene,
                 usages,
@@ -109,7 +136,9 @@ namespace fjr::cooker {
                 scene,
                 usages,
                 material.texture_binding_opacity,
-                TextureUsage::Scalar);
+                alpha_tested[material_index]
+                    ? TextureUsage::Opacity
+                    : TextureUsage::Scalar);
             add_usage(
                 scene,
                 usages,
@@ -154,6 +183,8 @@ namespace fjr::cooker {
                 plan.source_channel = scalar_channel(usage);
                 plan.isolate_source_channel = true;
                 plan.linearize_source_channel = usage.srgb;
+                plan.preserve_alpha_coverage =
+                    usage.preserve_alpha_coverage;
             }
             else if (base_color && !usage.base_color_uses_alpha &&
                 !emissive && !normal && !scalar &&
@@ -168,6 +199,12 @@ namespace fjr::cooker {
             else {
                 plan.dxgi_format = DXGI_FORMAT_BC7_UNORM;
                 plan.filter_as_srgb = usage.srgb;
+            }
+            if (usage.preserve_alpha_coverage &&
+                (!plan.isolate_source_channel ||
+                    plan.dxgi_format != DXGI_FORMAT_BC4_UNORM)) {
+                log::Logger::g_logger << log::abrt(
+                    "Alpha-tested opacity texture is not a dedicated scalar texture.");
             }
             result.push_back(plan);
         }

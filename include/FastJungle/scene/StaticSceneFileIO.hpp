@@ -14,7 +14,7 @@ namespace fjr::scene::static_scene_file_io {
     // v13: LOD submeshes may reference dedicated dense vertex blocks instead
     // of sharing their LOD0 vertex range. The cooker cache check, file writer,
     // and file reader all consume this one value.
-    inline constexpr std::uint32_t SCENE_FORMAT_VERSION = 13;
+    inline constexpr std::uint32_t SCENE_FORMAT_VERSION = 14;
     inline constexpr std::uint32_t TEXTURE_FORMAT_VERSION = 5;
 
     // These are the only cache predicates for cooked files. Keeping them next

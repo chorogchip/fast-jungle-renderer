@@ -1,4 +1,4 @@
-# Jungle scene file version 7
+# Jungle scene file version 13
 
 ## Purpose
 
@@ -23,7 +23,7 @@ All values use the native little-endian x64 representation. The fixed 40-byte
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJSCENE\0` magic |
-| 8 | 4 | format version (`7`) |
+| 8 | 4 | format version (`13`) |
 | 12 | 4 | header size (`40`) |
 | 16 | 4 | `StaticScene::Vertex` size |
 | 20 | 4 | `StaticScene::SceneInfo` size |
@@ -40,7 +40,7 @@ The fixed 32-byte `.fjtex` header is:
 | Offset | Size | Value |
 | ---: | ---: | --- |
 | 0 | 8 | `FJTEX\0\0\0` magic |
-| 8 | 4 | format version (`2`) |
+| 8 | 4 | format version (`5`) |
 | 12 | 4 | header size (`32`) |
 | 16 | 8 | texture metadata byte count |
 | 24 | 8 | texture payload byte count |
@@ -55,13 +55,16 @@ size, and physical file size to agree.
 
 ## Mesh LOD contract
 
-Every `Mesh` owns four `MeshLod` records targeting 100%, 40%, 15%, and 4% of
-its original triangle count. A LOD owns the same ordered set of `Submesh`
-records as LOD0. All levels share LOD0 vertex ranges, material IDs, names, and
-flags; generated levels add only index ranges. Small submeshes below 128
-triangles reuse the preceding index range. Triangle alignment, small meshes,
-and border-locked terrain can make aggregate counts differ slightly from the
-nominal ratios.
+Every `Mesh` owns seven `MeshLod` records targeting 100%, 50%, 25%, 12%, 6%,
+3%, and 1% of its original triangle count. A LOD owns the same ordered set of
+`Submesh` records as LOD0 and preserves each submesh's material ID, name, and
+flags. LOD0 through LOD4 share LOD0 vertex ranges. LOD5 and LOD6 instead own a
+dense copy of only the vertices referenced by their cache-optimized index
+sequence; their indices remain R32 local to that compact range. This preserves
+triangle order while improving vertex-fetch locality without increasing draw
+count. Small submeshes below the reduction threshold reuse the preceding
+render block. Triangle alignment, small meshes, and border-locked terrain can
+make aggregate counts differ slightly from the nominal ratios.
 
 The cooker uses pinned meshoptimizer v1.2 and simplifies from the preceding
 level. Its primary path permits seam collapses while measuring position,
@@ -113,8 +116,9 @@ changing the cooked scene contract.
 ## Bounded-memory cooker path
 
 OpenUSD first builds static scene data and texture payload mappings.
-After the stage is released, the cooker generates index-only mesh LODs, then
-decodes and compresses one texture at a time into a temporary payload. The
+After the stage is released, the cooker generates mesh LODs and dense vertex
+blocks for the two coarsest levels, then decodes and compresses one texture at
+a time into a temporary payload. The
 writer creates and atomically replaces
 `.fjtex` first, then creates and replaces `.fjscene` last. A failed cook cannot
 publish a new scene header that points at an incomplete new texture file.

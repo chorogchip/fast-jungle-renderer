@@ -19,5 +19,6 @@ cbuffer CameraConstants : register(b0)
 	float3 environment_color;
 	float environment_intensity;
 	uint environment_texture;
-	float3 environment_padding;
+	float animation_time;
+	float2 environment_padding;
 };

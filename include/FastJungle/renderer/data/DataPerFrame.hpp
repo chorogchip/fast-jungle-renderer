@@ -35,7 +35,8 @@ namespace fjr::render::data {
             DirectX::XMFLOAT3 environment_color{};
             float environment_intensity = 0.0f;
             uint32_t environment_texture = Consts::IND_ERR;
-            DirectX::XMFLOAT3 environment_padding{};
+            float animation_time = 0.0f;
+            DirectX::XMFLOAT2 environment_padding{};
 
             void fill_from_camera(
                 const Camera& camera,

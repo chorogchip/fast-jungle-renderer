@@ -99,7 +99,7 @@ namespace fjr::render {
         float vertical_fov_ = DirectX::XM_PIDIV4;
         float aspect_ratio_ = 1.0f;
         float near_plane_ = 0.1f;
-        float far_plane_ = 100000.0f;
+        float far_plane_ = 4000.0f;
 
         float move_speed_ = 1.0f;
         float rotate_speed_ = 1.0f;
