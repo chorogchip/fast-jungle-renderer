@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "FastJungle/core/util/Assume.h"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/CommandContext.hpp"
@@ -214,7 +215,7 @@ namespace fjr::cooker {
             return offset;
         }
 
-        [[nodiscard]] std::uint32_t append_texture(
+        uint32_t append_texture(
             StaticScene& scene,
             std::string_view name,
             std::string_view key) {
@@ -660,6 +661,8 @@ namespace fjr::cooker {
                 log::Logger::g_logger << log::abrt(
                     "Impostor readback destination image is missing.");
             }
+            MSVC_ASSUME(destination != nullptr);
+
             void* mapped = nullptr;
             const D3D12_RANGE read_range{
                 0,
@@ -686,7 +689,7 @@ namespace fjr::cooker {
             const DirectX::ScratchImage& linear_depth,
             float depth_min,
             float depth_range) {
-            const auto metadata = linear_depth.GetMetadata();
+            const auto& metadata = linear_depth.GetMetadata();
             const auto* color = albedo.GetImage(0, 0, 0);
             const auto* source = linear_depth.GetImage(0, 0, 0);
             if (color == nullptr || source == nullptr ||
@@ -1246,11 +1249,8 @@ namespace fjr::cooker {
                 target_index < targets.size();
                 ++target_index) {
                 const auto& target = targets[target_index];
-                const auto color_start = checked_u32(
-                    scene.textures.size(), "Impostor albedo texture offset");
-                for (std::uint32_t direction = 0;
-                    direction < DIRECTION_COUNT;
-                    ++direction) {
+                const auto color_start = checked_u32(scene.textures.size(), "Impostor albedo texture offset");
+                for (uint32_t direction = 0; direction < DIRECTION_COUNT; ++direction) {
                     const auto key = texture_key_for(target.name, direction, "albedo");
                     append_texture(scene, std::string{target.name} + "_ImpostorAlbedo", key);
                     if (baked != nullptr) {

@@ -13,39 +13,39 @@ namespace fjr::render {
             return;
         }
 
-        const float base_step = std::abs(speed_) * delta_seconds;
-        const float move_step = base_step * 5.0f;
-        const float rotate_step = base_step * 10.0f;
-        if ((GetAsyncKeyState('W') & 0x8000) != 0) {
-            camera_->move_forward(move_step);
-        }
-        if ((GetAsyncKeyState('S') & 0x8000) != 0) {
-            camera_->move_forward(-move_step);
-        }
-        if ((GetAsyncKeyState('A') & 0x8000) != 0) {
-            camera_->move_right(-move_step);
-        }
-        if ((GetAsyncKeyState('D') & 0x8000) != 0) {
-            camera_->move_right(move_step);
-        }
-        if ((GetAsyncKeyState(VK_SPACE) & 0x8000) != 0) {
-            camera_->move_up(move_step);
-        }
-        if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0) {
-            camera_->move_up(-move_step);
-        }
-        if ((GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0) {
-            camera_->rotate_right(rotate_step);
-        }
-        if ((GetAsyncKeyState(VK_LEFT) & 0x8000) != 0) {
-            camera_->rotate_right(-rotate_step);
-        }
-        if ((GetAsyncKeyState(VK_UP) & 0x8000) != 0) {
-            camera_->rotate_up(rotate_step);
-        }
-        if ((GetAsyncKeyState(VK_DOWN) & 0x8000) != 0) {
-            camera_->rotate_up(-rotate_step);
-        }
+        float speed = std::abs(speed_) * delta_seconds * 5.0f;
+        if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
+            speed *= 20.0f;
+
+        if (GetAsyncKeyState('W') & 0x8000)
+            camera_->move_forward(speed);
+        
+        if (GetAsyncKeyState('S') & 0x8000)
+            camera_->move_forward(-speed);
+        
+        if (GetAsyncKeyState('A') & 0x8000)
+            camera_->move_right(-speed);
+        
+        if (GetAsyncKeyState('D') & 0x8000)
+            camera_->move_right(speed);
+        
+        if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+            camera_->move_up(speed);
+        
+        if (GetAsyncKeyState(VK_LSHIFT) & 0x8000)
+            camera_->move_up(-speed);
+        
+        if (GetAsyncKeyState(VK_RIGHT) & 0x8000)
+            camera_->rotate_right(speed);
+        
+        if (GetAsyncKeyState(VK_LEFT) & 0x8000)
+            camera_->rotate_right(-speed);
+        
+        if (GetAsyncKeyState(VK_UP) & 0x8000)
+            camera_->rotate_up(speed);
+        
+        if (GetAsyncKeyState(VK_DOWN) & 0x8000)
+            camera_->rotate_up(-speed);
     }
 
 } // namespace fjr::render
