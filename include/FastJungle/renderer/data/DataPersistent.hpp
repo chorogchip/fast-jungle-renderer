@@ -78,6 +78,8 @@ namespace fjr::render::data {
         static_assert(sizeof(VertexDecodeParams) == 48);
         static_assert(std::is_trivially_copyable_v<VertexDecodeParams>);
 
+        dx::Buffer vertex_decode_params{};
+
 
         struct InstanceTransform {
             DirectX::XMFLOAT3 position{};

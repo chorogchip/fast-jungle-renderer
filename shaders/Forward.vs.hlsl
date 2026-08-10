@@ -4,12 +4,13 @@
 StructuredBuffer<uint> visible_instances : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
 StructuredBuffer<Material> materials : register(t2);
+StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t5);
 
 static const uint MATERIAL_FLAG_IMPOSTOR = 1u;
 
 struct VertexInput
 {
-    float3 position : POSITION;
+    float4 position : POSITION;
     float3 normal : NORMAL;
     float2 uv : TEXCOORD0;
 };
@@ -37,7 +38,12 @@ ForwardPixelInput main(
         visible_instance_offset + local_instance_id];
     const InstanceTransform instance = instances[instance_id];
     const Material material = materials[material_id];
-    float3 object_position = input.position;
+    
+    
+    VertexDecodeParams decode = vertex_decode_params[submesh_id];
+    
+    float3 object_position = decode.position_min.xyz + input.position.xyz * decode.uv_min_extent.xyz;
+    float2 uv = decode.uv_min_extent.xy + input.uv * decode.uv_min_extent.zw;
     float3 object_normal = input.normal * 2.0f - 1.0f;
 
     if ((material.flags & MATERIAL_FLAG_IMPOSTOR) != 0)
@@ -57,8 +63,8 @@ ForwardPixelInput main(
             float3(0.0f, 1.0f, 0.0f),
             local_forward));
         const float2 plane = float2(
-            input.uv.x * 2.0f - 1.0f,
-            1.0f - input.uv.y * 2.0f);
+            uv.x * 2.0f - 1.0f,
+            1.0f - uv.y * 2.0f);
         object_position = material.impostor_center +
             local_right * (plane.x * material.impostor_half_width) +
             float3(0.0f, plane.y * material.impostor_half_height, 0.0f);
@@ -82,6 +88,6 @@ ForwardPixelInput main(
         RotateForwardVector(
             object_normal * inverse_scale,
             instance.rotation));
-    output.uv = input.uv;
+    output.uv = uv;
     return output;
 }

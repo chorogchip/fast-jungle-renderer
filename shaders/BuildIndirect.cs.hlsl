@@ -23,12 +23,10 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 
     const MeshLod lod = mesh_lods[mesh_lod_id];
 
-    for (uint local_submesh = 0;
-        local_submesh < lod.submesh_count;
-        ++local_submesh)
+    for (uint sm = 0; sm < lod.submesh_count; ++sm)
     {
-        const SubMesh submesh =
-            submeshes[lod.submesh_offset + local_submesh];
+        uint submesh_id = lod.submesh_offset + sm;
+        const SubMesh submesh = submeshes[submesh_id];
 
         if (submesh.raster_class >= raster_class_count)
             continue;
@@ -49,6 +47,7 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         IndirectGPUDraw draw;
         draw.visible_instance_offset = bin_offsets[mesh_lod_id];
         draw.material_id = submesh.material_id;
+        draw.submesh_id = submesh_id;
         draw.index_count_per_instance = submesh.index_count;
         draw.instance_count = instance_count;
         draw.start_index_location = submesh.index_offset;

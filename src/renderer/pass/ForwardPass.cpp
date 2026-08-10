@@ -20,6 +20,7 @@ namespace fjr::render {
             CAMERA,
             VISIBLE_INSTANCES,
             INSTANCES,
+            VERTEX_DECODE_PARAMS,
             MATERIALS,
             TEXTURES,
             MATERIAL_SAMPLER,
@@ -67,6 +68,8 @@ namespace fjr::render {
             .reg(0).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::INSTANCES)
             .reg(1).vis_vertex().add();
+        root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
+            .reg(5).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::MATERIALS)
             .reg(2).vis_all().add();
 
@@ -134,11 +137,10 @@ namespace fjr::render {
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
                 .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .Format = DXGI_FORMAT_R16G16B16A16_UNORM,
                 .InputSlot = 0,
                 .AlignedByteOffset = 0,
-                .InputSlotClass =
-                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
             D3D12_INPUT_ELEMENT_DESC{
@@ -147,18 +149,16 @@ namespace fjr::render {
                 .Format = DXGI_FORMAT_R10G10B10A2_UNORM,
                 .InputSlot = 1,
                 .AlignedByteOffset = 0,
-                .InputSlotClass =
-                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "TEXCOORD",
                 .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
+                .Format = DXGI_FORMAT_R16G16_UNORM,
                 .InputSlot = 2,
                 .AlignedByteOffset = 0,
-                .InputSlotClass =
-                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
         };
@@ -227,6 +227,9 @@ namespace fjr::render {
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::INSTANCES),
             persistent.instance_transform->GetGPUVirtualAddress());
+        command_list->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::VERTEX_DECODE_PARAMS),
+            persistent.vertex_decode_params->GetGPUVirtualAddress());
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::MATERIALS),
             persistent.material->GetGPUVirtualAddress());

@@ -71,10 +71,7 @@ namespace fjr::render {
             device_.Get(),
             data_persistant_.texture_descriptors.get_count(),
             data_persistant_.submesh_count);
-        triangle_id_pass_.init(
-            device_.Get(),
-            data_persistant_.texture_descriptors.get_count(),
-            data_persistant_.submesh_count);
+        //triangle_id_pass_.init( device_.Get(), data_persistant_.texture_descriptors.get_count(), data_persistant_.submesh_count);
 
     }
 

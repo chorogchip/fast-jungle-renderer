@@ -67,6 +67,7 @@ struct IndirectGPUDraw
 {
     uint visible_instance_offset;
     uint material_id;
+    uint submesh_id;
     
     uint index_count_per_instance;
     uint instance_count;
@@ -86,6 +87,7 @@ StructuredBuffer<InstanceTransform> instances     : register(t1);
 StructuredBuffer<Mesh> meshes                     : register(t2);
 StructuredBuffer<MeshLod> mesh_lods               : register(t3);
 StructuredBuffer<SubMesh> submeshes               : register(t4);
+StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t5);
 
 RWStructuredBuffer<IndirectGPUDraw> indirect_draws : register(u0);
 RWStructuredBuffer<uint> indirect_draw_counts      : register(u1);

@@ -12,7 +12,7 @@
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/core/math/AABB.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
-#include "FastJungle/renderer/data/geometry/Packing.hpp"
+#include "FastJungle/renderer/data/geometry/BuilderGeomVertex.hpp"
 #include "FastJungle/renderer/data/geometry/BuilderGeomSubmesh.hpp"
 #include "FastJungle/renderer/data/geometry/BuilderGeomMesh.hpp"
 
@@ -27,19 +27,16 @@ namespace fjr::render::data {
 
         // vertices
 
-        std::vector<DirectX::XMFLOAT3> positions;
+        std::vector<DataPersistent::PackedPosition> positions;
         std::vector<DataPersistent::PackedNormal> normals;
-        std::vector<DirectX::XMFLOAT2> uvs;
+        std::vector<DataPersistent::PackedUV> uvs;
 
         positions.reserve(scene.vertices.size());
         normals.reserve(scene.vertices.size());
         uvs.reserve(scene.vertices.size());
 
-        for (const auto& vertex : scene.vertices) {
-            positions.push_back(vertex.position);
-            normals.push_back(geom::Packing::pack_normal(vertex.normal));
-            uvs.push_back(vertex.uv);
-        }
+        auto vertex_decode_params = geom::BuilderGeomVertex::build(
+            positions, normals, uvs, scene);
 
         output.vertex_pos.init(
             device,
@@ -50,7 +47,7 @@ namespace fjr::render::data {
 
         uploader.upload_buffer(
             output.vertex_pos,
-            std::as_bytes(std::span<const DirectX::XMFLOAT3>{ positions }),
+            std::as_bytes(std::span<const DataPersistent::PackedPosition>{ positions }),
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
         output.vertex_normal.init(
@@ -74,7 +71,7 @@ namespace fjr::render::data {
 
         uploader.upload_buffer(
             output.vertex_uv,
-            std::as_bytes(std::span<const DirectX::XMFLOAT2>{ uvs }),
+            std::as_bytes(std::span<const DataPersistent::PackedUV>{ uvs }),
             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
         output.index.init(
@@ -88,6 +85,18 @@ namespace fjr::render::data {
             output.index,
             std::as_bytes(std::span<const uint32_t>{ scene.indices }),
             D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
+        output.vertex_decode_params.init(
+            device,
+            vertex_decode_params.size() * sizeof(vertex_decode_params[0]),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.vertex_decode_params,
+            std::as_bytes(std::span<const DataPersistent::VertexDecodeParams>{ vertex_decode_params }),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 
         std::vector<DataPersistent::MeshLod> mesh_lods;
