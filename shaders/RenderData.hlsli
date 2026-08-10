@@ -74,8 +74,6 @@ struct IndirectGPUDraw
     uint start_index_location;
     uint base_vertex_location;
     uint start_instance_location;
-    
-    uint padding;
 };
 
 /*

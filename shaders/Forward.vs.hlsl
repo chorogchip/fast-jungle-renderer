@@ -42,7 +42,7 @@ ForwardPixelInput main(
     
     VertexDecodeParams decode = vertex_decode_params[submesh_id];
     
-    float3 object_position = decode.position_min.xyz + input.position.xyz * decode.uv_min_extent.xyz;
+    float3 object_position = decode.position_min.xyz + input.position.xyz * decode.position_extent.xyz;
     float2 uv = decode.uv_min_extent.xy + input.uv * decode.uv_min_extent.zw;
     float3 object_normal = input.normal * 2.0f - 1.0f;
 

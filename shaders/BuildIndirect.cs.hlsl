@@ -53,7 +53,6 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         draw.start_index_location = submesh.index_offset;
         draw.base_vertex_location = submesh.base_vertex;
         draw.start_instance_location = 0;
-        draw.padding = 0;
 
         indirect_draws[command_id] = draw;
     }

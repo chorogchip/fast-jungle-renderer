@@ -241,26 +241,19 @@ namespace fjr::render {
             persistent.samplers.get_gpu(persistent.wrap_sampler));
         const std::array<D3D12_VERTEX_BUFFER_VIEW, 3> vertex_views{
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_pos->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_pos, "Position buffer"),
-                .StrideInBytes = sizeof(DirectX::XMFLOAT3),
+                .BufferLocation = persistent.vertex_pos->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_pos, "Position buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedPosition),
             },
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_normal->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_normal, "Normal buffer"),
-                .StrideInBytes =
-                    sizeof(data::DataPersistent::PackedNormal),
+                .BufferLocation = persistent.vertex_normal->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_normal, "Normal buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedNormal),
             },
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_uv->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_uv, "UV buffer"),
-                .StrideInBytes = sizeof(DirectX::XMFLOAT2),
+                .BufferLocation = persistent.vertex_uv->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_uv, "UV buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedUV),
             },
         };
         const D3D12_INDEX_BUFFER_VIEW index_view{
