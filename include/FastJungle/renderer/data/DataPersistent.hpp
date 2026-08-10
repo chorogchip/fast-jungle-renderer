@@ -43,16 +43,40 @@ namespace fjr::render::data {
         uint32_t wrap_sampler = 0;
         uint32_t clamp_sampler = 0;
 
+        struct PackedPosition {
+            uint16_t x = 0;
+            uint16_t y = 0;
+            uint16_t z = 0;
+            uint16_t w = 0;
+        };
+        static_assert(sizeof(PackedPosition) == 8);
+        static_assert(std::is_trivially_copyable_v<PackedPosition>);
+
         struct PackedNormal {
             uint32_t value = 0;
         };
         static_assert(sizeof(PackedNormal) == 4);
         static_assert(std::is_trivially_copyable_v<PackedNormal>);
 
+        struct PackedUV {
+            uint16_t x = 0;
+            uint16_t y = 0;
+        };
+        static_assert(sizeof(PackedUV) == 4);
+        static_assert(std::is_trivially_copyable_v<PackedUV>);
+
         dx::Buffer vertex_pos{};
         dx::Buffer vertex_normal{};
         dx::Buffer vertex_uv{};
         dx::Buffer index{};
+
+        struct VertexDecodeParams {
+            DirectX::XMFLOAT4 position_min{};
+            DirectX::XMFLOAT4 position_extent{};
+            DirectX::XMFLOAT4 uv_min_extent{};
+        };
+        static_assert(sizeof(VertexDecodeParams) == 48);
+        static_assert(std::is_trivially_copyable_v<VertexDecodeParams>);
 
 
         struct InstanceTransform {
