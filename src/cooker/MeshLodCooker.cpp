@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <utility>
@@ -71,7 +72,9 @@ namespace fjr::cooker {
             if (settings.triangle_ratios[0] != 1.0f ||
                 settings.max_relative_errors[0] != 0.0f ||
                 settings.minimum_reduction < 0.0f ||
-                settings.minimum_reduction >= 1.0f) {
+                settings.minimum_reduction >= 1.0f ||
+                settings.compact_lod_first > MeshLodCookSettings::LOD_COUNT ||
+                settings.compact_lod_first == 0) {
                 fail("Invalid mesh LOD cook settings.");
             }
             for (std::size_t lod = 1;
@@ -87,11 +90,109 @@ namespace fjr::cooker {
             }
         }
 
+        struct RenderBlock final {
+            std::uint32_t vertex_offset = StaticScene::INVALID_INDEX;
+            std::uint32_t vertex_count = 0;
+            std::uint32_t index_offset = StaticScene::INVALID_INDEX;
+            std::uint32_t index_count = 0;
+            bool compact = false;
+        };
+
+        [[nodiscard]]
+        bool should_compact_lod(
+            std::size_t lod_index,
+            const MeshLodCookSettings& settings) noexcept {
+
+            return lod_index >= settings.compact_lod_first;
+        }
+
+        [[nodiscard]]
+        RenderBlock append_sparse_r32_block(
+            StaticScene& scene,
+            const StaticScene::Submesh& base,
+            const std::vector<unsigned int>& indices) {
+
+            RenderBlock result;
+            result.vertex_offset = base.vertex_offset;
+            result.vertex_count = base.vertex_count;
+            result.index_offset = checked_u32(
+                scene.indices.size(), "LOD index offset");
+            result.index_count = checked_u32(
+                indices.size(), "LOD index count");
+            scene.indices.insert(
+                scene.indices.end(), indices.begin(), indices.end());
+            return result;
+        }
+
+        [[nodiscard]]
+        RenderBlock append_compact_r32_block(
+            StaticScene& scene,
+            const StaticScene::Submesh& base,
+            const std::vector<unsigned int>& original_indices) {
+
+            std::vector<unsigned int> remap(base.vertex_count);
+            const std::size_t compact_vertex_count =
+                meshopt_optimizeVertexFetchRemap(
+                    remap.data(),
+                    original_indices.data(),
+                    original_indices.size(),
+                    base.vertex_count);
+            if (compact_vertex_count == 0 ||
+                compact_vertex_count > base.vertex_count) {
+                fail("Meshoptimizer returned an invalid compact vertex count.");
+            }
+
+            std::vector<unsigned int> compact_indices(
+                original_indices.size());
+            meshopt_remapIndexBuffer(
+                compact_indices.data(),
+                original_indices.data(),
+                compact_indices.size(),
+                remap.data());
+            for (const unsigned int index : compact_indices) {
+                if (index >= compact_vertex_count) {
+                    fail("Meshoptimizer generated an invalid compact index.");
+                }
+            }
+
+            std::vector<StaticScene::Vertex> compact_vertices(
+                compact_vertex_count);
+            meshopt_remapVertexBuffer(
+                compact_vertices.data(),
+                scene.vertices.data() + base.vertex_offset,
+                base.vertex_count,
+                sizeof(StaticScene::Vertex),
+                remap.data());
+
+            RenderBlock result;
+            result.vertex_offset = checked_u32(
+                scene.vertices.size(), "Compact LOD vertex offset");
+            result.vertex_count = checked_u32(
+                compact_vertices.size(), "Compact LOD vertex count");
+            result.index_offset = checked_u32(
+                scene.indices.size(), "Compact LOD index offset");
+            result.index_count = checked_u32(
+                compact_indices.size(), "Compact LOD index count");
+            result.compact = true;
+
+            scene.vertices.insert(
+                scene.vertices.end(),
+                compact_vertices.begin(),
+                compact_vertices.end());
+            scene.indices.insert(
+                scene.indices.end(),
+                compact_indices.begin(),
+                compact_indices.end());
+            return result;
+        }
+
         struct SubmeshState final {
             StaticScene::Submesh base;
+            // These stay in the base submesh's local vertex ID space so every
+            // subsequent simplification continues to address the LOD0 source
+            // vertex block, even after a render block was compacted.
             std::vector<unsigned int> indices;
-            std::uint32_t current_index_offset = StaticScene::INVALID_INDEX;
-            std::uint32_t current_index_count = 0;
+            RenderBlock current_render;
             float accumulated_error = 0.0f;
             float scale = 0.0f;
         };
@@ -112,6 +213,7 @@ namespace fjr::cooker {
         const auto source_submeshes = std::move(scene.submeshes);
         const auto source_lods = std::move(scene.mesh_lods);
         std::size_t lod0_index_end = 0;
+        std::size_t lod0_vertex_end = 0;
         for (const auto& mesh : scene.meshes) {
             if (mesh.lod_count == 0 || mesh.lod_offset >= source_lods.size()) {
                 fail("MeshLodCooker source mesh has no LOD0.");
@@ -127,18 +229,27 @@ namespace fjr::cooker {
                     source_submeshes[lod0.submesh_offset + local];
                 if (submesh.index_offset > scene.indices.size() ||
                     submesh.index_count >
-                    scene.indices.size() - submesh.index_offset) {
+                    scene.indices.size() - submesh.index_offset ||
+                    submesh.vertex_offset > scene.vertices.size() ||
+                    submesh.vertex_count >
+                    scene.vertices.size() - submesh.vertex_offset) {
                     fail("MeshLodCooker source LOD0 index range is invalid.");
                 }
                 lod0_index_end = std::max(
                     lod0_index_end,
                     static_cast<std::size_t>(submesh.index_offset) +
                     submesh.index_count);
+                lod0_vertex_end = std::max(
+                    lod0_vertex_end,
+                    static_cast<std::size_t>(submesh.vertex_offset) +
+                    submesh.vertex_count);
             }
         }
-        // A second cook of an already cooked scene discards the generated tail.
-        // StaticSceneBuilder emits every LOD0 index before this tail.
+        // StaticSceneBuilder emits every LOD0 range before generated LOD data.
+        // This keeps an in-memory repeat cook from retaining previous LOD
+        // blocks when no later cooker stage has appended unrelated geometry.
         scene.indices.resize(lod0_index_end);
+        scene.vertices.resize(lod0_vertex_end);
         scene.submeshes.clear();
         scene.mesh_lods.clear();
         scene.submeshes.reserve(
@@ -191,8 +302,12 @@ namespace fjr::cooker {
 
                 SubmeshState state;
                 state.base = submesh;
-                state.current_index_offset = submesh.index_offset;
-                state.current_index_count = submesh.index_count;
+                state.current_render = {
+                    .vertex_offset = submesh.vertex_offset,
+                    .vertex_count = submesh.vertex_count,
+                    .index_offset = submesh.index_offset,
+                    .index_count = submesh.index_count,
+                };
                 state.indices.assign(
                     scene.indices.begin() + submesh.index_offset,
                     scene.indices.begin() +
@@ -329,17 +444,8 @@ namespace fjr::cooker {
                                 simplified.size(),
                                 state.base.vertex_count);
                             state.indices = std::move(simplified);
-                            state.current_index_offset = checked_u32(
-                                scene.indices.size(), "LOD index offset");
-                            state.current_index_count = checked_u32(
-                                state.indices.size(), "LOD index count");
-                            scene.indices.insert(
-                                scene.indices.end(),
-                                state.indices.begin(),
-                                state.indices.end());
                             state.accumulated_error +=
                                 relative_result_error * state.scale;
-                            stats.generated_index_count += selected_count;
                             ++stats.simplified_submeshes;
                             stats.sloppy_fallback_submeshes +=
                                 used_sloppy_fallback ? 1u : 0u;
@@ -351,9 +457,35 @@ namespace fjr::cooker {
                         ++stats.reused_submeshes;
                     }
 
+                    if (should_compact_lod(lod_index, settings)) {
+                        // The first compact level must create a render block
+                        // even when simplification reused the preceding
+                        // topology. Later unchanged levels can share it.
+                        if (accepted || !state.current_render.compact) {
+                            state.current_render = append_compact_r32_block(
+                                scene, state.base, state.indices);
+                            stats.generated_index_count +=
+                                state.current_render.index_count;
+                            stats.compact_vertex_count +=
+                                state.current_render.vertex_count;
+                            ++stats.compacted_render_blocks;
+                        }
+                        else {
+                            ++stats.reused_compact_render_blocks;
+                        }
+                    }
+                    else if (accepted) {
+                        state.current_render = append_sparse_r32_block(
+                            scene, state.base, state.indices);
+                        stats.generated_index_count +=
+                            state.current_render.index_count;
+                    }
+
                     auto cooked = state.base;
-                    cooked.index_offset = state.current_index_offset;
-                    cooked.index_count = state.current_index_count;
+                    cooked.vertex_offset = state.current_render.vertex_offset;
+                    cooked.vertex_count = state.current_render.vertex_count;
+                    cooked.index_offset = state.current_render.index_offset;
+                    cooked.index_count = state.current_render.index_count;
                     scene.submeshes.push_back(cooked);
                     stats.logical_index_counts[lod_index] += cooked.index_count;
                     lod.max_deviation = std::max(

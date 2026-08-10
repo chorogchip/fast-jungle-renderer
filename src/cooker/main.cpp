@@ -1,9 +1,7 @@
 
 #include <cstdlib>
-#include <array>
 #include <exception>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -25,42 +23,12 @@
 #include "FastJungle/core/util/ProcessMemory.hpp"
 #include "FastJungle/core/util/TemporaryFile.hpp"
 #include "FastJungle/scene/StaticSceneReader.hpp"
+#include "FastJungle/scene/StaticSceneFileIO.hpp"
 #include "FastJungle/scene/StaticSceneWriter.hpp"
 
 namespace {
 
     constexpr wchar_t DEFAULT_SCENE_NAME[] = L"JungleRuins.fjscene";
-    constexpr std::array<char, 8> SCENE_MAGIC{
-        'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
-    };
-    constexpr std::array<char, 8> TEXTURE_MAGIC{
-        'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
-    };
-    // Incremented because mesh LOD contents are part of the cooked scene
-    // payload. The cache check otherwise sees a valid binary header and
-    // reuses a scene cooked with the previous LOD recipe.
-    constexpr std::uint32_t SCENE_VERSION = 14;
-    constexpr std::uint32_t TEXTURE_VERSION = 5;
-
-    struct CookedFileHeader final {
-        std::array<char, 8> magic{};
-        std::uint32_t version = 0;
-    };
-
-    [[nodiscard]]
-    bool has_current_header(
-        const std::filesystem::path& path,
-        const std::array<char, 8>& magic,
-        std::uint32_t version) {
-
-        std::ifstream input{path, std::ios::binary};
-        CookedFileHeader header;
-        input.read(
-            reinterpret_cast<char*>(&header),
-            sizeof(header));
-        return input && header.magic == magic && header.version == version;
-    }
-
     void print_usage() {
         std::wcerr
             << L"Usage: FastJungleCooker.exe [input.usd[a|c|z]] "
@@ -124,7 +92,13 @@ namespace {
 				<< stats.simplified_submeshes << L" / "
 				<< stats.reused_submeshes << L'\n'
 				<< L"  sloppy fallback submesh levels: "
-				<< stats.sloppy_fallback_submeshes << L'\n';
+				<< stats.sloppy_fallback_submeshes << L'\n'
+                << L"  compact render blocks: "
+                << stats.compacted_render_blocks
+                << L" (reused: "
+                << stats.reused_compact_render_blocks << L")\n"
+                << L"  compact vertices: "
+                << stats.compact_vertex_count << L'\n';
 			return EXIT_SUCCESS;
 		}
 
@@ -160,14 +134,12 @@ namespace {
 
         const auto texture_path =
             fjr::scene::StaticSceneWriter::texture_path(output_path);
-        const bool has_scene = has_current_header(
-            output_path,
-            SCENE_MAGIC,
-            SCENE_VERSION);
-        const bool has_textures = has_current_header(
-            texture_path,
-            TEXTURE_MAGIC,
-            TEXTURE_VERSION);
+        const bool has_scene =
+            fjr::scene::static_scene_file_io::has_current_scene_header(
+                output_path);
+        const bool has_textures =
+            fjr::scene::static_scene_file_io::has_current_texture_header(
+                texture_path);
         if (has_scene && has_textures) {
             std::wcout
                 << L"Reusing " << output_path << L'\n'
@@ -186,8 +158,17 @@ namespace {
         print_memory_usage(L"scene metadata");
 
         std::wcout << L"Cooking mesh LODs...\n" << std::flush;
-        [[maybe_unused]] const auto lod_stats =
+        const auto lod_stats =
             fjr::cooker::MeshLodCooker::cook(*scene);
+        std::wcout
+            << L"  generated LOD indices: "
+            << lod_stats.generated_index_count << L'\n'
+            << L"  compact render blocks: "
+            << lod_stats.compacted_render_blocks
+            << L" (reused: "
+            << lod_stats.reused_compact_render_blocks << L")\n"
+            << L"  compact vertices: "
+            << lod_stats.compact_vertex_count << L'\n';
         print_memory_usage(L"mesh LOD cook");
 
         std::wcout

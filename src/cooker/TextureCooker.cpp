@@ -203,6 +203,19 @@ namespace fjr::cooker {
             return scene.strings.data() + found->key;
         }
 
+        // Temporary cache compatibility for a moved checkout.  Cooked v5
+        // payloads used absolute source paths as their keys; the payload bytes
+        // remain valid when only the directory before /assets/ has changed.
+        [[nodiscard]] std::string_view portable_texture_key(
+            std::string_view key) noexcept {
+
+            constexpr std::string_view ASSET_ROOT = "/assets/";
+            const auto asset_root = key.find(ASSET_ROOT);
+            return asset_root == std::string_view::npos
+                ? key
+                : key.substr(asset_root);
+        }
+
     } // namespace
 
     std::uint64_t TextureCooker::cook(
@@ -361,8 +374,13 @@ namespace fjr::cooker {
             const auto cached_reference = std::ranges::find_if(
                 cached.texture_payload_refs,
                 [&cached, key](const auto& candidate) {
-                    return candidate.key < cached.strings.size() &&
-                        key == cached.strings.data() + candidate.key;
+                    if (candidate.key >= cached.strings.size()) {
+                        return false;
+                    }
+                    const std::string_view cached_key =
+                        cached.strings.data() + candidate.key;
+                    return portable_texture_key(key) ==
+                        portable_texture_key(cached_key);
                 });
             if (cached_reference == cached.texture_payload_refs.end()) {
                 log::Logger::g_logger << log::abrt(

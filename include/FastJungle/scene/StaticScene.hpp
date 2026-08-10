@@ -355,7 +355,8 @@ namespace fjr::scene {
 
 
 		// indices[index_offset ...] are local to Submesh::vertex_offset.
-		// Final vertex index = Submesh::vertex_offset + indices[i].
+		// Final vertex index = Submesh::vertex_offset + indices[i].  A generated
+		// LOD may own a dense compact vertex range instead of sharing LOD0's.
 
 		using Char = char;
 		using Uint32_t = uint32_t;

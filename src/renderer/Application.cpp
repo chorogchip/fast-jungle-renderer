@@ -41,12 +41,13 @@ namespace fjr {
 
         while (pump_messages()) {
             const auto time_begin = Clock::now();
+
             const float delta_seconds =
                 std::chrono::duration<float>(
                     time_begin - time_previous).count();
             time_previous = time_begin;
-
             camera_controller_.update(delta_seconds);
+
             renderer_.render();
             const auto time_end = Clock::now();
 

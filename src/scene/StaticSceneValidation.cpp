@@ -169,14 +169,17 @@ namespace fjr::scene {
                     const auto& candidate = scene.submeshes[
                         lod.submesh_offset + local_submesh];
                     if (candidate.name != base.name ||
-                        candidate.vertex_offset != base.vertex_offset ||
-                        candidate.vertex_count != base.vertex_count ||
                         candidate.material != base.material ||
                         candidate.flags != base.flags) {
                         log::Logger::g_logger
                             << log::abrt(
-                                "Invalid StaticScene mesh LOD submesh contract.");
+                            "Invalid StaticScene mesh LOD submesh contract.");
                     }
+
+                    // A generated LOD can own a dense copy of just the
+                    // vertices referenced by its optimized index sequence.
+                    // Its own range and local indices were already validated
+                    // above, so it need not share LOD0's vertex range.
 					if (local_lod > 0) {
 						const auto& previous_lod = scene.mesh_lods[
 							mesh.lod_offset + local_lod - 1];

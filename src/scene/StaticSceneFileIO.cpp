@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <fstream>
 #include <istream>
 #include <limits>
 #include <ostream>
@@ -18,15 +19,13 @@ namespace fjr::scene::static_scene_file_io {
         constexpr std::array<char, 8> SCENE_MAGIC{
             'F', 'J', 'S', 'C', 'E', 'N', 'E', '\0'
         };
-        constexpr std::uint32_t SCENE_VERSION = 12;
         constexpr std::array<char, 8> TEXTURE_MAGIC{
             'F', 'J', 'T', 'E', 'X', '\0', '\0', '\0'
         };
-        constexpr std::uint32_t TEXTURE_VERSION = 5;
 
         struct SceneHeader final {
             std::array<char, 8> magic = SCENE_MAGIC;
-            std::uint32_t version = SCENE_VERSION;
+            std::uint32_t version = SCENE_FORMAT_VERSION;
             std::uint32_t header_size = 40;
             std::uint32_t vertex_size = sizeof(StaticScene::Vertex);
             std::uint32_t scene_info_size = sizeof(StaticScene::SceneInfo);
@@ -36,7 +35,7 @@ namespace fjr::scene::static_scene_file_io {
 
         struct TextureHeader final {
             std::array<char, 8> magic = TEXTURE_MAGIC;
-            std::uint32_t version = TEXTURE_VERSION;
+            std::uint32_t version = TEXTURE_FORMAT_VERSION;
             std::uint32_t header_size = 32;
             std::uint64_t metadata_size = 0;
             std::uint64_t payload_size = 0;
@@ -44,6 +43,27 @@ namespace fjr::scene::static_scene_file_io {
 
         static_assert(sizeof(SceneHeader) == 40);
         static_assert(sizeof(TextureHeader) == 32);
+
+        struct HeaderPrefix final {
+            std::array<char, 8> magic{};
+            std::uint32_t version = 0;
+        };
+
+        static_assert(sizeof(HeaderPrefix) == 12);
+
+        [[nodiscard]]
+        bool has_current_header(
+            const std::filesystem::path& path,
+            const std::array<char, 8>& magic,
+            std::uint32_t version) {
+
+            std::ifstream input{path, std::ios::binary};
+            HeaderPrefix header;
+            input.read(
+                reinterpret_cast<char*>(&header),
+                sizeof(header));
+            return input && header.magic == magic && header.version == version;
+        }
 
         void validate_scene_header(
             const SceneHeader& header,
@@ -54,7 +74,7 @@ namespace fjr::scene::static_scene_file_io {
                     << "StaticScene file magic is invalid.\n";
                 log::Logger::g_logger.abort();
             }
-            if (header.version != SCENE_VERSION) {
+            if (header.version != SCENE_FORMAT_VERSION) {
                 log::Logger::g_logger
                     << "StaticScene file version is unsupported: "
                     << header.version << '\n';
@@ -83,7 +103,7 @@ namespace fjr::scene::static_scene_file_io {
                     << "StaticTexture file magic is invalid.\n";
                 log::Logger::g_logger.abort();
             }
-            if (header.version != TEXTURE_VERSION) {
+            if (header.version != TEXTURE_FORMAT_VERSION) {
                 log::Logger::g_logger
                     << "StaticTexture file version is unsupported: "
                     << header.version << '\n';
@@ -99,6 +119,16 @@ namespace fjr::scene::static_scene_file_io {
         }
 
     } // namespace
+
+    bool has_current_scene_header(const std::filesystem::path& path) {
+        return has_current_header(
+            path, SCENE_MAGIC, SCENE_FORMAT_VERSION);
+    }
+
+    bool has_current_texture_header(const std::filesystem::path& path) {
+        return has_current_header(
+            path, TEXTURE_MAGIC, TEXTURE_FORMAT_VERSION);
+    }
 
     Reader::Reader(
         std::istream& source,

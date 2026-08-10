@@ -9,6 +9,23 @@
 
 namespace fjr::scene::static_scene_file_io {
 
+    // This version changes when the serialized scene contract changes, even
+    // if the native C++ record layouts happen to remain unchanged.
+    // v13: LOD submeshes may reference dedicated dense vertex blocks instead
+    // of sharing their LOD0 vertex range. The cooker cache check, file writer,
+    // and file reader all consume this one value.
+    inline constexpr std::uint32_t SCENE_FORMAT_VERSION = 13;
+    inline constexpr std::uint32_t TEXTURE_FORMAT_VERSION = 5;
+
+    // These are the only cache predicates for cooked files. Keeping them next
+    // to the reader and writer prevents the cooker from carrying a second
+    // copy of either file format version.
+    [[nodiscard]]
+    bool has_current_scene_header(const std::filesystem::path& path);
+
+    [[nodiscard]]
+    bool has_current_texture_header(const std::filesystem::path& path);
+
     class Reader final {
     public:
         Reader(

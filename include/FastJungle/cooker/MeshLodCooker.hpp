@@ -26,15 +26,22 @@ namespace fjr::cooker {
 
         std::uint32_t minimum_triangle_count = 0;
         float minimum_reduction = 0.0f;
+
+        // LODs at or after this level receive a dedicated dense vertex block.
+        // Set to LOD_COUNT to retain the legacy shared-LOD0 vertex layout.
+        std::uint32_t compact_lod_first = 5;
     };
 
     struct MeshLodCookStats final {
         std::array<std::uint64_t, MeshLodCookSettings::LOD_COUNT>
             logical_index_counts{};
         std::uint64_t generated_index_count = 0;
+        std::uint64_t compact_vertex_count = 0;
         std::uint32_t simplified_submeshes = 0;
         std::uint32_t sloppy_fallback_submeshes = 0;
         std::uint32_t reused_submeshes = 0;
+        std::uint32_t compacted_render_blocks = 0;
+        std::uint32_t reused_compact_render_blocks = 0;
     };
 
     class MeshLodCooker final {
