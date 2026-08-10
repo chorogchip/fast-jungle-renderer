@@ -10,7 +10,7 @@ cbuffer BakeMaterial : register(b1)
     float roughness_value;
     uint roughness_texture;
     uint roughness_channel;
-    uint padding;
+    uint normal_texture;
 };
 
 Texture2D<float4> source_textures[] : register(t0);
@@ -21,7 +21,7 @@ struct PixelInput
     float4 position : SV_POSITION;
     float3 view_normal : NORMAL;
     float2 uv : TEXCOORD0;
-    float view_depth : TEXCOORD1;
+    float3 view_position : TEXCOORD1;
 };
 
 struct PixelOutput
@@ -44,6 +44,41 @@ float select_channel(float4 value, uint channel)
     }
 }
 
+float3 surface_view_normal(PixelInput input)
+{
+    const float3 normal = normalize(input.view_normal);
+    if (normal_texture == INVALID_INDEX)
+    {
+        return normal;
+    }
+
+    const float3 position_dx = ddx(input.view_position);
+    const float3 position_dy = ddy(input.view_position);
+    const float2 uv_dx = ddx(input.uv);
+    const float2 uv_dy = ddy(input.uv);
+    const float3 position_dy_perp = cross(position_dy, normal);
+    const float3 position_dx_perp = cross(normal, position_dx);
+    const float3 tangent =
+        position_dy_perp * uv_dx.x +
+        position_dx_perp * uv_dy.x;
+    const float3 bitangent =
+        position_dy_perp * uv_dx.y +
+        position_dx_perp * uv_dy.y;
+    const float inverse_length = rsqrt(max(
+        max(dot(tangent, tangent), dot(bitangent, bitangent)),
+        1.0e-12f));
+    const float2 tangent_xy = source_textures[
+        normal_texture].Sample(source_sampler, input.uv).rg *
+        2.0f - 1.0f;
+    const float tangent_z = sqrt(saturate(
+        1.0f - dot(tangent_xy, tangent_xy)));
+
+    return normalize(
+        tangent * (tangent_xy.x * inverse_length) +
+        bitangent * (tangent_xy.y * inverse_length) +
+        normal * tangent_z);
+}
+
 PixelOutput main(PixelInput input)
 {
     float4 albedo_alpha = base_color_opacity;
@@ -64,12 +99,20 @@ PixelOutput main(PixelInput input)
             source_sampler,
             input.uv), opacity_channel);
     }
-    clip(albedo_alpha.a - 0.5f);
+    if (albedo_alpha.a <= 0.5f)
+    {
+        discard;
+    }
 
     PixelOutput output;
     output.albedo_alpha = albedo_alpha;
-    output.normal = float4(normalize(input.view_normal) * 0.5f + 0.5f, 1.0f);
-    output.depth = input.view_depth;
+    const float3 view_normal = surface_view_normal(input);
+    const float3 card_normal = float3(
+        view_normal.x,
+        -view_normal.y,
+        -view_normal.z);
+    output.normal = float4(card_normal * 0.5f + 0.5f, 1.0f);
+    output.depth = input.view_position.z;
     output.roughness = roughness_texture == INVALID_INDEX
         ? roughness_value
         : select_channel(source_textures[roughness_texture].Sample(

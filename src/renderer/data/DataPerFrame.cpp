@@ -1,7 +1,6 @@
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 
 #include "FastJungle/renderer/Camera.hpp"
@@ -69,11 +68,6 @@ namespace fjr::render::data {
         environment_color = environment.color;
         environment_intensity =
             environment.intensity * std::exp2(environment.exposure);
-
-        using Clock = std::chrono::steady_clock;
-        static const auto animation_epoch = Clock::now();
-        animation_time = std::chrono::duration<float>(
-            Clock::now() - animation_epoch).count();
         environment_texture = environment.texture;
 
         lod_projection_scale =

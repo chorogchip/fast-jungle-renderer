@@ -157,25 +157,41 @@ namespace fjr::cooker {
         const DXGI_FORMAT intermediate = working_format(
             metadata.format,
             plan);
-        const std::uint64_t base_size = image_chain_size(
+        const std::uint64_t intermediate_base_size = image_chain_size(
             intermediate,
             metadata.width,
             metadata.height,
             false);
         if (DirectX::IsCompressed(metadata.format)) {
-            checked_add(result, base_size);
+            checked_add(result, intermediate_base_size);
+        }
+        const DXGI_FORMAT processing_format = plan.preserve_alpha_coverage
+            ? DXGI_FORMAT_R8G8B8A8_UNORM
+            : intermediate;
+        const std::uint64_t processing_base_size = image_chain_size(
+            processing_format,
+            metadata.width,
+            metadata.height,
+            false);
+        if (plan.preserve_alpha_coverage) {
+            checked_add(result, processing_base_size);
         }
         if (plan.isolate_source_channel) {
-            checked_add(result, base_size);
+            checked_add(result, processing_base_size);
         }
         if (metadata.width > 1 || metadata.height > 1) {
+            const auto processing_mip_size = image_chain_size(
+                processing_format,
+                metadata.width,
+                metadata.height,
+                true);
             checked_add(
                 result,
-                image_chain_size(
-                    intermediate,
-                    metadata.width,
-                    metadata.height,
-                    true));
+                processing_mip_size);
+            if (plan.preserve_alpha_coverage) {
+                checked_add(result, processing_mip_size);
+                checked_add(result, processing_mip_size);
+            }
         }
         checked_add(
             result,
@@ -199,8 +215,11 @@ namespace fjr::cooker {
         }
 
         DirectX::ScratchImage decompressed;
+        DirectX::ScratchImage coverage_carrier;
         DirectX::ScratchImage isolated;
         DirectX::ScratchImage mip_chain;
+        DirectX::ScratchImage coverage_chain;
+        DirectX::ScratchImage coverage_scalar_chain;
 
         DirectX::ScratchImage* source = &decoded;
         if (DirectX::IsCompressed(decoded.GetMetadata().format)) {
@@ -220,6 +239,29 @@ namespace fjr::cooker {
         if (base == nullptr) {
             log::Logger::g_logger << log::abrt(
                 "Texture base image is missing.");
+        }
+        if (plan.preserve_alpha_coverage) {
+            if (!plan.isolate_source_channel ||
+                plan.dxgi_format != DXGI_FORMAT_BC4_UNORM) {
+                log::Logger::g_logger << log::abrt(
+                    "Alpha coverage preservation requires isolated BC4 output.");
+            }
+            if (base->format != DXGI_FORMAT_R8G8B8A8_UNORM) {
+                if (FAILED(DirectX::Convert(
+                    *base,
+                    DXGI_FORMAT_R8G8B8A8_UNORM,
+                    DirectX::TEX_FILTER_DEFAULT,
+                    DirectX::TEX_THRESHOLD_DEFAULT,
+                    coverage_carrier))) {
+                    log::Logger::g_logger << log::abrt(
+                        "Failed to create the alpha coverage working image.");
+                }
+                base = coverage_carrier.GetImage(0, 0, 0);
+                if (base == nullptr) {
+                    log::Logger::g_logger << log::abrt(
+                        "Alpha coverage working image is missing.");
+                }
+            }
         }
         if (plan.isolate_source_channel) {
             isolate_channel(*base, plan, isolated);
@@ -249,6 +291,41 @@ namespace fjr::cooker {
             images = mip_chain.GetImages();
             image_count = mip_chain.GetImageCount();
             metadata = mip_chain.GetMetadata();
+        }
+
+        if (plan.preserve_alpha_coverage && image_count > 1) {
+            if (FAILED(coverage_chain.Initialize(metadata)) ||
+                FAILED(DirectX::ScaleMipMapsAlphaForCoverage(
+                    images,
+                    image_count,
+                    metadata,
+                    0,
+                    plan.alpha_reference,
+                    coverage_chain))) {
+                log::Logger::g_logger << log::abrt(
+                    std::string{"Failed to preserve alpha coverage: "} +
+                    std::string{source_key});
+            }
+            if (FAILED(DirectX::TransformImage(
+                coverage_chain.GetImages(),
+                coverage_chain.GetImageCount(),
+                coverage_chain.GetMetadata(),
+                [](DirectX::XMVECTOR* output,
+                    const DirectX::XMVECTOR* input,
+                    std::size_t width,
+                    std::size_t) {
+                    for (std::size_t x = 0; x < width; ++x) {
+                        output[x] = DirectX::XMVectorSplatW(input[x]);
+                    }
+                },
+                coverage_scalar_chain))) {
+                log::Logger::g_logger << log::abrt(
+                    std::string{"Failed to move coverage alpha to R: "} +
+                    std::string{source_key});
+            }
+            images = coverage_scalar_chain.GetImages();
+            image_count = coverage_scalar_chain.GetImageCount();
+            metadata = coverage_scalar_chain.GetMetadata();
         }
 
         if (FAILED(DirectX::Compress(

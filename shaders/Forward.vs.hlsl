@@ -1,8 +1,4 @@
 
-#ifndef FJR_FOLIAGE_WIND
-#define FJR_FOLIAGE_WIND 0
-#endif
-
 #include "common/ForwardConstants.hlsli"
 
 StructuredBuffer<uint> visible_instances : register(t0);
@@ -42,8 +38,6 @@ ForwardPixelInput main(
         visible_instance_offset + local_instance_id];
     const InstanceTransform instance = instances[instance_id];
     const Material material = materials[material_id];
-    const bool is_impostor =
-        (material.flags & MATERIAL_FLAG_IMPOSTOR) != 0;
     
     
     VertexDecodeParams decode = vertex_decode_params[submesh_id];
@@ -51,9 +45,8 @@ ForwardPixelInput main(
     float3 object_position = decode.position_min.xyz + input.position.xyz * decode.position_extent.xyz;
     float2 uv = decode.uv_min_extent.xy + input.uv * decode.uv_min_extent.zw;
     float3 object_normal = input.normal * 2.0f - 1.0f;
-    float3 wind_sample_object_position = object_position;
 
-    if (is_impostor)
+    if ((material.flags & MATERIAL_FLAG_IMPOSTOR) != 0)
     {
         const float3 local_center_scaled =
             material.impostor_center * instance.scale;
@@ -76,37 +69,11 @@ ForwardPixelInput main(
             local_right * (plane.x * material.impostor_half_width) +
             float3(0.0f, plane.y * material.impostor_half_height, 0.0f);
         object_normal = local_to_camera;
-        wind_sample_object_position = material.impostor_center;
     }
 
-    float3 world_position = instance.position + RotateForwardVector(
+    const float3 world_position = instance.position + RotateForwardVector(
         object_position * instance.scale,
         instance.rotation);
-
-#if FJR_FOLIAGE_WIND
-    const float3 wind_sample_position =
-        instance.position + RotateForwardVector(
-            wind_sample_object_position * instance.scale,
-            instance.rotation);
-    const uint phase_hash =
-        instance_id * 1664525u + 1013904223u;
-    const float instance_phase =
-        float(phase_hash & 0xffffu) *
-        (6.2831853f / 65535.0f);
-    const float spatial_phase = dot(
-        wind_sample_position.xz,
-        float2(0.0031f, 0.0043f));
-    float gust = sin(
-        animation_time * 0.9f +
-        spatial_phase +
-        instance_phase);
-    gust += 0.35f * sin(
-        animation_time * 2.1f +
-        spatial_phase * 1.7f +
-        instance_phase * 1.37f);
-    world_position.xz +=
-        float2(0.8f, 0.6f) * gust * 0.5f;
-#endif
 
     const float3 inverse_scale =
         sign(instance.scale) /

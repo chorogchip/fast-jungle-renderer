@@ -16,7 +16,7 @@ struct PixelInput
     float4 position : SV_POSITION;
     float3 view_normal : NORMAL;
     float2 uv : TEXCOORD0;
-    float view_depth : TEXCOORD1;
+    float3 view_position : TEXCOORD1;
 };
 
 PixelInput main(VertexInput input)
@@ -33,6 +33,6 @@ PixelInput main(VertexInput input)
         float4(input.normal, 0.0f),
         object_to_view).xyz);
     output.uv = input.uv;
-    output.view_depth = view_position.z;
+    output.view_position = view_position.xyz;
     return output;
 }

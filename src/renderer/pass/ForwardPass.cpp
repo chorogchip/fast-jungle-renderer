@@ -128,14 +128,11 @@ namespace fjr::render {
 
         const std::filesystem::path shader_directory{
             FASTJUNGLE_SHADER_OUTPUT_DIR};
-        dx::Shader opaque_vertex_shader;
-        dx::Shader alpha_vertex_shader;
+        dx::Shader vertex_shader;
         dx::Shader alpha_pixel_shader;
         dx::Shader opaque_pixel_shader;
-        opaque_vertex_shader.load(
+        vertex_shader.load(
             shader_directory / "Forward.vs.dxil");
-        alpha_vertex_shader.load(
-            shader_directory / "ForwardAlpha.vs.dxil");
         alpha_pixel_shader.load(
             shader_directory / "ForwardAlpha.ps.dxil");
         opaque_pixel_shader.load(
@@ -173,7 +170,7 @@ namespace fjr::render {
 
         auto base = dx::PSOUtils::default_graphics_desc();
         base.pRootSignature = root_signature_.Get();
-        base.VS = opaque_vertex_shader.get_bytecode();
+        base.VS = vertex_shader.get_bytecode();
         base.InputLayout = {
             input_elements.data(),
             static_cast<UINT>(input_elements.size()),
@@ -189,7 +186,6 @@ namespace fjr::render {
             dx::PSOUtils::create_graphics(device, description);
 
         description.PS = alpha_pixel_shader.get_bytecode();
-        description.VS = alpha_vertex_shader.get_bytecode();
         description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         alpha_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);

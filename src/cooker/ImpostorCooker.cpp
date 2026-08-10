@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <limits>
 #include <optional>
@@ -185,7 +186,8 @@ namespace fjr::cooker {
         };
 
         struct BakedDirection final {
-            DirectX::ScratchImage albedo_alpha;
+            DirectX::ScratchImage albedo;
+            DirectX::ScratchImage opacity;
             DirectX::ScratchImage normal;
             DirectX::ScratchImage depth;
             DirectX::ScratchImage roughness;
@@ -218,7 +220,7 @@ namespace fjr::cooker {
             float roughness_value = 0.5f;
             std::uint32_t roughness_texture = StaticScene::INVALID_INDEX;
             std::uint32_t roughness_channel = 0;
-            std::uint32_t padding = 0;
+            std::uint32_t normal_texture = StaticScene::INVALID_INDEX;
         };
         static_assert(sizeof(BakeMaterialConstants) == 48);
 
@@ -393,6 +395,9 @@ namespace fjr::cooker {
             if (const auto* roughness = binding(material.texture_binding_roughness)) {
                 result.roughness_texture = roughness->texture;
                 result.roughness_channel = static_cast<std::uint32_t>(roughness->channel);
+            }
+            if (const auto* normal = binding(material.texture_binding_normal)) {
+                result.normal_texture = normal->texture;
             }
             return result;
         }
@@ -781,6 +786,121 @@ namespace fjr::cooker {
             return result;
         }
 
+        void split_albedo_opacity(
+            const DirectX::ScratchImage& packed,
+            DirectX::ScratchImage& albedo,
+            DirectX::ScratchImage& opacity) {
+            const auto* source = packed.GetImage(0, 0, 0);
+            if (source == nullptr ||
+                source->format != DXGI_FORMAT_R8G8B8A8_UNORM) {
+                log::Logger::g_logger << log::abrt(
+                    "Impostor albedo/opacity image format is invalid.");
+            }
+            if (FAILED(DirectX::TransformImage(
+                *source,
+                [](DirectX::XMVECTOR* output,
+                    const DirectX::XMVECTOR* input,
+                    std::size_t width,
+                    std::size_t) {
+                    for (std::size_t x = 0; x < width; ++x) {
+                        output[x] = DirectX::XMVectorSetW(input[x], 1.0f);
+                    }
+                },
+                albedo)) ||
+                FAILED(DirectX::TransformImage(
+                    *source,
+                    [](DirectX::XMVECTOR* output,
+                        const DirectX::XMVECTOR* input,
+                        std::size_t width,
+                        std::size_t) {
+                        for (std::size_t x = 0; x < width; ++x) {
+                            output[x] = DirectX::XMVectorSplatW(input[x]);
+                        }
+                    },
+                    opacity))) {
+                log::Logger::g_logger << log::abrt(
+                    "Failed to split impostor albedo and opacity.");
+            }
+        }
+
+        void dilate_impostor_attributes(
+            DirectX::ScratchImage& albedo_alpha,
+            DirectX::ScratchImage& normal,
+            DirectX::ScratchImage* roughness) {
+            auto* color = albedo_alpha.GetImage(0, 0, 0);
+            auto* normal_image = normal.GetImage(0, 0, 0);
+            auto* roughness_image = roughness == nullptr
+                ? nullptr
+                : roughness->GetImage(0, 0, 0);
+            const std::size_t width = color->width;
+            const std::size_t height = color->height;
+            const std::size_t pixel_count = width * height;
+            std::vector<std::int32_t> nearest(pixel_count, -1);
+            std::deque<std::size_t> open;
+
+            for (std::size_t y = 0; y < height; ++y) {
+                const auto* row = color->pixels + y * color->rowPitch;
+                for (std::size_t x = 0; x < width; ++x) {
+                    const auto index = y * width + x;
+                    if (row[x * 4 + 3] != 0) {
+                        nearest[index] = static_cast<std::int32_t>(index);
+                        open.push_back(index);
+                    }
+                }
+            }
+
+            const auto visit = [&nearest, &open](
+                std::size_t from,
+                std::size_t to) {
+                if (nearest[to] == -1) {
+                    nearest[to] = nearest[from];
+                    open.push_back(to);
+                }
+            };
+            while (!open.empty()) {
+                const auto index = open.front();
+                open.pop_front();
+                const auto x = index % width;
+                const auto y = index / width;
+                if (x != 0) visit(index, index - 1);
+                if (x + 1 < width) visit(index, index + 1);
+                if (y != 0) visit(index, index - width);
+                if (y + 1 < height) visit(index, index + width);
+            }
+
+            for (std::size_t y = 0; y < height; ++y) {
+                auto* color_row = color->pixels + y * color->rowPitch;
+                auto* normal_row =
+                    normal_image->pixels + y * normal_image->rowPitch;
+                auto* roughness_row = roughness_image == nullptr
+                    ? nullptr
+                    : roughness_image->pixels +
+                        y * roughness_image->rowPitch;
+                for (std::size_t x = 0; x < width; ++x) {
+                    if (color_row[x * 4 + 3] != 0) {
+                        continue;
+                    }
+                    const auto source_index = static_cast<std::size_t>(
+                        nearest[y * width + x]);
+                    const auto source_x = source_index % width;
+                    const auto source_y = source_index / width;
+                    const auto* source_color =
+                        color->pixels + source_y * color->rowPitch +
+                        source_x * 4;
+                    const auto* source_normal =
+                        normal_image->pixels +
+                        source_y * normal_image->rowPitch +
+                        source_x * 4;
+                    std::copy_n(source_color, 3, color_row + x * 4);
+                    std::copy_n(source_normal, 4, normal_row + x * 4);
+                    if (roughness_row != nullptr) {
+                        roughness_row[x] = roughness_image->pixels[
+                            source_y * roughness_image->rowPitch + source_x];
+                    }
+                }
+            }
+        }
+
         [[nodiscard]] std::vector<BakedTarget> bake_targets(
             const StaticScene& scene,
             std::span<const BakeTarget> targets) {
@@ -817,6 +937,7 @@ namespace fjr::cooker {
                     };
                     mark(material.texture_binding_base_color);
                     mark(material.texture_binding_opacity);
+                    mark(material.texture_binding_normal);
                     mark(material.texture_binding_roughness);
                     if (material.texture_binding_base_color != StaticScene::INVALID_INDEX) {
                         const auto& binding = scene.texture_bindings[
@@ -1188,7 +1309,7 @@ namespace fjr::cooker {
                     queue.flush();
 
                     auto& baked = result[target_index].directions[direction_index];
-                    baked.albedo_alpha = readback_image(
+                    auto albedo_alpha = readback_image(
                         color_readback,
                         DXGI_FORMAT_R8G8B8A8_UNORM,
                         direction.width,
@@ -1198,16 +1319,6 @@ namespace fjr::cooker {
                         DXGI_FORMAT_R8G8B8A8_UNORM,
                         direction.width,
                         direction.height);
-                    const auto raw_depth = readback_image(
-                        depth_readback,
-                        DXGI_FORMAT_R32_FLOAT,
-                        direction.width,
-                        direction.height);
-                    baked.depth = encode_depth(
-                        baked.albedo_alpha,
-                        raw_depth,
-                        target.depth_min,
-                        target.depth_range);
                     if (target.bake_roughness) {
                         baked.roughness = readback_image(
                             roughness_readback,
@@ -1215,6 +1326,26 @@ namespace fjr::cooker {
                             direction.width,
                             direction.height);
                     }
+                    dilate_impostor_attributes(
+                        albedo_alpha,
+                        baked.normal,
+                        target.bake_roughness
+                            ? &baked.roughness
+                            : nullptr);
+                    const auto raw_depth = readback_image(
+                        depth_readback,
+                        DXGI_FORMAT_R32_FLOAT,
+                        direction.width,
+                        direction.height);
+                    baked.depth = encode_depth(
+                        albedo_alpha,
+                        raw_depth,
+                        target.depth_min,
+                        target.depth_range);
+                    split_albedo_opacity(
+                        albedo_alpha,
+                        baked.albedo,
+                        baked.opacity);
                 }
             }
             return result;
@@ -1303,7 +1434,28 @@ namespace fjr::cooker {
                         result.generated_textures.push_back({
                             .key = key,
                             .image = std::move((*baked)[target_index]
-                                .directions[direction].albedo_alpha),
+                                .directions[direction].albedo),
+                        });
+                    }
+                }
+                const auto opacity_start = checked_u32(
+                    scene.textures.size(), "Impostor opacity texture offset");
+                for (std::uint32_t direction = 0;
+                    direction < DIRECTION_COUNT;
+                    ++direction) {
+                    const auto key = texture_key_for(
+                        target.name,
+                        direction,
+                        "opacity");
+                    append_texture(
+                        scene,
+                        std::string{target.name} + "_ImpostorOpacity",
+                        key);
+                    if (baked != nullptr) {
+                        result.generated_textures.push_back({
+                            .key = key,
+                            .image = std::move((*baked)[target_index]
+                                .directions[direction].opacity),
                         });
                     }
                 }
@@ -1368,8 +1520,17 @@ namespace fjr::cooker {
                     scene.texture_bindings.push_back({
                         .texture = color_start + direction,
                         .sampler = sampler,
-                        .channel = StaticScene::EnumTextureChannel::RGBA,
+                        .channel = StaticScene::EnumTextureChannel::RGB,
                         .flags = StaticScene::EnumTextureBindingFlag::SRGB,
+                    });
+                    const auto opacity_binding = checked_u32(
+                        scene.texture_bindings.size(),
+                        "Impostor opacity binding");
+                    scene.texture_bindings.push_back({
+                        .texture = opacity_start + direction,
+                        .sampler = sampler,
+                        .channel = StaticScene::EnumTextureChannel::R,
+                        .flags = StaticScene::EnumTextureBindingFlag::LINEAR,
                     });
                     const auto normal_binding = checked_u32(
                         scene.texture_bindings.size(), "Impostor normal binding");
@@ -1403,6 +1564,7 @@ namespace fjr::cooker {
                         .texture_binding_base_color = base_binding,
                         .texture_binding_normal = normal_binding,
                         .texture_binding_roughness = roughness_binding,
+                        .texture_binding_opacity = opacity_binding,
                     });
                     append_card_mesh(
                         scene,

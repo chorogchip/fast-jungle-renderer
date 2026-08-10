@@ -24,6 +24,7 @@ namespace fjr::cooker {
             std::array<bool, 5> scalar_channels{};
             bool base_color_uses_alpha = false;
             bool preserve_alpha_coverage = false;
+            bool full_vector_normal = false;
             bool srgb = false;
         };
 
@@ -101,6 +102,25 @@ namespace fjr::cooker {
             return scene::StaticScene::EnumTextureChannel::R;
         }
 
+        void mark_impostor_normals(
+            const scene::StaticScene& scene,
+            std::vector<UsageRecord>& usages) {
+            for (const auto& impostor : scene.impostors) {
+                for (std::uint32_t direction = 0;
+                    direction < impostor.direction_count;
+                    ++direction) {
+                    const auto& mesh = scene.meshes[
+                        impostor.card_mesh_offset + direction];
+                    const auto& lod = scene.mesh_lods[mesh.lod_offset];
+                    const auto& submesh = scene.submeshes[lod.submesh_offset];
+                    const auto& material = scene.materials[submesh.material];
+                    const auto& binding = scene.texture_bindings[
+                        material.texture_binding_normal];
+                    usages[binding.texture].full_vector_normal = true;
+                }
+            }
+        }
+
     } // namespace
 
     std::vector<TextureCompressionPlan>
@@ -156,6 +176,8 @@ namespace fjr::cooker {
                 static_cast<std::uint32_t>(TextureUsage::Environment);
         }
 
+        mark_impostor_normals(scene, usages);
+
         std::vector<TextureCompressionPlan> result;
         result.reserve(usages.size());
         for (const auto& usage : usages) {
@@ -175,7 +197,9 @@ namespace fjr::cooker {
                 plan.dxgi_format = DXGI_FORMAT_BC6H_UF16;
             }
             else if (normal && !base_color && !emissive && !scalar && !environment) {
-                plan.dxgi_format = DXGI_FORMAT_BC5_UNORM;
+                plan.dxgi_format = usage.full_vector_normal
+                    ? DXGI_FORMAT_BC7_UNORM
+                    : DXGI_FORMAT_BC5_UNORM;
             }
             else if (scalar && !base_color && !emissive && !normal && !environment &&
                 std::ranges::count(usage.scalar_channels, true) == 1) {

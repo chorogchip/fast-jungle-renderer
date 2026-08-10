@@ -15,7 +15,9 @@ namespace fjr::scene::static_scene_file_io {
     // of sharing their LOD0 vertex range. The cooker cache check, file writer,
     // and file reader all consume this one value.
     inline constexpr std::uint32_t SCENE_FORMAT_VERSION = 14;
-    inline constexpr std::uint32_t TEXTURE_FORMAT_VERSION = 5;
+    // v7: alpha-tested materials use dedicated RGB/BC1 and coverage-preserved
+    // opacity/BC4 payloads. Impostors preserve signed normals in linear BC7.
+    inline constexpr std::uint32_t TEXTURE_FORMAT_VERSION = 7;
 
     // These are the only cache predicates for cooked files. Keeping them next
     // to the reader and writer prevents the cooker from carrying a second

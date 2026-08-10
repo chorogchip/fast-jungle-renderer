@@ -6,6 +6,7 @@ SamplerState material_sampler : register(s0);
 SamplerState environment_sampler : register(s1);
 
 static const float PI = 3.14159265358979323846f;
+static const uint MATERIAL_FLAG_IMPOSTOR = 1u;
 
 float distribution_ggx(float n_dot_h, float roughness)
 {
@@ -58,9 +59,21 @@ float3 normal_from_map(ForwardPixelInput input, Material material)
     const float inverse_length = rsqrt(max(
         max(dot(tangent, tangent), dot(bitangent, bitangent)),
         1.0e-12f));
-    const float3 tangent_normal = scene_textures[
-        material.texture_normal].Sample(material_sampler, input.uv).xyz *
-        2.0f - 1.0f;
+    const float3 normal_sample = scene_textures[
+        material.texture_normal].Sample(
+            material_sampler,
+            input.uv).xyz;
+    float3 tangent_normal;
+    if ((material.flags & MATERIAL_FLAG_IMPOSTOR) != 0)
+    {
+        tangent_normal = normal_sample * 2.0f - 1.0f;
+    }
+    else
+    {
+        tangent_normal.xy = normal_sample.xy * 2.0f - 1.0f;
+        tangent_normal.z = sqrt(saturate(
+            1.0f - dot(tangent_normal.xy, tangent_normal.xy)));
+    }
 
     return normalize(
         tangent * (tangent_normal.x * inverse_length) +
@@ -83,34 +96,26 @@ float4 main(ForwardPixelInput input) : SV_TARGET
 {
     const Material material = materials[material_id];
 
-    float3 albedo = material.base_color;
 #if FJR_ALPHA_TEST
-    float opacity = 1.0f;
+    const float opacity = scene_textures[
+        material.texture_opacity].Sample(
+            material_sampler,
+            input.uv).r;
+    if (opacity <= 0.5f)
+    {
+        discard;
+    }
 #endif
 
+    float3 albedo = material.base_color;
     if (material.texture_basecolor != INVALID_INDEX)
     {
-        const float4 sample = scene_textures[
+        const float3 sample = scene_textures[
             material.texture_basecolor].Sample(
                 material_sampler,
-                input.uv);
-        albedo *= sample.rgb;
-#if FJR_ALPHA_TEST
-        opacity *= sample.a;
-#endif
+                input.uv).rgb;
+        albedo *= sample;
     }
-
-#if FJR_ALPHA_TEST
-    if (material.texture_opacity != INVALID_INDEX)
-    {
-        opacity *= scene_textures[
-            material.texture_opacity].Sample(
-                material_sampler,
-                input.uv).r;
-    }
-
-    clip(opacity - 0.5f);
-#endif
 
     float roughness = material.roughness;
     if (material.texture_roughness != INVALID_INDEX)

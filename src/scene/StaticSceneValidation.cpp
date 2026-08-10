@@ -89,6 +89,9 @@ namespace fjr::scene {
                 "material emissive binding");
         }
 
+        std::vector<bool> alpha_tested_materials(
+            scene.materials.size(),
+            false);
         for (const auto& submesh : scene.submeshes) {
             require_range(
                 submesh.vertex_offset,
@@ -105,6 +108,11 @@ namespace fjr::scene {
                     submesh.material,
                     scene.materials.size(),
                     "submesh material");
+                if ((static_cast<std::uint32_t>(submesh.flags) &
+                    static_cast<std::uint32_t>(
+                        StaticScene::EnumSubmeshFlag::ALPHA_TESTED)) != 0) {
+                    alpha_tested_materials[submesh.material] = true;
+                }
             }
             if (submesh.index_count == 0 || submesh.index_count % 3 != 0) {
                 log::Logger::g_logger
@@ -118,6 +126,33 @@ namespace fjr::scene {
                     log::Logger::g_logger
                         << log::abrt("Invalid StaticScene submesh local index.");
                 }
+            }
+        }
+
+        for (std::size_t material_index = 0;
+            material_index < scene.materials.size();
+            ++material_index) {
+            if (!alpha_tested_materials[material_index]) {
+                continue;
+            }
+            const auto& material = scene.materials[material_index];
+            if (material.texture_binding_base_color ==
+                    StaticScene::INVALID_INDEX ||
+                material.texture_binding_opacity ==
+                    StaticScene::INVALID_INDEX ||
+                material.opacity_threshold != 0.5f) {
+                log::Logger::g_logger << log::abrt(
+                    "Alpha-tested material texture contract is incomplete.");
+            }
+            const auto& base = scene.texture_bindings[
+                material.texture_binding_base_color];
+            const auto& opacity = scene.texture_bindings[
+                material.texture_binding_opacity];
+            if (base.channel != StaticScene::EnumTextureChannel::RGB ||
+                opacity.channel != StaticScene::EnumTextureChannel::R ||
+                base.texture == opacity.texture) {
+                log::Logger::g_logger << log::abrt(
+                    "Alpha-tested material must use separate RGB and opacity-R textures.");
             }
         }
 

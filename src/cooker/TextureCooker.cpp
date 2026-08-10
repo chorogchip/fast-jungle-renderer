@@ -252,13 +252,13 @@ namespace fjr::cooker {
                 compression_plans[binding.texture]);
         }
         if (preparation.duplicate_texture_count != 0 ||
-            preparation.folded_base_color_alpha_count != 0) {
+            preparation.separated_alpha_tested_material_count != 0) {
             log::Logger::g_logger
                 << "Texture cook optimizations: "
                 << preparation.duplicate_texture_count
                 << " duplicate textures removed, "
-                << preparation.folded_base_color_alpha_count
-                << " base-color alpha samples folded.\n";
+                << preparation.separated_alpha_tested_material_count
+                << " alpha-tested materials separated into RGB and opacity.\n";
         }
 
         TexturePayloadWriter payload{payload_path};
@@ -360,13 +360,13 @@ namespace fjr::cooker {
                 compression_plans[binding.texture]);
         }
         if (preparation.duplicate_texture_count != 0 ||
-            preparation.folded_base_color_alpha_count != 0) {
+            preparation.separated_alpha_tested_material_count != 0) {
             log::Logger::g_logger
                 << "Texture reuse optimizations: "
                 << preparation.duplicate_texture_count
                 << " duplicate textures removed, "
-                << preparation.folded_base_color_alpha_count
-                << " base-color alpha samples folded.\n";
+                << preparation.separated_alpha_tested_material_count
+                << " alpha-tested materials separated into RGB and opacity.\n";
         }
 
         for (const auto& reference : scene.texture_payload_refs) {

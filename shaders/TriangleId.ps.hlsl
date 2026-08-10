@@ -27,18 +27,16 @@ float4 main(
 {
     const Material material = materials[material_id];
 
-    float opacity = 1.0f;
-    if (material.texture_basecolor != INVALID_INDEX)
-    {
-        opacity *= scene_textures[material.texture_basecolor].Sample(
-            material_sampler, input.uv).a;
-    }
     if (material.texture_opacity != INVALID_INDEX)
     {
-        opacity *= scene_textures[material.texture_opacity].Sample(
-            material_sampler, input.uv).r;
+        const float opacity = scene_textures[
+            material.texture_opacity].Sample(
+                material_sampler, input.uv).r;
+        if (opacity <= 0.5f)
+        {
+            discard;
+        }
     }
-    clip(opacity - 0.5f);
 
     uint triangle_id = primitive_id;
     triangle_id ^= input.instance_id * 0x9e3779b9u;
