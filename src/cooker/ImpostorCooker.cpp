@@ -50,14 +50,60 @@ namespace fjr::cooker {
         constexpr std::uint32_t DIMENSION_ALIGNMENT = 16;
         constexpr float TWO_PI = 6.28318530717958647692f;
 
-        // These four dominate the measured final-LOD triangle count
-        // (roughly 84%).  Keeping this explicit avoids silently baking every
-        // foliage mesh just because it happens to have a final LOD.
         constexpr std::array TARGET_MESH_NAMES{
             std::string_view{"RiverForest_03_Animated_Translucent"},
             std::string_view{"RiverForest_01_Animated_Translucent"},
             std::string_view{"RiverForest_05_Animated_Translucent"},
+            std::string_view{"RiverSapling_01_Translucent"},
+            std::string_view{"RiverSapling_02_Translucent"},
+            std::string_view{"RiverSapling_03_Translucent"},
+            std::string_view{"RiverSapling_04_Translucent"},
+            std::string_view{"RiverSapling_05_Translucent"},
+            std::string_view{"QueenForest_02_Animated_Translucent"},
+            std::string_view{"QueenForest_05_Animated_Translucent"},
             std::string_view{"QueenForest_06_Animated_Translucent"},
+            std::string_view{"RiverSeedling_01_Translucent"},
+            std::string_view{"RiverSeedling_02_Translucent"},
+            std::string_view{"RiverSeedling_03_Translucent"},
+            std::string_view{"RiverSeedling_04_Translucent"},
+            std::string_view{"RiverSeedling_05_Translucent"},
+            std::string_view{"Moss_01"},
+            std::string_view{"Moss_02"},
+            std::string_view{"Moss_03"},
+            std::string_view{"Shrub_01"},
+            std::string_view{"Shrub_02"},
+            std::string_view{"Shrub_03"},
+            std::string_view{"Shrub_04"},
+            std::string_view{"ShrubSorrel_01_Translucent"},
+            std::string_view{"ShrubSorrel_02_Translucent"},
+            std::string_view{"ShrubSorrel_03_Translucent"},
+            std::string_view{"ShrubSorrel_04_Translucent"},
+            std::string_view{"ShrubSorrel_05_Translucent"},
+            std::string_view{"ShrubSorrel_06_Translucent"},
+            std::string_view{"ShrubSorrel_07_Translucent"},
+            std::string_view{"Nettle_01_Translucent"},
+            std::string_view{"Nettle_02_Translucent"},
+            std::string_view{"Nettle_03_Translucent"},
+            std::string_view{"Nettle_04_Translucent"},
+            std::string_view{"Nettle_05_Translucent"},
+            std::string_view{"Nettle_06_Translucent"},
+            std::string_view{"Anthurium_01_Translucent"},
+            std::string_view{"Anthurium_02_Translucent"},
+            std::string_view{"Anthurium_03_Translucent"},
+            std::string_view{"Anthurium_04_Translucent"},
+            std::string_view{"Anthurium_05_Translucent"},
+            std::string_view{"Anthurium_06_Translucent"},
+            std::string_view{"Grass_A_01"},
+            std::string_view{"Grass_A_02"},
+            std::string_view{"Grass_A_03"},
+            std::string_view{"Grass_A_04"},
+            std::string_view{"Grass_A_05"},
+            std::string_view{"Grass_A_06"},
+            std::string_view{"Grass_B_01"},
+            std::string_view{"Grass_B_02"},
+            std::string_view{"Grass_B_03"},
+            std::string_view{"Grass_B_04"},
+            std::string_view{"Grass_B_05"},
         };
 
         class ComScope final {
@@ -128,7 +174,7 @@ namespace fjr::cooker {
 
         struct BakeTarget final {
             std::uint32_t mesh = StaticScene::INVALID_INDEX;
-            std::string_view name;
+            std::string name;
             Bounds bounds;
             float radius = 0.0f;
             float depth_min = 0.0f;

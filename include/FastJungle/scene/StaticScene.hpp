@@ -86,7 +86,7 @@ namespace fjr::scene {
 		};
 
 		struct Sampler {
-			EnumSamplerFilter filter = EnumSamplerFilter::MIN_MAG_POINT_MIP_LINEAR;
+			EnumSamplerFilter filter = EnumSamplerFilter::MIN_MAG_MIP_LINEAR;
 			EnumSamplerAddressMode address_u = EnumSamplerAddressMode::WRAP;
 			EnumSamplerAddressMode address_v = EnumSamplerAddressMode::WRAP;
 			EnumSamplerAddressMode address_w = EnumSamplerAddressMode::WRAP;

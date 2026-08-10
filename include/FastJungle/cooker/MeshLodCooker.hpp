@@ -19,6 +19,11 @@ namespace fjr::cooker {
         std::array<float, LOD_COUNT> max_relative_errors{
             0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 
+        std::array<float, LOD_COUNT> foliage_prune_error{
+            0.0f, 0.0f, 0.0025f, 0.005f, 0.0075f, 0.01f, 0.0125f };
+
+        std::uint32_t foliage_prune_start_lod = 2;
+
         std::uint32_t minimum_triangle_count = 0;
         float minimum_reduction = 0.0f;
     };

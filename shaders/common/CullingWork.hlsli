@@ -30,47 +30,83 @@ bool ResolveVisibleMeshLod(
         return false;
     }
 
-    const uint local_lod = SelectMeshLod(
-        cluster.mesh_id,
-        world_center,
-        world_radius);
+    const float distance_to_camera =
+    ComputeDistanceToCamera(world_center);
 
-    if (local_lod == MESH_LOD_CULLED)
-    {
-        mesh_lod_id = MESH_LOD_CULLED;
-        return false;
-    }
+    const uint local_lod =
+    SelectConventionalMeshLod(
+        mesh,
+        world_radius,
+        distance_to_camera);
 
-    if (local_lod + 1 == mesh.lod_count &&
-        mesh.impostor_direction_count != 0)
+    const bool is_final_conventional_lod =
+    local_lod + 1 == mesh.lod_count;
+
+    if (is_final_conventional_lod)
     {
-        const float4 inverse_rotation = float4(
+        const float projected_radius_px =
+        ComputeProjectedRadiusPx(
+            world_radius,
+            distance_to_camera);
+        
+        if (ShouldCull(projected_radius_px))
+        {
+            mesh_lod_id = MESH_LOD_CULLED;
+            return false;
+        }
+
+        if (ShouldUseImpostor(
+        mesh,
+        projected_radius_px))
+        {
+            
+            const float4 inverse_rotation = float4(
             -instance.rotation.xyz,
             instance.rotation.w);
-        float3 camera_to_object = RotateQuaternion(
-            world_center - cam_world_position,
-            inverse_rotation);
-        camera_to_object.y = 0.0f;
-        const float horizontal_length = length(camera_to_object);
-        if (horizontal_length > 1.0e-5f)
-        {
-            const float angle = atan2(
+
+            float3 camera_to_object =
+            RotateQuaternion(
+                world_center - cam_world_position,
+                inverse_rotation);
+
+            camera_to_object.y = 0.0f;
+
+            const float horizontal_length =
+            length(camera_to_object);
+
+            if (horizontal_length > 1.0e-5f)
+            {
+                const float angle = atan2(
                 camera_to_object.x,
                 camera_to_object.z);
-            const float direction_angle =
+
+                const float direction_angle =
                 6.28318530717958647692f /
                 float(mesh.impostor_direction_count);
-            const int rounded_direction = int(floor(
-                (angle + 0.5f * direction_angle) / direction_angle));
-            const int direction_count = int(mesh.impostor_direction_count);
-            const uint direction = uint(
-                (rounded_direction % direction_count + direction_count) %
-                direction_count);
-            mesh_lod_id = mesh.impostor_card_lod_offset + direction;
-            return mesh_lod_id < mesh_lod_count;
+
+                const int rounded_direction =
+                int(floor(
+                    (angle + 0.5f * direction_angle) /
+                    direction_angle));
+
+                const int direction_count =
+                int(mesh.impostor_direction_count);
+
+                const uint direction =
+                uint(
+                    (rounded_direction % direction_count +
+                     direction_count) %
+                    direction_count);
+
+                mesh_lod_id = mesh.impostor_card_lod_offset + direction;
+                
+                return mesh_lod_id < mesh_lod_count;
+            }
         }
     }
-
+    
+    
     mesh_lod_id = mesh.lod_offset + local_lod;
+
     return mesh_lod_id < mesh_lod_count;
 }

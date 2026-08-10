@@ -29,7 +29,7 @@ namespace fjr::render {
         heap_srv_cbv_uav_.init(
             device_.Get(),
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            1024,
+            2048,
             true);
         heap_sampler_.init(
             device_.Get(),

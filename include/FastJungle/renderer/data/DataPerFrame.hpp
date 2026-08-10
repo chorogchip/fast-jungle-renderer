@@ -24,9 +24,13 @@ namespace fjr::render::data {
             DirectX::XMFLOAT4 normalized_frustum_planes[6];
 
             float lod_projection_scale;
-            float lod_pixel_threshold;
+            float lod_error_threshold_px;
+            float impostor_transition_radius_px;
+            float cull_radius_px;
+
             uint32_t spatial_cluster_count;
             uint32_t mesh_lod_count;
+            DirectX::XMFLOAT2 padding_funny{};
 
             DirectX::XMFLOAT3 environment_color{};
             float environment_intensity = 0.0f;

@@ -47,35 +47,53 @@ bool SphereInFrustum(
     return true;
 }
 
-uint SelectMeshLod(
-    uint mesh_id,
-    float3 world_center,
-    float world_radius)
+float ComputeDistanceToCamera(float3 world_center)
 {
-    Mesh mesh = meshes[mesh_id];
+    return max(
+        length(world_center - cam_world_position),
+        1.0e-4f);
+}
 
-    float distance_to_camera =
-        length(world_center - cam_world_position);
-    
-    distance_to_camera = max(distance_to_camera, 1e-4f);
+float ComputeProjectedRadiusPx(
+    float world_radius,
+    float distance_to_camera)
+{
+    return
+        world_radius *
+        lod_projection_scale /
+        max(distance_to_camera, 1.0e-4f);
+}
 
+uint SelectConventionalMeshLod(
+    Mesh mesh,
+    float world_radius,
+    float distance_to_camera)
+{
     uint selected_lod = 0;
-    const float lod_error_scale = mesh.bounds_radius > 0.0f
+
+    const float lod_error_scale =
+        mesh.bounds_radius > 0.0f
         ? world_radius / mesh.bounds_radius
         : 1.0f;
+
+    const float safe_distance =
+        max(distance_to_camera, 1.0e-4f);
 
     [loop]
     for (uint i = 0; i + 1 < mesh.lod_count; ++i)
     {
-        MeshLod lod = mesh_lods[mesh.lod_offset + i];
+        const MeshLod lod =
+            mesh_lods[mesh.lod_offset + i];
 
-        float error = lod.next_lod_error;
+        const float world_error =
+            lod.next_lod_error * lod_error_scale;
 
-        float screen_error =
-            error * lod_error_scale * lod_projection_scale /
-            distance_to_camera;
+        const float screen_error_px =
+            world_error *
+            lod_projection_scale /
+            safe_distance;
 
-        if (screen_error <= lod_pixel_threshold)
+        if (screen_error_px <= lod_error_threshold_px)
         {
             selected_lod = i + 1;
         }
@@ -85,17 +103,19 @@ uint SelectMeshLod(
         }
     }
 
-    // Treat invisibility as the virtual LOD after the final mesh LOD.  The
-    // error of replacing the final LOD with nothing is the projected bounds
-    // radius, so culling can only happen after the selector reached that LOD.
-    if (selected_lod + 1 == mesh.lod_count)
-    {
-        const float projected_radius =
-            world_radius * lod_projection_scale / distance_to_camera;
-
-        if (projected_radius <= lod_pixel_threshold)
-            return MESH_LOD_CULLED;
-    }
-
     return selected_lod;
+}
+
+bool ShouldCull(float projected_radius_px)
+{
+    return projected_radius_px <= cull_radius_px;
+}
+
+bool ShouldUseImpostor(
+    Mesh mesh,
+    float projected_radius_px)
+{
+    return
+        mesh.impostor_direction_count != 0 &&
+        projected_radius_px <= impostor_transition_radius_px;
 }

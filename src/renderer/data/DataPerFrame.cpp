@@ -8,6 +8,12 @@
 
 namespace fjr::render::data {
 
+    namespace {
+        constexpr float LOD_ERROR_THRESHOLD_PX = 6.0f;
+        constexpr float IMPOSTOR_TRANSITION_RADIUS_PX = 256;
+        constexpr float CULL_RADIUS_PX = 6.0f;
+    }
+
     void DataPerFrame::CameraConstants::fill_from_camera(
         const Camera& camera,
         uint32_t viewport_height,
@@ -67,7 +73,11 @@ namespace fjr::render::data {
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
             camera.get_projection_mat()._22;
-        lod_pixel_threshold = 4.0f;
+
+        lod_error_threshold_px = LOD_ERROR_THRESHOLD_PX;
+        impostor_transition_radius_px = IMPOSTOR_TRANSITION_RADIUS_PX;
+        cull_radius_px = CULL_RADIUS_PX;
+
         spatial_cluster_count = scene_spatial_cluster_count;
         mesh_lod_count = scene_mesh_lod_count;
     }

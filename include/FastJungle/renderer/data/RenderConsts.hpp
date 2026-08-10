@@ -32,7 +32,6 @@ namespace fjr::render::data {
         };
 
         static inline constexpr uint32_t PNT_CLUSTER_SZ = 256;
-        static inline constexpr uint32_t LOD_CNT = 4;
         static inline constexpr uint32_t INSTANCE_KIND_CNT =
             static_cast<uint32_t>(EnumInstanceKind::COUNT);
         static inline constexpr uint32_t RASTER_CLASS_CNT =

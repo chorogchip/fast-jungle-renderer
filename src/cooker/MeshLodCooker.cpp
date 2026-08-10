@@ -14,89 +14,89 @@
 #include "FastJungle/core/util/Logger.hpp"
 
 namespace fjr::cooker {
-namespace {
+    namespace {
 
-    using StaticScene = scene::StaticScene;
+        using StaticScene = scene::StaticScene;
 
-    [[noreturn]]
-    void fail(const char* message) {
-        log::Logger::g_logger << log::abrt(message);
-    }
-
-    [[nodiscard]]
-    std::uint32_t checked_u32(std::size_t value, const char* subject) {
-        if (value > std::numeric_limits<std::uint32_t>::max()) {
-            log::Logger::g_logger
-                << subject << " exceeds uint32_t."
-                << log::abrt();
+        [[noreturn]]
+        void fail(const char* message) {
+            log::Logger::g_logger << log::abrt(message);
         }
-        return static_cast<std::uint32_t>(value);
-    }
 
-    [[nodiscard]]
-    bool contains_instance(
-        StaticScene::IndexRange range,
-        std::uint32_t mesh,
-        const StaticScene& scene) {
+        [[nodiscard]]
+        std::uint32_t checked_u32(std::size_t value, const char* subject) {
+            if (value > std::numeric_limits<std::uint32_t>::max()) {
+                log::Logger::g_logger
+                    << subject << " exceeds uint32_t."
+                    << log::abrt();
+            }
+            return static_cast<std::uint32_t>(value);
+        }
 
-        if (range.count == 0) {
+        [[nodiscard]]
+        bool contains_instance(
+            StaticScene::IndexRange range,
+            std::uint32_t mesh,
+            const StaticScene& scene) {
+
+            if (range.count == 0) {
+                return false;
+            }
+            if (range.offset > scene.static_mesh_instances.size() ||
+                range.count > scene.static_mesh_instances.size() - range.offset) {
+                fail("Terrain component range is invalid during LOD cooking.");
+            }
+            for (std::uint32_t local = 0; local < range.count; ++local) {
+                if (scene.static_mesh_instances[range.offset + local].mesh == mesh) {
+                    return true;
+                }
+            }
             return false;
         }
-        if (range.offset > scene.static_mesh_instances.size() ||
-            range.count > scene.static_mesh_instances.size() - range.offset) {
-            fail("Terrain component range is invalid during LOD cooking.");
-        }
-        for (std::uint32_t local = 0; local < range.count; ++local) {
-            if (scene.static_mesh_instances[range.offset + local].mesh == mesh) {
-                return true;
-            }
-        }
-        return false;
-    }
 
-    [[nodiscard]]
-    bool is_terrain_mesh(std::uint32_t mesh, const StaticScene& scene) {
-        return contains_instance(
+        [[nodiscard]]
+        bool is_terrain_mesh(std::uint32_t mesh, const StaticScene& scene) {
+            return contains_instance(
                 scene.components.terrain.extended, mesh, scene) ||
-            contains_instance(
-                scene.components.terrain.cinematic, mesh, scene);
-    }
-
-    [[nodiscard]]
-    bool is_pyramid_mesh(std::uint32_t mesh, const StaticScene& scene) {
-        return scene.static_mesh_instances[scene.components.pyramid.instance].mesh == mesh;
-    }
-
-    void validate_settings(const MeshLodCookSettings& settings) {
-        if (settings.triangle_ratios[0] != 1.0f ||
-            settings.max_relative_errors[0] != 0.0f ||
-            settings.minimum_reduction < 0.0f ||
-            settings.minimum_reduction >= 1.0f) {
-            fail("Invalid mesh LOD cook settings.");
+                contains_instance(
+                    scene.components.terrain.cinematic, mesh, scene);
         }
-        for (std::size_t lod = 1;
-             lod < MeshLodCookSettings::LOD_COUNT;
-             ++lod) {
-            if (!(settings.triangle_ratios[lod] > 0.0f) ||
-                !(settings.triangle_ratios[lod] <
-                    settings.triangle_ratios[lod - 1]) ||
-                !(settings.max_relative_errors[lod] >=
-                    settings.max_relative_errors[lod - 1])) {
-                fail("Mesh LOD ratios or errors are not monotonic.");
+
+        [[nodiscard]]
+        bool is_pyramid_mesh(std::uint32_t mesh, const StaticScene& scene) {
+            return scene.static_mesh_instances[scene.components.pyramid.instance].mesh == mesh;
+        }
+
+        void validate_settings(const MeshLodCookSettings& settings) {
+            if (settings.triangle_ratios[0] != 1.0f ||
+                settings.max_relative_errors[0] != 0.0f ||
+                settings.minimum_reduction < 0.0f ||
+                settings.minimum_reduction >= 1.0f) {
+                fail("Invalid mesh LOD cook settings.");
+            }
+            for (std::size_t lod = 1;
+                lod < MeshLodCookSettings::LOD_COUNT;
+                ++lod) {
+                if (!(settings.triangle_ratios[lod] > 0.0f) ||
+                    !(settings.triangle_ratios[lod] <
+                        settings.triangle_ratios[lod - 1]) ||
+                    !(settings.max_relative_errors[lod] >=
+                        settings.max_relative_errors[lod - 1])) {
+                    fail("Mesh LOD ratios or errors are not monotonic.");
+                }
             }
         }
-    }
 
-    struct SubmeshState final {
-        StaticScene::Submesh base;
-        std::vector<unsigned int> indices;
-        std::uint32_t current_index_offset = StaticScene::INVALID_INDEX;
-        std::uint32_t current_index_count = 0;
-        float accumulated_error = 0.0f;
-        float scale = 0.0f;
-    };
+        struct SubmeshState final {
+            StaticScene::Submesh base;
+            std::vector<unsigned int> indices;
+            std::uint32_t current_index_offset = StaticScene::INVALID_INDEX;
+            std::uint32_t current_index_count = 0;
+            float accumulated_error = 0.0f;
+            float scale = 0.0f;
+        };
 
-} // namespace
+    } // namespace
 
     MeshLodCookStats MeshLodCooker::cook(
         StaticScene& scene,
@@ -111,34 +111,34 @@ namespace {
 
         const auto source_submeshes = std::move(scene.submeshes);
         const auto source_lods = std::move(scene.mesh_lods);
-		std::size_t lod0_index_end = 0;
-		for (const auto& mesh : scene.meshes) {
-			if (mesh.lod_count == 0 || mesh.lod_offset >= source_lods.size()) {
-				fail("MeshLodCooker source mesh has no LOD0.");
-			}
-			const auto& lod0 = source_lods[mesh.lod_offset];
-			if (lod0.submesh_offset > source_submeshes.size() ||
-				lod0.submesh_count >
-					source_submeshes.size() - lod0.submesh_offset) {
-				fail("MeshLodCooker source LOD0 range is invalid.");
-			}
-			for (std::uint32_t local = 0; local < lod0.submesh_count; ++local) {
-				const auto& submesh =
-					source_submeshes[lod0.submesh_offset + local];
-				if (submesh.index_offset > scene.indices.size() ||
-					submesh.index_count >
-						scene.indices.size() - submesh.index_offset) {
-					fail("MeshLodCooker source LOD0 index range is invalid.");
-				}
-				lod0_index_end = std::max(
-					lod0_index_end,
-					static_cast<std::size_t>(submesh.index_offset) +
-						submesh.index_count);
-			}
-		}
-		// A second cook of an already cooked scene discards the generated tail.
-		// StaticSceneBuilder emits every LOD0 index before this tail.
-		scene.indices.resize(lod0_index_end);
+        std::size_t lod0_index_end = 0;
+        for (const auto& mesh : scene.meshes) {
+            if (mesh.lod_count == 0 || mesh.lod_offset >= source_lods.size()) {
+                fail("MeshLodCooker source mesh has no LOD0.");
+            }
+            const auto& lod0 = source_lods[mesh.lod_offset];
+            if (lod0.submesh_offset > source_submeshes.size() ||
+                lod0.submesh_count >
+                source_submeshes.size() - lod0.submesh_offset) {
+                fail("MeshLodCooker source LOD0 range is invalid.");
+            }
+            for (std::uint32_t local = 0; local < lod0.submesh_count; ++local) {
+                const auto& submesh =
+                    source_submeshes[lod0.submesh_offset + local];
+                if (submesh.index_offset > scene.indices.size() ||
+                    submesh.index_count >
+                    scene.indices.size() - submesh.index_offset) {
+                    fail("MeshLodCooker source LOD0 index range is invalid.");
+                }
+                lod0_index_end = std::max(
+                    lod0_index_end,
+                    static_cast<std::size_t>(submesh.index_offset) +
+                    submesh.index_count);
+            }
+        }
+        // A second cook of an already cooked scene discards the generated tail.
+        // StaticSceneBuilder emits every LOD0 index before this tail.
+        scene.indices.resize(lod0_index_end);
         scene.submeshes.clear();
         scene.mesh_lods.clear();
         scene.submeshes.reserve(
@@ -148,46 +148,46 @@ namespace {
 
         MeshLodCookStats stats;
         constexpr std::array<float, 5> ATTRIBUTE_WEIGHTS{
-            0.5f, 0.5f, 0.5f, 1.0f, 1.0f};
+            0.5f, 0.5f, 0.5f, 1.0f, 1.0f };
 
         for (std::uint32_t mesh_index = 0;
-             mesh_index < scene.meshes.size();
-             ++mesh_index) {
+            mesh_index < scene.meshes.size();
+            ++mesh_index) {
             auto& mesh = scene.meshes[mesh_index];
             const auto& source_lod = source_lods[mesh.lod_offset];
             if (source_lod.submesh_count == 0 ||
                 source_lod.submesh_offset > source_submeshes.size() ||
                 source_lod.submesh_count >
-                    source_submeshes.size() - source_lod.submesh_offset) {
+                source_submeshes.size() - source_lod.submesh_offset) {
                 fail("MeshLodCooker source submesh range is invalid.");
             }
 
             std::vector<SubmeshState> states;
             states.reserve(source_lod.submesh_count);
             for (std::uint32_t local = 0;
-                 local < source_lod.submesh_count;
-                 ++local) {
+                local < source_lod.submesh_count;
+                ++local) {
                 const auto& submesh =
                     source_submeshes[source_lod.submesh_offset + local];
                 if (submesh.index_count == 0 ||
                     submesh.index_count % 3 != 0 ||
-					submesh.vertex_count == 0 ||
+                    submesh.vertex_count == 0 ||
                     submesh.index_offset > scene.indices.size() ||
                     submesh.index_count >
-                        scene.indices.size() - submesh.index_offset ||
+                    scene.indices.size() - submesh.index_offset ||
                     submesh.vertex_offset > scene.vertices.size() ||
                     submesh.vertex_count >
-                        scene.vertices.size() - submesh.vertex_offset) {
+                    scene.vertices.size() - submesh.vertex_offset) {
                     fail("MeshLodCooker source submesh is invalid.");
                 }
-				for (std::uint32_t local_index = 0;
-					 local_index < submesh.index_count;
-					 ++local_index) {
-					if (scene.indices[submesh.index_offset + local_index] >=
-						submesh.vertex_count) {
-						fail("MeshLodCooker source index is invalid.");
-					}
-				}
+                for (std::uint32_t local_index = 0;
+                    local_index < submesh.index_count;
+                    ++local_index) {
+                    if (scene.indices[submesh.index_offset + local_index] >=
+                        submesh.vertex_count) {
+                        fail("MeshLodCooker source index is invalid.");
+                    }
+                }
 
                 SubmeshState state;
                 state.base = submesh;
@@ -196,7 +196,7 @@ namespace {
                 state.indices.assign(
                     scene.indices.begin() + submesh.index_offset,
                     scene.indices.begin() +
-                        submesh.index_offset + submesh.index_count);
+                    submesh.index_offset + submesh.index_count);
                 meshopt_optimizeVertexCache(
                     state.indices.data(),
                     state.indices.data(),
@@ -231,8 +231,8 @@ namespace {
                 is_pyramid_mesh(mesh_index, scene);
 
             for (std::size_t lod_index = 1;
-                 lod_index < MeshLodCookSettings::LOD_COUNT;
-                 ++lod_index) {
+                lod_index < MeshLodCookSettings::LOD_COUNT;
+                ++lod_index) {
                 StaticScene::MeshLod lod;
                 lod.submesh_offset = checked_u32(
                     scene.submeshes.size(), "LOD submesh offset");
