@@ -76,10 +76,17 @@ struct IndirectGPUDraw
     uint start_instance_location;
 };
 
+struct VertexDecodeParams
+{
+    float4 position_min;
+    float4 position_extent;
+    float4 uv_min_extent;
+};
+
+static const uint INVALID_INDEX = 0xffffffffu;
+
+
 /*
-
-cbuffer CameraConstants : register(b0)
-
 StructuredBuffer<SpatialCluster> spatial_clusters : register(t0);
 StructuredBuffer<InstanceTransform> instances     : register(t1);
 StructuredBuffer<Mesh> meshes                     : register(t2);

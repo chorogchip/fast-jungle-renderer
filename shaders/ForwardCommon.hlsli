@@ -1,5 +1,13 @@
 #include "common/ForwardConstants.hlsli"
 
+struct ForwardPixelInput
+{
+    float4 position : SV_POSITION;
+    float3 world_position : WORLD_POSITION;
+    float3 world_normal : NORMAL;
+    float2 uv : TEXCOORD0;
+};
+
 StructuredBuffer<Material> materials : register(t2);
 Texture2D<float4> scene_textures[] : register(t3);
 SamplerState material_sampler : register(s0);
@@ -45,7 +53,7 @@ float3 normal_from_map(ForwardPixelInput input, Material material)
     {
         return normal;
     }
-
+    
     const float3 position_dx = ddx(input.world_position);
     const float3 position_dy = ddy(input.world_position);
     const float2 uv_dx = ddx(input.uv);
@@ -93,9 +101,9 @@ float3 apply_fog(
 }
 
 float4 main(ForwardPixelInput input) : SV_TARGET
-{
+{   
     const Material material = materials[material_id];
-
+    
 #if FJR_ALPHA_TEST
     const float opacity = scene_textures[
         material.texture_opacity].Sample(
@@ -106,6 +114,7 @@ float4 main(ForwardPixelInput input) : SV_TARGET
         discard;
     }
 #endif
+    
 
     float3 albedo = material.base_color;
     if (material.texture_basecolor != INVALID_INDEX)

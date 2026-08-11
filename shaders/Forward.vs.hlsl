@@ -1,6 +1,14 @@
 
 #include "common/ForwardConstants.hlsli"
 
+struct ForwardPixelInput
+{
+    float4 position : SV_POSITION;
+    float3 world_position : WORLD_POSITION;
+    float3 world_normal : NORMAL;
+    float2 uv : TEXCOORD0;
+};
+
 StructuredBuffer<uint> visible_instances : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
 StructuredBuffer<Material> materials : register(t2);
@@ -34,8 +42,7 @@ ForwardPixelInput main(
     VertexInput input,
     uint local_instance_id : SV_InstanceID)
 {
-    const uint instance_id = visible_instances[
-        visible_instance_offset + local_instance_id];
+    const uint instance_id = visible_instances[visible_instance_offset + local_instance_id];
     const InstanceTransform instance = instances[instance_id];
     const Material material = materials[material_id];
     

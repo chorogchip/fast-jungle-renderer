@@ -77,6 +77,7 @@ namespace fjr::render::data::geom {
             scene,
             scene.components.river.instance,
             EnumRasterClass::RIVER);
+
         set_static_mesh_raster_class(
             submeshes,
             scene,

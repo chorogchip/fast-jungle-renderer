@@ -59,6 +59,8 @@ L2 throughput은 70~80% 유지, world pipe가 40%대 -> 30%대로 감소
 - LOD 4도 연속하게 해서 5.5ms
 - LOD 3도 연속하게 해서 5.4ms
 - LOD 2도 연속하게 해서 5.7ms -> LOD 3으로 롤백
+- 1920 x 1080으로 돌려 12ms, LOD 같은 배율로 조정해 6.5ms
+
 
 
 
@@ -70,14 +72,56 @@ L2 throughput은 70~80% 유지, world pipe가 40%대 -> 30%대로 감소
 
 
 
+_____________________________________________________
+
+때가 왔다.
+visibility buffer 구현시 유리해질 수 있다.
+
+
+평상시 6.1ms
+- opaque: world pipe 55.6% vidL2 42.3% L2fromPE 42.5%
+- alpha: world pipe 27.4% vidL2 44.5% L2fromPE 44.5%
+
+VS->PS 구조체를 48B -> 16B 로 66% 줄였을 때 5.1ms
+- opaque: world pipe 43.6% vidL2 36.0% L2fromPE 31.1%
+- alpha: world pipe 23.6% vidL2 32.4% L2fromPE 26.3%
+
+즉 VS -> PS 구조체를 L2를써서 넘길때가 병목인데
+이거 pos는 float4, world pos는 depth로 구하고 normal float2, uv float2하면 32B가 적어도 필요하다.
+즉 최대 66%수준으로까지밖에 못줄인다.
+그러나 visibility buffer쓰면 알파 없는건 pos만 써서 33%, 있는건 pos + uv 써서 50% 수준으로 할 수 있고
+VS입력도 pos stream 하나 / UV stream 까지 2개 이렇게 해서 normal stream 안받을수있다
+그럼 제일 병목인 L2 / world pipe가 훨씬 줄어든다.
+overdraw되는 픽셀의 normal 을 fetch / transform / primitive / raster / shading 하는 과정이 통쨰로 날아간다고 보면 된다.
+지금 shading 부하가 그렇게 크지는 않지만 geometry관점에서 나름 visibility buffer가 유리할 가능성이 있다.
+즉 중요한건 deferred shading보다는 geometry인 것이다! (deferred shading은 overlap하는 느낌정도만 중요한듯)
+overdraw를 처리하면서 (prepass와 같이 raster 이후를 막으면서)
+보이는 vertex의 fetch / trnasform / primitive / raster 만 부담하면 된다!
+
+
+그리고 gpu driven의 모든 비용은 1.2ms 정도이기에 최적화에서는 후순위이다 (게다가 해당 지점에서 이미 VRAM을 많이 쓰고있다!)
+5070에서 현재 6.1ms인 것을 1060 mobile에서 29ms가 나오는데 이걸 1060 mobile에서 16ms를 만드는게 목표이다
+그러면 5070에서 3.5ms정도 하면 어느 정도는 가능할 것으로 보인다
+빌보드 비용이 1.6ms고 texture fetching latency가 병목이므로 이것도 추후 조정이 필요하다
+prefix scan은 45us인데 0.05ms라도 급할때는 건드려볼 수 있다
+count와 scatter에서 겹치는 걸로 추정되는 부분은 250us이다. 메모리 write를 지불하고 0.25ms정도를 얻을 수 있다.
+
+index는 fetch가 opaque 27.8% / alpha 19.5% 로 크지 않다
+단 visibility buffer의 primitive ID를 32bit으로하냐 64bit으로하냐에 따라 overdraw에 좀더 많은 영향을 받으므로 32bit을 써볼 가치는 있다
+단 이럴 경우 한 submesh당 65536미만 triangle, 전체 65536미만 draw call x instance (혹은 triangle x instance)를 지켜야 한다
+이건 구조를 크게 흔들기에 나중에 overdraw가 심하면 고려해볼 수 있다
+
+현재 모든 데이터는 VRAM에 잘 올라간다
+
+opaque에서 이득을 많이보면, 기존의 bilboard들을 coarse LOD로 전환해서
+기존 forward에 맞춰져있던 lod관련 상수를 최적화해 더 이득을 볼수있다
+
+_____________________________________________________
 
 
 
-
-
-
-
-
+visibility buffer를 구현하자!
+오늘안에 구현하자!
 
 
 

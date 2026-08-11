@@ -1,7 +1,7 @@
 #pragma once
 
-#include "RenderData.hlsli"
-#include "common/CameraConstants.hlsli"
+#include "../common/ConstBufCamera.hlsli"
+#include "../common/ConstantDraw.hlsli"
 
 StructuredBuffer<Mesh> meshes : register(t2);
 StructuredBuffer<MeshLod> mesh_lods : register(t3);

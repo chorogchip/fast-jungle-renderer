@@ -1,7 +1,6 @@
 
-
-#include "common/CameraConstants.hlsli"
-#include "common/CullingDispatchConstants.hlsli"
+#include "../common/ConstBufCamera.hlsli"
+#include "../common/ConstantCulling.hlsli"
 
 RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
 RWStructuredBuffer<uint> bin_counts : register(u3);
