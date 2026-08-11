@@ -18,7 +18,9 @@ namespace fjr::render {
         void init(
             ID3D12Device* device,
             dx::DescriptorHeap& heap_srv_cbv_uav,
+            dx::DescriptorHeap& heap_cpu_srv_cbv_uav,
             dx::DescriptorHeap& heap_rtv,
+            uint32_t texture_descriptor_count,
             uint32_t indirect_draw_capacity_per_class,
             UINT width,
             UINT height);
@@ -58,10 +60,12 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12CommandSignature> command_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> opaque_pipeline_state_;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> river_pipeline_state_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> alpha_pipeline_state_;
 
         dx::Texture visibility_buffer_;
         dx::DescAlloc descriptors_;
+        dx::DescAlloc clear_uav_;
         dx::DescAlloc rtv_;
 
         uint32_t indirect_draw_capacity_per_class_ = 0;

@@ -65,7 +65,9 @@ namespace fjr::render {
         visibility_pass_.init(
             device_.Get(),
             heap_srv_cbv_uav_,
+            heap_cpu_srv_cbv_uav_,
             heap_rtv_,
+            data_persistant_.texture_descriptors.get_count(),
             data_persistant_.submesh_count,
             width,
             height);
@@ -73,6 +75,7 @@ namespace fjr::render {
         resolve_pass_.init(
             device_.Get(),
             heap_srv_cbv_uav_,
+            heap_cpu_srv_cbv_uav_,
             data_persistant_,
             width,
             height);

@@ -17,6 +17,7 @@ namespace fjr::render {
         void init(
             ID3D12Device* device,
             dx::DescriptorHeap& heap_srv_cbv_uav,
+            dx::DescriptorHeap& heap_cpu_srv_cbv_uav,
             const data::DataPersistent& persistent,
             UINT width,
             UINT height);
@@ -59,6 +60,7 @@ namespace fjr::render {
 
         dx::DescAlloc geometry_views_;
         dx::DescAlloc frame_buffer_uav_;
+        dx::DescAlloc frame_buffer_clear_uav_;
         dx::Texture frame_buffer_;
     };
 

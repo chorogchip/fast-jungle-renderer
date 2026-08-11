@@ -31,6 +31,11 @@ namespace fjr::render {
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
             4096,
             true);
+        heap_cpu_srv_cbv_uav_.init(
+            device_.Get(),
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            64,
+            false);
         heap_sampler_.init(
             device_.Get(),
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
@@ -63,6 +68,7 @@ namespace fjr::render {
     void RendererBase::reset() {
         command_queue_.flush();
         heap_srv_cbv_uav_.reset();
+        heap_cpu_srv_cbv_uav_.reset();
         heap_sampler_.reset();
         heap_dsv_.reset();
         heap_rtv_.reset();

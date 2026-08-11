@@ -1,7 +1,6 @@
 #include "FastJungle/renderer/pass/PassResolve.hpp"
 
 #include <filesystem>
-#include <limits>
 
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
@@ -24,6 +23,7 @@ namespace fjr::render {
             MATERIALS,
             TEXTURES,
             MATERIAL_SAMPLER,
+            TERRAIN_SAMPLER,
             FRAME_BUFFER,
             COUNT,
         };
@@ -38,12 +38,14 @@ namespace fjr::render {
     void PassResolve::init(
         ID3D12Device* device,
         dx::DescriptorHeap& heap_srv_cbv_uav,
+        dx::DescriptorHeap& heap_cpu_srv_cbv_uav,
         const data::DataPersistent& persistent,
         UINT width,
         UINT height) {
 
         geometry_views_ = heap_srv_cbv_uav.alloc(5);
         frame_buffer_uav_ = heap_srv_cbv_uav.alloc();
+        frame_buffer_clear_uav_ = heap_cpu_srv_cbv_uav.alloc();
 
         dx::RootSignatureBuilder root_builder;
         root_builder.init(RootParameter::COUNT);
@@ -69,12 +71,15 @@ namespace fjr::render {
             .reg(10).vis_all().add();
         root_builder.set_resource_table(RootParameter::TEXTURES)
             .srv().reg(0).space(1)
-            .count(std::numeric_limits<UINT>::max())
+            .count(persistent.texture_descriptors.get_count())
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_all().add();
         root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
             .sampler().reg(0).count(1).add_range()
+            .vis_all().add();
+        root_builder.set_sampler_table(RootParameter::TERRAIN_SAMPLER)
+            .sampler().reg(1).count(1).add_range()
             .vis_all().add();
         root_builder.set_resource_table(RootParameter::FRAME_BUFFER)
             .uav().reg(0).count(1).add_range()
@@ -180,6 +185,12 @@ namespace fjr::render {
             frame_buffer_uav_.get_cpu(),
             0, 0, 1,
             DXGI_FORMAT_R8G8B8A8_UNORM);
+
+        frame_buffer_.create_uav(
+            device,
+            frame_buffer_clear_uav_.get_cpu(),
+            0, 0, 1,
+            DXGI_FORMAT_R8G8B8A8_UNORM);
     }
 
     void PassResolve::record(
@@ -202,7 +213,7 @@ namespace fjr::render {
             0.12835404f, 0.17184409f, 0.22091636f, 1.0f};
         command_list->ClearUnorderedAccessViewFloat(
             frame_buffer_uav_.get_gpu(),
-            frame_buffer_uav_.get_cpu(),
+            frame_buffer_clear_uav_.get_cpu(),
             frame_buffer_.get(),
             clear_color,
             0,
@@ -238,6 +249,9 @@ namespace fjr::render {
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
             persistent.samplers.get_gpu(persistent.wrap_sampler));
+        command_list->SetComputeRootDescriptorTable(
+            static_cast<UINT>(RootParameter::TERRAIN_SAMPLER),
+            persistent.samplers.get_gpu(persistent.clamp_sampler));
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::FRAME_BUFFER),
             frame_buffer_uav_.get_gpu());

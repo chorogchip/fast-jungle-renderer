@@ -108,7 +108,7 @@ int WINAPI wWinMain(
 
     const uint32_t width = static_cast<uint32_t>(rect.right - rect.left);
     const uint32_t height = static_cast<uint32_t>(rect.bottom - rect.top);
-
+    
     SetWindowTextW(hwnd, L"Fast Jungle Renderer");
 
     std::filesystem::path scene_path = std::filesystem::path{ FASTJUNGLE_DEFAULT_COOKED_DIR } / "JungleRuins.fjscene";

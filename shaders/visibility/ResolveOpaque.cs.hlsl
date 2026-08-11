@@ -38,6 +38,7 @@ StructuredBuffer<Material> materials : register(t10);
 Texture2D<float4> scene_textures[] : register(t0, space1);
 
 SamplerState material_sampler : register(s0);
+SamplerState terrain_sampler : register(s1);
 
 RWTexture2D<float4> frame_buffer : register(u0);
 
@@ -68,6 +69,25 @@ float4 DecodePositionR16G16B16A16(uint packed_xy, uint packed_zw)
     return float4(encoded) * (1.0f / 65535.0f);
 }
 
+float4 SampleMaterialTextureGrad(
+    uint texture_id,
+    bool clamp_to_edge,
+    float2 uv,
+    float2 uv_dx,
+    float2 uv_dy)
+{
+    if (clamp_to_edge)
+    {
+        return scene_textures[
+            NonUniformResourceIndex(texture_id)].SampleGrad(
+                terrain_sampler, uv, uv_dx, uv_dy);
+    }
+
+    return scene_textures[
+        NonUniformResourceIndex(texture_id)].SampleGrad(
+            material_sampler, uv, uv_dx, uv_dy);
+}
+
 float3 NormalFromMap(
     float3 world_normal,
     float3 position_dx,
@@ -75,7 +95,8 @@ float3 NormalFromMap(
     float2 uv,
     float2 uv_dx,
     float2 uv_dy,
-    Material material)
+    Material material,
+    bool clamp_to_edge)
 {
     const float3 normal = normalize(world_normal);
 
@@ -87,17 +108,26 @@ float3 NormalFromMap(
         max(dot(tangent, tangent), dot(bitangent, bitangent)),
         1.0e-12f));
 
-    const float3 normal_sample = scene_textures[
-        NonUniformResourceIndex(material.texture_normal)].SampleGrad(
-            material_sampler,
-            uv,
-            uv_dx,
-            uv_dy).xyz;
+    const float3 normal_sample = SampleMaterialTextureGrad(
+        material.texture_normal,
+        clamp_to_edge,
+        uv,
+        uv_dx,
+        uv_dy).xyz;
 
     float3 tangent_normal;
-    tangent_normal.xy = normal_sample.xy * 2.0f - 1.0f;
-    tangent_normal.z = sqrt(saturate(
-        1.0f - dot(tangent_normal.xy, tangent_normal.xy)));
+    if ((material.flags & MATERIAL_FLAG_IMPOSTOR) != 0u)
+    {
+        // Impostors store the complete baked surface normal, including its
+        // signed card-space Z component.
+        tangent_normal = normal_sample * 2.0f - 1.0f;
+    }
+    else
+    {
+        tangent_normal.xy = normal_sample.xy * 2.0f - 1.0f;
+        tangent_normal.z = sqrt(saturate(
+            1.0f - dot(tangent_normal.xy, tangent_normal.xy)));
+    }
 
     return normalize(
         tangent * (tangent_normal.x * inverse_length) +
@@ -242,29 +272,38 @@ void main(uint3 tid : SV_DispatchThreadID)
     
     float3 normal_sample = normalize(
         InterpolateFloat3(wnormal0, wnormal1, wnormal2, perspective.value));
-    if (raster_class == RASTER_CLASS_ALPHA && back_face)
+    if ((raster_class == RASTER_CLASS_ALPHA ||
+        raster_class == RASTER_CLASS_RIVER) && back_face)
         normal_sample = -normal_sample;
     
     const Material material = materials[material_id];
 
     const uint material_mode = material.flags & MATERIAL_MODE_MASK;
+    const bool clamp_material = raster_class == RASTER_CLASS_TERRAIN;
+    const bool is_water = material_mode == MATERIAL_MODE_WATER;
     float3 albedo;
     float roughness;
     float3 normal;
 
     if (material_mode == MATERIAL_MODE_TEXTURED_PBR)
     {
-        albedo = material.base_color * scene_textures[
-            NonUniformResourceIndex(material.texture_basecolor)].SampleGrad(
-                material_sampler, texCoord, texCoordDx, texCoordDy).rgb;
+        albedo = material.base_color * SampleMaterialTextureGrad(
+            material.texture_basecolor,
+            clamp_material,
+            texCoord,
+            texCoordDx,
+            texCoordDy).rgb;
 
-        roughness = scene_textures[
-            NonUniformResourceIndex(material.texture_roughness)].SampleGrad(
-                material_sampler, texCoord, texCoordDx, texCoordDy).r;
+        roughness = SampleMaterialTextureGrad(
+            material.texture_roughness,
+            clamp_material,
+            texCoord,
+            texCoordDx,
+            texCoordDy).r;
 
         normal = NormalFromMap(
             normal_sample, position_world_dx, position_world_dy,
-            texCoord, texCoordDx, texCoordDy, material);
+            texCoord, texCoordDx, texCoordDy, material, clamp_material);
     }
     else if (material_mode == MATERIAL_MODE_CONSTANT_PBR)
     {
@@ -274,9 +313,12 @@ void main(uint3 tid : SV_DispatchThreadID)
     }
     else if (material_mode == MATERIAL_MODE_WATER)
     {
-        albedo = material.base_color * scene_textures[
-            NonUniformResourceIndex(material.texture_basecolor)].SampleGrad(
-                material_sampler, texCoord, texCoordDx, texCoordDy).rgb;
+        albedo = material.base_color * SampleMaterialTextureGrad(
+            material.texture_basecolor,
+            false,
+            texCoord,
+            texCoordDx,
+            texCoordDy).rgb;
         roughness = material.roughness;
         normal = normal_sample;
     }
@@ -285,7 +327,7 @@ void main(uint3 tid : SV_DispatchThreadID)
         frame_buffer[pixel] = float4(1.0f, 0.0f, 1.0f, 1.0f);
         return;
     }
-    roughness = clamp(roughness, 0.045f, 1.0f);
+    roughness = clamp(roughness, 0.08f, 1.0f);
     
     const float3 view_vector = cam_world_position - position_world;
     const float dist = length(view_vector);
@@ -305,9 +347,19 @@ void main(uint3 tid : SV_DispatchThreadID)
         fresnel * NormDistGGX(nh, roughness) * GeometryGGX(nv, nl, roughness)
             / max(4.0f * nv * nl, 1.0e-4f);
     
-    const float environment_intensity = 1.0f;
+    const float environment_intensity = 0.08f;
+    const float sun_intensity = 2.5f;
+    const float3 sun_color = float3(1.0f, 0.97f, 0.92f);
+    // The source river base-color texture is intentionally black. Until the
+    // full reflection path exists, retain a small water body color and a
+    // view-dependent sky reflection instead of treating it as black diffuse.
+    const float3 indirect_color = is_water
+        ? float3(0.008f, 0.025f, 0.035f) +
+            FresnelSchlick(nv) * float3(0.08f, 0.14f, 0.18f)
+        : albedo * environment_intensity;
     const float3 pbr_color =
-        (diffuse + specular) * nl + albedo * environment_intensity;
+        (diffuse + specular) * nl * sun_color * sun_intensity
+            + indirect_color;
     
     
     const float3 fog_color = float3(0.015f, 0.025f, 0.04f);

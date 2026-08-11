@@ -2,7 +2,6 @@
 
 #include <array>
 #include <filesystem>
-#include <limits>
 
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
@@ -35,13 +34,16 @@ namespace fjr::render {
     void PassVisibility::init(
         ID3D12Device* device,
         dx::DescriptorHeap& heap_srv_cbv_uav,
+        dx::DescriptorHeap& heap_cpu_srv_cbv_uav,
         dx::DescriptorHeap& heap_rtv,
+        uint32_t texture_descriptor_count,
         uint32_t indirect_draw_capacity_per_class,
         UINT width,
         UINT height) {
 
         indirect_draw_capacity_per_class_ = indirect_draw_capacity_per_class;
         descriptors_ = heap_srv_cbv_uav.alloc(2);
+        clear_uav_ = heap_cpu_srv_cbv_uav.alloc();
         rtv_ = heap_rtv.alloc();
 
         dx::RootSignatureBuilder root_builder;
@@ -68,7 +70,7 @@ namespace fjr::render {
             .reg(3).vis_pixel().add();
         root_builder.set_resource_table(RootParameter::TEXTURES)
             .srv().reg(0).space(1)
-            .count(std::numeric_limits<UINT>::max())
+            .count(texture_descriptor_count)
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_pixel().add();
@@ -147,6 +149,10 @@ namespace fjr::render {
         description.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
         opaque_pipeline_state_ =
+            dx::PSOUtils::create_graphics(device, description);
+
+        description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        river_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);
 
         const std::array<D3D12_INPUT_ELEMENT_DESC, 2> alpha_input_elements{
@@ -239,6 +245,12 @@ namespace fjr::render {
             descriptors_.get_cpu(UAV_OFFSET),
             0, 0, 1,
             DXGI_FORMAT_R32G32_UINT);
+
+        visibility_buffer_.create_uav(
+            device,
+            clear_uav_.get_cpu(),
+            0, 0, 1,
+            DXGI_FORMAT_R32G32_UINT);
     }
 
     void PassVisibility::record(
@@ -259,7 +271,7 @@ namespace fjr::render {
             0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu};
         command_list->ClearUnorderedAccessViewUint(
             descriptors_.get_gpu(UAV_OFFSET),
-            descriptors_.get_cpu(UAV_OFFSET),
+            clear_uav_.get_cpu(),
             visibility_buffer_.get(),
             clear_value.data(),
             0,
@@ -345,6 +357,8 @@ namespace fjr::render {
         execute_indirect(data::EnumRasterClass::PYRAMID);
         execute_indirect(data::EnumRasterClass::TERRAIN);
         execute_indirect(data::EnumRasterClass::OPAQUE_SINGLE_SIDED);
+
+        command_list->SetPipelineState(river_pipeline_state_.Get());
         execute_indirect(data::EnumRasterClass::RIVER);
 
         command_list->SetPipelineState(alpha_pipeline_state_.Get());

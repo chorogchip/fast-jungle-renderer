@@ -68,7 +68,7 @@ namespace fjr::render::data::geom {
             set_static_mesh_raster_class(
                 submeshes,
                 scene,
-                scene.components.terrain.extended.offset + inst,
+                scene.components.terrain.cinematic.offset + inst,
                 EnumRasterClass::TERRAIN);
         }
 
