@@ -2,6 +2,13 @@
 
 static const uint MESH_LOD_CULLED = 0xffffffffu;
 
+static const uint MATERIAL_FLAG_IMPOSTOR = 1u << 0u;
+static const uint MATERIAL_MODE_SHIFT = 1u;
+static const uint MATERIAL_MODE_MASK = 3u << MATERIAL_MODE_SHIFT;
+static const uint MATERIAL_MODE_TEXTURED_PBR = 1u << MATERIAL_MODE_SHIFT;
+static const uint MATERIAL_MODE_CONSTANT_PBR = 2u << MATERIAL_MODE_SHIFT;
+static const uint MATERIAL_MODE_WATER = 3u << MATERIAL_MODE_SHIFT;
+
 struct InstanceTransform
 {
     float3 position;
@@ -23,7 +30,8 @@ struct Material
     float3 impostor_center;
     float impostor_half_width;
     float impostor_half_height;
-    float2 padding;
+    float opacity_threshold;
+    float opacity;
 };
 
 struct SubMesh

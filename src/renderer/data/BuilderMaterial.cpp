@@ -1,7 +1,6 @@
 #include "FastJungle/renderer/data/BuilderMaterial.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cfloat>
 #include <cmath>
 #include <cstddef>
@@ -19,9 +18,6 @@ namespace fjr::render::data {
     namespace {
 
         constexpr UINT MATERIAL_SAMPLER_COUNT = 2;
-        constexpr std::uint32_t MATERIAL_FLAG_IMPOSTOR = 1u << 0u;
-
-
         [[nodiscard]]
         UINT get_mip_count(
             const scene::StaticScene::Texture& texture) {
@@ -239,73 +235,50 @@ namespace fjr::render::data {
                         subresources,
                         required_upload_size,
                     },
-                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE |
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
         }
 
 
-        [[nodiscard]] std::uint32_t create_water_sky_texture(
-            DataPersistent& output,
-            dx::ResourceUploader& uploader,
-            ID3D12Device* device) {
+        [[nodiscard]]
+        std::uint32_t classify_material_mode(
+            const DataPersistent::Material& material,
+            bool water,
+            std::size_t material_id) {
 
-            constexpr std::array<std::byte, 4> pixels{
-                std::byte{0x78},
-                std::byte{0xc9},
-                std::byte{0xf4},
-                std::byte{0xff},
-            };
+            const bool has_basecolor =
+                material.texture_basecolor != Consts::IND_ERR;
+            const bool has_normal =
+                material.texture_normal != Consts::IND_ERR;
+            const bool has_roughness =
+                material.texture_roughness != Consts::IND_ERR;
 
-            D3D12_RESOURCE_DESC description{};
-            description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-            description.Width = 1;
-            description.Height = 1;
-            description.DepthOrArraySize = 1;
-            description.MipLevels = 1;
-            description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            description.SampleDesc.Count = 1;
-            description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+            if (water) {
+                if (!has_basecolor) {
+                    log::Logger::g_logger <<
+                        "Water material " << material_id << ' ' <<
+                        log::abrt("has no base-color texture.");
+                }
+                return DataPersistent::Material::MODE_WATER;
+            }
 
-            D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
-            UINT row_count = 0;
-            UINT64 row_size = 0;
-            UINT64 required_upload_size = 0;
-            device->GetCopyableFootprints(
-                &description,
-                0,
-                1,
-                0,
-                &footprint,
-                &row_count,
-                &row_size,
-                &required_upload_size);
+            if (has_basecolor && has_normal && has_roughness) {
+                return DataPersistent::Material::MODE_TEXTURED_PBR;
+            }
 
-            const auto texture_id = static_cast<std::uint32_t>(
-                output.textures.size());
-            auto& texture = output.textures.emplace_back();
-            texture.init(
-                device,
-                description,
-                dx::TextureType::texture2d,
-                D3D12_RESOURCE_STATE_COMMON);
-            const std::array subresources{
-                dx::TextureSubresourceData{
-                    pixels.data(),
-                    pixels.size(),
-                    pixels.size(),
-                    footprint,
-                    row_count,
-                    row_size,
-                },
-            };
-            uploader.upload_texture(
-                texture,
-                dx::TextureUploadDesc{
-                    subresources,
-                    required_upload_size,
-                },
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            return texture_id;
+            if (!has_basecolor && !has_normal && !has_roughness) {
+                return DataPersistent::Material::MODE_CONSTANT_PBR;
+            }
+
+            log::Logger::g_logger <<
+                "Material " << material_id <<
+                " has a partial PBR texture set (base-color=" <<
+                has_basecolor << ", normal=" << has_normal <<
+                ", roughness=" << has_roughness << "). " <<
+                log::abrt(
+                    "Runtime material classification requires all or none.");
+            return 0;
         }
 
 
@@ -363,19 +336,6 @@ namespace fjr::render::data {
                     },
                     view_format);
             }
-        }
-
-
-        void create_water_sky_texture_descriptor(
-            DataPersistent& output,
-            ID3D12Device* device,
-            std::uint32_t texture_id) {
-
-            output.textures[texture_id].create_srv(
-                device,
-                output.texture_descriptors.get_cpu(texture_id),
-                dx::TextureViewRange{0, 1, 0, 1},
-                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
         }
 
 
@@ -500,8 +460,7 @@ namespace fjr::render::data {
             dx::ResourceUploader& uploader,
             ID3D12Device* device,
             const scene::StaticScene& scene,
-            std::span<const DataPersistent::Mesh> meshes,
-            std::uint32_t water_sky_texture) {
+            std::span<const DataPersistent::Mesh> meshes) {
 
             std::vector<DataPersistent::Material> materials;
             materials.resize(scene.materials.size());
@@ -558,7 +517,7 @@ namespace fjr::render::data {
                         half_height = (std::max)(half_height, std::abs(y));
                     }
                     auto& material = materials[card.material];
-                    material.flags |= MATERIAL_FLAG_IMPOSTOR;
+                    material.flags |= DataPersistent::Material::FLAG_IMPOSTOR;
                     material.impostor_center = center;
                     material.impostor_half_width = half_width;
                     material.impostor_half_height = half_height;
@@ -583,6 +542,10 @@ namespace fjr::render::data {
 
                 destination.roughness =
                     source.roughness;
+                destination.opacity_threshold =
+                    source.opacity_threshold;
+                destination.opacity =
+                    source.opacity;
 
                 destination.texture_basecolor =
                     get_texture_id(
@@ -604,11 +567,10 @@ namespace fjr::render::data {
                         scene,
                         source.texture_binding_opacity);
 
-                if (water_materials[material_id]) {
-                    destination.base_color = {1.0f, 1.0f, 1.0f};
-                    destination.texture_basecolor = water_sky_texture;
-                    destination.texture_opacity = Consts::IND_ERR;
-                }
+                destination.flags |= classify_material_mode(
+                    destination,
+                    water_materials[material_id],
+                    material_id);
             }
 
             upload_buffer(
@@ -616,7 +578,8 @@ namespace fjr::render::data {
                 uploader,
                 device,
                 std::span<const DataPersistent::Material>{ materials },
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE |
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
 
     } // namespace
@@ -631,7 +594,7 @@ namespace fjr::render::data {
             std::span<const DataPersistent::Mesh> meshes) {
 
         const UINT descriptor_count = static_cast<UINT>(
-            scene.textures.size() + 1);
+            scene.textures.size());
 
         output.texture_descriptors =
             heap_srv_cbv_uav.alloc(descriptor_count);
@@ -642,20 +605,10 @@ namespace fjr::render::data {
             device,
             scene);
 
-        const auto water_sky_texture = create_water_sky_texture(
-            output,
-            uploader,
-            device);
-
         create_texture_descriptors(
             output,
             device,
             scene);
-
-        create_water_sky_texture_descriptor(
-            output,
-            device,
-            water_sky_texture);
 
         create_samplers(
             output,
@@ -670,8 +623,7 @@ namespace fjr::render::data {
             uploader,
             device,
             scene,
-            meshes,
-            water_sky_texture);
+            meshes);
     }
 
 } // namespace fjr::render

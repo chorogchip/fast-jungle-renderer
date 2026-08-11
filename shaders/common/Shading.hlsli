@@ -40,3 +40,12 @@ float3 ApplyFog(float3 color, float distance,
     float fog = saturate((distance - fog_start) / (fog_end - fog_start));
     return lerp(color, fog_color, fog);
 }
+
+float3 LinearToSRGB(float3 linear_color)
+{
+    const float3 input_color = max(linear_color, 0.0f);
+    const float3 low = input_color * 12.92f;
+    const float3 high =
+        1.055f * pow(input_color, 1.0f / 2.4f) - 0.055f;
+    return lerp(low, high, step(0.0031308f, input_color));
+}

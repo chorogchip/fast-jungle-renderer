@@ -18,7 +18,6 @@ namespace fjr::render {
             ID3D12Device* device,
             dx::DescriptorHeap& heap_srv_cbv_uav,
             const data::DataPersistent& persistent,
-            UINT texture_descriptor_count,
             UINT width,
             UINT height);
 

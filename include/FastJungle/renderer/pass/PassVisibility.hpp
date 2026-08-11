@@ -58,6 +58,7 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12CommandSignature> command_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> opaque_pipeline_state_;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> alpha_pipeline_state_;
 
         dx::Texture visibility_buffer_;
         dx::DescAlloc descriptors_;

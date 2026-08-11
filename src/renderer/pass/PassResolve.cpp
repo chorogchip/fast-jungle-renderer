@@ -1,6 +1,7 @@
 #include "FastJungle/renderer/pass/PassResolve.hpp"
 
 #include <filesystem>
+#include <limits>
 
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
@@ -23,7 +24,6 @@ namespace fjr::render {
             MATERIALS,
             TEXTURES,
             MATERIAL_SAMPLER,
-            ENVIRONMENT_SAMPLER,
             FRAME_BUFFER,
             COUNT,
         };
@@ -39,11 +39,10 @@ namespace fjr::render {
         ID3D12Device* device,
         dx::DescriptorHeap& heap_srv_cbv_uav,
         const data::DataPersistent& persistent,
-        UINT texture_descriptor_count,
         UINT width,
         UINT height) {
 
-        geometry_views_ = heap_srv_cbv_uav.alloc(3);
+        geometry_views_ = heap_srv_cbv_uav.alloc(5);
         frame_buffer_uav_ = heap_srv_cbv_uav.alloc();
 
         dx::RootSignatureBuilder root_builder;
@@ -53,31 +52,29 @@ namespace fjr::render {
         root_builder.set_root_cbv(RootParameter::CAMERA)
             .reg(0).vis_all().add();
         root_builder.set_root_srv(RootParameter::INSTANCES)
-            .reg(0).vis_all().add();
+            .reg(1).vis_all().add();
         root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
             .reg(2).vis_all().add();
         root_builder.set_resource_table(RootParameter::GEOMETRY)
-            .srv().reg(3).count(3)
+            .srv().reg(3).count(5)
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_all().add();
         root_builder.set_root_srv(RootParameter::SUBMESHES)
-            .reg(6).vis_all().add();
+            .reg(8).vis_all().add();
         root_builder.set_resource_table(RootParameter::VISIBILITY_BUFFER)
-            .srv().reg(7).count(1).add_range()
+            .srv().reg(9).count(1).add_range()
             .vis_all().add();
         root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(8).vis_all().add();
+            .reg(10).vis_all().add();
         root_builder.set_resource_table(RootParameter::TEXTURES)
-            .srv().reg(0).space(1).count(texture_descriptor_count)
+            .srv().reg(0).space(1)
+            .count(std::numeric_limits<UINT>::max())
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
             .add_range()
             .vis_all().add();
         root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
             .sampler().reg(0).count(1).add_range()
-            .vis_all().add();
-        root_builder.set_sampler_table(RootParameter::ENVIRONMENT_SAMPLER)
-            .sampler().reg(1).count(1).add_range()
             .vis_all().add();
         root_builder.set_resource_table(RootParameter::FRAME_BUFFER)
             .uav().reg(0).count(1).add_range()
@@ -119,16 +116,36 @@ namespace fjr::render {
             0,
             static_cast<UINT>(persistent.vertex_opaque_visibility->GetDesc().Width / 8));
 
-        persistent.vertex_opaque_shading.create_typed_srv(
+        persistent.vertex_opaque_shading.create_structured_srv(
             device,
             geometry_views_.get_cpu(1),
-            DXGI_FORMAT_R16G16B16A16_UNORM,
+            sizeof(data::DataPersistent::OpaqueVertex1),
             0,
-            static_cast<UINT>(persistent.vertex_opaque_shading->GetDesc().Width / 8));
+            static_cast<UINT>(
+                persistent.vertex_opaque_shading->GetDesc().Width /
+                sizeof(data::DataPersistent::OpaqueVertex1)));
+
+        persistent.vertex_alpha_visibility.create_structured_srv(
+            device,
+            geometry_views_.get_cpu(2),
+            sizeof(data::DataPersistent::AlphaVertex0),
+            0,
+            static_cast<UINT>(
+                persistent.vertex_alpha_visibility->GetDesc().Width /
+                sizeof(data::DataPersistent::AlphaVertex0)));
+
+        persistent.vertex_alpha_shading.create_structured_srv(
+            device,
+            geometry_views_.get_cpu(3),
+            sizeof(data::DataPersistent::AlphaVertex1),
+            0,
+            static_cast<UINT>(
+                persistent.vertex_alpha_shading->GetDesc().Width /
+                sizeof(data::DataPersistent::AlphaVertex1)));
 
         persistent.index.create_typed_srv(
             device,
-            geometry_views_.get_cpu(2),
+            geometry_views_.get_cpu(4),
             DXGI_FORMAT_R32_UINT,
             0,
             static_cast<UINT>(persistent.index->GetDesc().Width / sizeof(std::uint32_t)));
@@ -179,6 +196,18 @@ namespace fjr::render {
             command_list,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+        // The resolve UAV stores display-encoded values. This is the sRGB
+        // encoding of the linear fog/background color (0.015, 0.025, 0.04).
+        constexpr float clear_color[4]{
+            0.12835404f, 0.17184409f, 0.22091636f, 1.0f};
+        command_list->ClearUnorderedAccessViewFloat(
+            frame_buffer_uav_.get_gpu(),
+            frame_buffer_uav_.get_cpu(),
+            frame_buffer_.get(),
+            clear_color,
+            0,
+            nullptr);
+
         command_list->SetComputeRootSignature(root_signature_.Get());
         command_list->SetPipelineState(pipeline_state_.Get());
 
@@ -208,9 +237,6 @@ namespace fjr::render {
             persistent.texture_descriptors.get_gpu());
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
-            persistent.samplers.get_gpu(persistent.wrap_sampler));
-        command_list->SetComputeRootDescriptorTable(
-            static_cast<UINT>(RootParameter::ENVIRONMENT_SAMPLER),
             persistent.samplers.get_gpu(persistent.wrap_sampler));
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::FRAME_BUFFER),

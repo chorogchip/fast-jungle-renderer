@@ -19,6 +19,17 @@ namespace fjr::render::data {
     struct DataPersistent {
 
         struct Material {
+            static inline constexpr uint32_t FLAG_IMPOSTOR = 1u << 0u;
+
+            static inline constexpr uint32_t MODE_SHIFT = 1u;
+            static inline constexpr uint32_t MODE_MASK = 3u << MODE_SHIFT;
+            static inline constexpr uint32_t MODE_TEXTURED_PBR =
+                1u << MODE_SHIFT;
+            static inline constexpr uint32_t MODE_CONSTANT_PBR =
+                2u << MODE_SHIFT;
+            static inline constexpr uint32_t MODE_WATER =
+                3u << MODE_SHIFT;
+
             DirectX::XMFLOAT3 base_color{ 1.0f, 1.0f, 1.0f };
             float roughness = 0.5f;
 
@@ -31,7 +42,8 @@ namespace fjr::render::data {
             DirectX::XMFLOAT3 impostor_center{};
             float impostor_half_width = 0.0f;
             float impostor_half_height = 0.0f;
-            DirectX::XMFLOAT2 padding{};
+            float opacity_threshold = 0.0f;
+            float opacity = 1.0f;
         };
         static_assert(sizeof(Material) == 64);
         static_assert(std::is_trivially_copyable_v<Material>);

@@ -74,7 +74,6 @@ namespace fjr::render {
             device_.Get(),
             heap_srv_cbv_uav_,
             data_persistant_,
-            data_persistant_.texture_descriptors.get_count(),
             width,
             height);
     }

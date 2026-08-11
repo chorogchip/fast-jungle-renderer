@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <limits>
 
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
@@ -18,6 +19,9 @@ namespace fjr::render {
             VISIBLE_INSTANCES,
             INSTANCES,
             VERTEX_DECODE_PARAMS,
+            MATERIALS,
+            TEXTURES,
+            MATERIAL_SAMPLER,
             COUNT,
         };
 
@@ -60,6 +64,17 @@ namespace fjr::render {
             .reg(1).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
             .reg(2).vis_vertex().add();
+        root_builder.set_root_srv(RootParameter::MATERIALS)
+            .reg(3).vis_pixel().add();
+        root_builder.set_resource_table(RootParameter::TEXTURES)
+            .srv().reg(0).space(1)
+            .count(std::numeric_limits<UINT>::max())
+            .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
+            .add_range()
+            .vis_pixel().add();
+        root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
+            .sampler().reg(0).count(1).add_range()
+            .vis_pixel().add();
 
         root_signature_ = root_builder.build(device);
 
@@ -95,10 +110,16 @@ namespace fjr::render {
             FASTJUNGLE_SHADER_OUTPUT_DIR};
         dx::Shader vertex_shader;
         dx::Shader opaque_pixel_shader;
+        dx::Shader alpha_vertex_shader;
+        dx::Shader alpha_pixel_shader;
         vertex_shader.load(
             shader_directory / "visibility" / "VisibilityOpaque.vs.dxil");
         opaque_pixel_shader.load(
             shader_directory / "visibility" / "VisibilityOpaque.ps.dxil");
+        alpha_vertex_shader.load(
+            shader_directory / "visibility" / "VisibilityAlpha.vs.dxil");
+        alpha_pixel_shader.load(
+            shader_directory / "visibility" / "VisibilityAlpha.ps.dxil");
 
         const std::array<D3D12_INPUT_ELEMENT_DESC, 1> input_elements{
             D3D12_INPUT_ELEMENT_DESC{
@@ -126,6 +147,37 @@ namespace fjr::render {
         description.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
         opaque_pipeline_state_ =
+            dx::PSOUtils::create_graphics(device, description);
+
+        const std::array<D3D12_INPUT_ELEMENT_DESC, 2> alpha_input_elements{
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "POSITION",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R16G16B16A16_UNORM,
+                .InputSlot = 0,
+                .AlignedByteOffset = 0,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "TEXCOORD",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R16G16_UNORM,
+                .InputSlot = 0,
+                .AlignedByteOffset = 8,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+        };
+
+        description.VS = alpha_vertex_shader.get_bytecode();
+        description.PS = alpha_pixel_shader.get_bytecode();
+        description.InputLayout = {
+            alpha_input_elements.data(),
+            static_cast<UINT>(alpha_input_elements.size()),
+        };
+        description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        alpha_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);
 
         create_buffer(device, width, height);
@@ -242,11 +294,25 @@ namespace fjr::render {
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::VERTEX_DECODE_PARAMS),
             persistent.vertex_decode_params->GetGPUVirtualAddress());
+        command_list->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::MATERIALS),
+            persistent.material->GetGPUVirtualAddress());
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::TEXTURES),
+            persistent.texture_descriptors.get_gpu());
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
+            persistent.samplers.get_gpu(persistent.wrap_sampler));
 
-        const D3D12_VERTEX_BUFFER_VIEW vertex_view{
+        const D3D12_VERTEX_BUFFER_VIEW opaque_vertex_view{
             .BufferLocation = persistent.vertex_opaque_visibility->GetGPUVirtualAddress(),
             .SizeInBytes = buffer_size(persistent.vertex_opaque_visibility),
             .StrideInBytes = sizeof(data::DataPersistent::OpaqueVertex0),
+        };
+        const D3D12_VERTEX_BUFFER_VIEW alpha_vertex_view{
+            .BufferLocation = persistent.vertex_alpha_visibility->GetGPUVirtualAddress(),
+            .SizeInBytes = buffer_size(persistent.vertex_alpha_visibility),
+            .StrideInBytes = sizeof(data::DataPersistent::AlphaVertex0),
         };
         const D3D12_INDEX_BUFFER_VIEW index_view{
             .BufferLocation = persistent.index->GetGPUVirtualAddress(),
@@ -256,7 +322,7 @@ namespace fjr::render {
 
         command_list->IASetPrimitiveTopology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        command_list->IASetVertexBuffers(0, 1, &vertex_view);
+        command_list->IASetVertexBuffers(0, 1, &opaque_vertex_view);
         command_list->IASetIndexBuffer(&index_view);
 
         const UINT64 command_region_size =
@@ -280,6 +346,10 @@ namespace fjr::render {
         execute_indirect(data::EnumRasterClass::TERRAIN);
         execute_indirect(data::EnumRasterClass::OPAQUE_SINGLE_SIDED);
         execute_indirect(data::EnumRasterClass::RIVER);
+
+        command_list->SetPipelineState(alpha_pipeline_state_.Get());
+        command_list->IASetVertexBuffers(0, 1, &alpha_vertex_view);
+        execute_indirect(data::EnumRasterClass::ALPHA_TESTED);
 
         visibility_buffer_.transition(
             command_list,
