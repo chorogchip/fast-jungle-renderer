@@ -1,11 +1,8 @@
 #include "FastJungle/renderer/pass/PassVisibility.hpp"
 
-#include <algorithm>
 #include <array>
 #include <filesystem>
-#include <limits>
 
-#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/PSOUtils.hpp"
 #include "FastJungle/dx12/RootSignatureBuilder.hpp"
 #include "FastJungle/dx12/Shader.hpp"
@@ -16,26 +13,32 @@ namespace fjr::render {
     namespace {
 
         enum class RootParameter : std::uint32_t {
-            DRAW_CONSTANTS,
             CAMERA,
+            DRAW_CONSTANTS,
             VISIBLE_INSTANCES,
             INSTANCES,
             VERTEX_DECODE_PARAMS,
-            MATERIALS,
-            TEXTURES,
-            MATERIAL_SAMPLER,
-            ENVIRONMENT_SAMPLER,
             COUNT,
         };
+
+        [[nodiscard]]
+        UINT buffer_size(const dx::Buffer& buffer) noexcept {
+            return static_cast<UINT>(buffer->GetDesc().Width);
+        }
 
     } // namespace
 
     void PassVisibility::init(
         ID3D12Device* device,
-        UINT texture_descriptor_count,
-        uint32_t indirect_bin_count) {
+        dx::DescriptorHeap& heap_srv_cbv_uav,
+        dx::DescriptorHeap& heap_rtv,
+        uint32_t indirect_draw_capacity_per_class,
+        UINT width,
+        UINT height) {
 
-        indirect_bin_count_ = indirect_bin_count;
+        indirect_draw_capacity_per_class_ = indirect_draw_capacity_per_class;
+        descriptors_ = heap_srv_cbv_uav.alloc(2);
+        rtv_ = heap_rtv.alloc();
 
         dx::RootSignatureBuilder root_builder;
         root_builder.init(RootParameter::COUNT);
@@ -45,44 +48,18 @@ namespace fjr::render {
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
 
+        root_builder.set_root_cbv(RootParameter::CAMERA)
+            .reg(0).vis_vertex().add();
         root_builder.set_constants(RootParameter::DRAW_CONSTANTS)
             .reg(1)
             .count(data::DataPerFrame::IndirectGPUDraw::ROOT_CONST_CNT)
-            .vis_all()
-            .add();
-        root_builder.set_root_cbv(RootParameter::CAMERA)
-            .reg(0).vis_all().add();
+            .vis_all().add();
         root_builder.set_root_srv(RootParameter::VISIBLE_INSTANCES)
             .reg(0).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::INSTANCES)
             .reg(1).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
-            .reg(5).vis_vertex().add();
-        root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(2).vis_pixel().add();
-
-        root_builder.set_resource_table(RootParameter::TEXTURES)
-            .srv()
-            .reg(3)
-            .count(std::max(texture_descriptor_count, 1u))
-            .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC)
-            .add_range()
-            .vis_pixel()
-            .add();
-        root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
-            .sampler()
-            .reg(0)
-            .count(1)
-            .add_range()
-            .vis_pixel()
-            .add();
-        root_builder.set_sampler_table(RootParameter::ENVIRONMENT_SAMPLER)
-            .sampler()
-            .reg(1)
-            .count(1)
-            .add_range()
-            .vis_pixel()
-            .add();
+            .reg(2).vis_vertex().add();
 
         root_signature_ = root_builder.build(device);
 
@@ -117,16 +94,13 @@ namespace fjr::render {
         const std::filesystem::path shader_directory{
             FASTJUNGLE_SHADER_OUTPUT_DIR};
         dx::Shader vertex_shader;
-        dx::Shader alpha_pixel_shader;
         dx::Shader opaque_pixel_shader;
         vertex_shader.load(
-            shader_directory / "Forward.vs.dxil");
-        alpha_pixel_shader.load(
-            shader_directory / "ForwardAlpha.ps.dxil");
+            shader_directory / "visibility" / "VisibilityOpaque.vs.dxil");
         opaque_pixel_shader.load(
-            shader_directory / "ForwardOpaque.ps.dxil");
+            shader_directory / "visibility" / "VisibilityOpaque.ps.dxil");
 
-        const std::array<D3D12_INPUT_ELEMENT_DESC, 3> input_elements{
+        const std::array<D3D12_INPUT_ELEMENT_DESC, 1> input_elements{
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
                 .SemanticIndex = 0,
@@ -136,76 +110,116 @@ namespace fjr::render {
                 .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "NORMAL",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R10G10B10A2_UNORM,
-                .InputSlot = 1,
-                .AlignedByteOffset = 0,
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "TEXCOORD",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R16G16_UNORM,
-                .InputSlot = 2,
-                .AlignedByteOffset = 0,
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
         };
 
-        auto base = dx::PSOUtils::default_graphics_desc();
-        base.pRootSignature = root_signature_.Get();
-        base.VS = vertex_shader.get_bytecode();
-        base.InputLayout = {
+        auto description = dx::PSOUtils::default_graphics_desc();
+        description.pRootSignature = root_signature_.Get();
+        description.VS = vertex_shader.get_bytecode();
+        description.PS = opaque_pixel_shader.get_bytecode();
+        description.InputLayout = {
             input_elements.data(),
             static_cast<UINT>(input_elements.size()),
         };
-        base.NumRenderTargets = 1;
-        base.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        base.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-
-        auto description = base;
-        description.PS = opaque_pixel_shader.get_bytecode();
         description.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+        description.NumRenderTargets = 1;
+        description.RTVFormats[0] = DXGI_FORMAT_R32G32_UINT;
+        description.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+
         opaque_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);
 
-        description.PS = alpha_pixel_shader.get_bytecode();
-        description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-        alpha_pipeline_state_ =
-            dx::PSOUtils::create_graphics(device, description);
+        create_buffer(device, width, height);
+    }
+
+    void PassVisibility::resize(
+        ID3D12Device* device,
+        UINT width,
+        UINT height) {
+
+        create_buffer(device, width, height);
+    }
+
+    void PassVisibility::create_buffer(
+        ID3D12Device* device,
+        UINT width,
+        UINT height) {
+
+        visibility_buffer_.reset();
+
+        D3D12_RESOURCE_DESC description{};
+        description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        description.Width = width;
+        description.Height = height;
+        description.DepthOrArraySize = 1;
+        description.MipLevels = 1;
+        description.Format = DXGI_FORMAT_R32G32_UINT;
+        description.SampleDesc.Count = 1;
+        description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        description.Flags =
+            D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET |
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+        visibility_buffer_.init(
+            device,
+            description,
+            dx::TextureType::texture2d,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        visibility_buffer_.create_rtv(
+            device,
+            rtv_.get_cpu(),
+            0, 0, 1,
+            DXGI_FORMAT_R32G32_UINT);
+
+        visibility_buffer_.create_srv(
+            device,
+            descriptors_.get_cpu(SRV_OFFSET),
+            dx::TextureViewRange{
+                .first_mip = 0,
+                .mip_count = 1,
+                .first_slice = 0,
+                .slice_count = 1,
+            },
+            DXGI_FORMAT_R32G32_UINT);
+
+        visibility_buffer_.create_uav(
+            device,
+            descriptors_.get_cpu(UAV_OFFSET),
+            0, 0, 1,
+            DXGI_FORMAT_R32G32_UINT);
     }
 
     void PassVisibility::record(
         dx::CommandContext& context,
         const data::DataPersistent& persistent,
         const data::DataPerFrame& frame,
-        D3D12_CPU_DESCRIPTOR_HANDLE render_target,
         D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil,
         UINT width,
-        UINT height) const;
-
-    void ForwardPass::record(
-        dx::CommandContext& context,
-        const data::DataPersistent& persistent,
-        const data::DataPerFrame& frame,
-        D3D12_GPU_VIRTUAL_ADDRESS camera_constants,
-        D3D12_CPU_DESCRIPTOR_HANDLE render_target,
-        D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil,
-        UINT width,
-        UINT height) const {
+        UINT height) {
 
         auto* command_list = context.get();
 
+        visibility_buffer_.transition(
+            command_list,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        constexpr std::array<UINT, 4> clear_value{
+            0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu};
+        command_list->ClearUnorderedAccessViewUint(
+            descriptors_.get_gpu(UAV_OFFSET),
+            descriptors_.get_cpu(UAV_OFFSET),
+            visibility_buffer_.get(),
+            clear_value.data(),
+            0,
+            nullptr);
+
+        visibility_buffer_.transition(
+            command_list,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+        const auto render_target = rtv_.get_cpu();
         command_list->OMSetRenderTargets(
             1, &render_target, FALSE, &depth_stencil);
-        constexpr std::array<float, 4> clear_color{
-            0.015f, 0.025f, 0.04f, 1.0f};
-        command_list->ClearRenderTargetView(
-            render_target, clear_color.data(), 0, nullptr);
         command_list->ClearDepthStencilView(
             depth_stencil,
             D3D12_CLEAR_FLAG_DEPTH,
@@ -218,7 +232,7 @@ namespace fjr::render {
         command_list->SetGraphicsRootSignature(root_signature_.Get());
         command_list->SetGraphicsRootConstantBufferView(
             static_cast<UINT>(RootParameter::CAMERA),
-            camera_constants);
+            frame.camera.get_address());
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::VISIBLE_INSTANCES),
             frame.visible_instance->GetGPUVirtualAddress());
@@ -228,44 +242,21 @@ namespace fjr::render {
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::VERTEX_DECODE_PARAMS),
             persistent.vertex_decode_params->GetGPUVirtualAddress());
-        command_list->SetGraphicsRootShaderResourceView(
-            static_cast<UINT>(RootParameter::MATERIALS),
-            persistent.material->GetGPUVirtualAddress());
-        command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::TEXTURES),
-            persistent.texture_descriptors.get_gpu());
-        command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::ENVIRONMENT_SAMPLER),
-            persistent.samplers.get_gpu(persistent.wrap_sampler));
-        const std::array<D3D12_VERTEX_BUFFER_VIEW, 3> vertex_views{
-            D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation = persistent.vertex_pos->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(persistent.vertex_pos, "Position buffer"),
-                .StrideInBytes = sizeof(data::DataPersistent::PackedPosition),
-            },
-            D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation = persistent.vertex_normal->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(persistent.vertex_normal, "Normal buffer"),
-                .StrideInBytes = sizeof(data::DataPersistent::PackedNormal),
-            },
-            D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation = persistent.vertex_uv->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(persistent.vertex_uv, "UV buffer"),
-                .StrideInBytes = sizeof(data::DataPersistent::PackedUV),
-            },
+
+        const D3D12_VERTEX_BUFFER_VIEW vertex_view{
+            .BufferLocation = persistent.vertex_opaque_visibility->GetGPUVirtualAddress(),
+            .SizeInBytes = buffer_size(persistent.vertex_opaque_visibility),
+            .StrideInBytes = sizeof(data::DataPersistent::OpaqueVertex0),
         };
         const D3D12_INDEX_BUFFER_VIEW index_view{
             .BufferLocation = persistent.index->GetGPUVirtualAddress(),
-            .SizeInBytes = buffer_size(persistent.index, "Index buffer"),
+            .SizeInBytes = buffer_size(persistent.index),
             .Format = DXGI_FORMAT_R32_UINT,
         };
 
         command_list->IASetPrimitiveTopology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        command_list->IASetVertexBuffers(
-            0,
-            static_cast<UINT>(vertex_views.size()),
-            vertex_views.data());
+        command_list->IASetVertexBuffers(0, 1, &vertex_view);
         command_list->IASetIndexBuffer(&index_view);
 
         const UINT64 command_region_size =
@@ -285,24 +276,14 @@ namespace fjr::render {
             };
 
         command_list->SetPipelineState(opaque_pipeline_state_.Get());
-        command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
-            persistent.samplers.get_gpu(persistent.wrap_sampler));
         execute_indirect(data::EnumRasterClass::PYRAMID);
-
-        command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
-            persistent.samplers.get_gpu(persistent.clamp_sampler));
         execute_indirect(data::EnumRasterClass::TERRAIN);
-
-        command_list->SetGraphicsRootDescriptorTable(
-            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
-            persistent.samplers.get_gpu(persistent.wrap_sampler));
         execute_indirect(data::EnumRasterClass::OPAQUE_SINGLE_SIDED);
         execute_indirect(data::EnumRasterClass::RIVER);
 
-        command_list->SetPipelineState(alpha_pipeline_state_.Get());
-        execute_indirect(data::EnumRasterClass::ALPHA_TESTED);
+        visibility_buffer_.transition(
+            command_list,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     }
 
 } // namespace fjr::render

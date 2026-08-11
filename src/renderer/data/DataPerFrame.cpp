@@ -16,6 +16,7 @@ namespace fjr::render::data {
 
     void DataPerFrame::CameraConstants::fill_from_camera(
         const Camera& camera,
+        uint32_t viewport_width,
         uint32_t viewport_height,
         uint32_t scene_spatial_cluster_count,
         uint32_t scene_mesh_lod_count,
@@ -80,6 +81,8 @@ namespace fjr::render::data {
 
         spatial_cluster_count = scene_spatial_cluster_count;
         mesh_lod_count = scene_mesh_lod_count;
+        cam_pixel_width = viewport_width;
+        cam_pixel_height = viewport_height;
     }
 
     DataPerFrame DataPerFrame::build(

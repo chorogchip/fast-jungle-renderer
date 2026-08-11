@@ -1,4 +1,5 @@
-#include "FastJungle/renderer/pass/TriangleIdPass.hpp"
+#if 0
+#include "FastJungle/renderer/pass/ForwardPass.hpp"
 
 #include <algorithm>
 #include <array>
@@ -20,9 +21,11 @@ namespace fjr::render {
             CAMERA,
             VISIBLE_INSTANCES,
             INSTANCES,
+            VERTEX_DECODE_PARAMS,
             MATERIALS,
             TEXTURES,
-            SAMPLERS,
+            MATERIAL_SAMPLER,
+            ENVIRONMENT_SAMPLER,
             COUNT,
         };
 
@@ -39,7 +42,7 @@ namespace fjr::render {
 
     } // namespace
 
-    void TriangleIdPass::init(
+    void ForwardPass::init(
         ID3D12Device* device,
         UINT texture_descriptor_count,
         std::uint32_t indirect_draw_capacity_per_class) {
@@ -66,8 +69,11 @@ namespace fjr::render {
             .reg(0).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::INSTANCES)
             .reg(1).vis_vertex().add();
+        root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
+            .reg(5).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(2).vis_pixel().add();
+            .reg(2).vis_all().add();
+
         root_builder.set_resource_table(RootParameter::TEXTURES)
             .srv()
             .reg(3)
@@ -76,9 +82,16 @@ namespace fjr::render {
             .add_range()
             .vis_pixel()
             .add();
-        root_builder.set_sampler_table(RootParameter::SAMPLERS)
+        root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
             .sampler()
             .reg(0)
+            .count(1)
+            .add_range()
+            .vis_pixel()
+            .add();
+        root_builder.set_sampler_table(RootParameter::ENVIRONMENT_SAMPLER)
+            .sampler()
+            .reg(1)
             .count(1)
             .add_range()
             .vis_pixel()
@@ -101,12 +114,14 @@ namespace fjr::render {
                 .Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED,
             },
         };
+
         const D3D12_COMMAND_SIGNATURE_DESC command_description{
             .ByteStride = sizeof(data::DataPerFrame::IndirectGPUDraw),
             .NumArgumentDescs = static_cast<UINT>(arguments.size()),
             .pArgumentDescs = arguments.data(),
             .NodeMask = 0,
         };
+
         dx::abort_failed(device->CreateCommandSignature(
             &command_description,
             root_signature_.Get(),
@@ -115,29 +130,41 @@ namespace fjr::render {
         const std::filesystem::path shader_directory{
             FASTJUNGLE_SHADER_OUTPUT_DIR};
         dx::Shader vertex_shader;
-        dx::Shader pixel_shader;
-        vertex_shader.load(shader_directory / "TriangleId.vs.dxil");
-        pixel_shader.load(shader_directory / "TriangleId.ps.dxil");
+        dx::Shader alpha_pixel_shader;
+        dx::Shader opaque_pixel_shader;
+        vertex_shader.load(
+            shader_directory / "Forward.vs.dxil");
+        alpha_pixel_shader.load(
+            shader_directory / "ForwardAlpha.ps.dxil");
+        opaque_pixel_shader.load(
+            shader_directory / "ForwardOpaque.ps.dxil");
 
-        const std::array<D3D12_INPUT_ELEMENT_DESC, 2> input_elements{
+        const std::array<D3D12_INPUT_ELEMENT_DESC, 3> input_elements{
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
                 .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .Format = DXGI_FORMAT_R16G16B16A16_UNORM,
                 .InputSlot = 0,
                 .AlignedByteOffset = 0,
-                .InputSlotClass =
-                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "NORMAL",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R10G10B10A2_UNORM,
+                .InputSlot = 1,
+                .AlignedByteOffset = 0,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "TEXCOORD",
                 .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
+                .Format = DXGI_FORMAT_R16G16_UNORM,
                 .InputSlot = 2,
                 .AlignedByteOffset = 0,
-                .InputSlotClass =
-                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 .InstanceDataStepRate = 0,
             },
         };
@@ -145,7 +172,6 @@ namespace fjr::render {
         auto base = dx::PSOUtils::default_graphics_desc();
         base.pRootSignature = root_signature_.Get();
         base.VS = vertex_shader.get_bytecode();
-        base.PS = pixel_shader.get_bytecode();
         base.InputLayout = {
             input_elements.data(),
             static_cast<UINT>(input_elements.size()),
@@ -154,22 +180,19 @@ namespace fjr::render {
         base.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         base.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
-        for (std::uint32_t raster_class = 0;
-            raster_class < data::Consts::RASTER_CLASS_CNT;
-            ++raster_class) {
+        auto description = base;
+        description.PS = opaque_pixel_shader.get_bytecode();
+        description.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+        opaque_pipeline_state_ =
+            dx::PSOUtils::create_graphics(device, description);
 
-            auto description = base;
-            description.RasterizerState.CullMode =
-                raster_class == static_cast<std::uint32_t>(
-                    data::EnumRasterClass::ALPHA_TESTED)
-                ? D3D12_CULL_MODE_NONE
-                : D3D12_CULL_MODE_BACK;
-            pipeline_states_[raster_class] =
-                dx::PSOUtils::create_graphics(device, description);
-        }
+        description.PS = alpha_pixel_shader.get_bytecode();
+        description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        alpha_pipeline_state_ =
+            dx::PSOUtils::create_graphics(device, description);
     }
 
-    void TriangleIdPass::record(
+    void ForwardPass::record(
         dx::CommandContext& context,
         const data::DataPersistent& persistent,
         const data::DataPerFrame& frame,
@@ -180,6 +203,7 @@ namespace fjr::render {
         UINT height) const {
 
         auto* command_list = context.get();
+
         command_list->OMSetRenderTargets(
             1, &render_target, FALSE, &depth_stencil);
         constexpr std::array<float, 4> clear_color{
@@ -197,7 +221,8 @@ namespace fjr::render {
 
         command_list->SetGraphicsRootSignature(root_signature_.Get());
         command_list->SetGraphicsRootConstantBufferView(
-            static_cast<UINT>(RootParameter::CAMERA), camera_constants);
+            static_cast<UINT>(RootParameter::CAMERA),
+            camera_constants);
         command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::VISIBLE_INSTANCES),
             frame.visible_instance->GetGPUVirtualAddress());
@@ -205,33 +230,32 @@ namespace fjr::render {
             static_cast<UINT>(RootParameter::INSTANCES),
             persistent.instance_transform->GetGPUVirtualAddress());
         command_list->SetGraphicsRootShaderResourceView(
+            static_cast<UINT>(RootParameter::VERTEX_DECODE_PARAMS),
+            persistent.vertex_decode_params->GetGPUVirtualAddress());
+        command_list->SetGraphicsRootShaderResourceView(
             static_cast<UINT>(RootParameter::MATERIALS),
             persistent.material->GetGPUVirtualAddress());
         command_list->SetGraphicsRootDescriptorTable(
             static_cast<UINT>(RootParameter::TEXTURES),
             persistent.texture_descriptors.get_gpu());
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::ENVIRONMENT_SAMPLER),
+            persistent.samplers.get_gpu(persistent.wrap_sampler));
         const std::array<D3D12_VERTEX_BUFFER_VIEW, 3> vertex_views{
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_pos->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_pos, "Position buffer"),
-                .StrideInBytes = sizeof(DirectX::XMFLOAT3),
+                .BufferLocation = persistent.vertex_pos->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_pos, "Position buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedPosition),
             },
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_normal->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_normal, "Normal buffer"),
-                .StrideInBytes =
-                    sizeof(data::DataPersistent::PackedNormal),
+                .BufferLocation = persistent.vertex_normal->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_normal, "Normal buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedNormal),
             },
             D3D12_VERTEX_BUFFER_VIEW{
-                .BufferLocation =
-                    persistent.vertex_uv->GetGPUVirtualAddress(),
-                .SizeInBytes = buffer_size(
-                    persistent.vertex_uv, "UV buffer"),
-                .StrideInBytes = sizeof(DirectX::XMFLOAT2),
+                .BufferLocation = persistent.vertex_uv->GetGPUVirtualAddress(),
+                .SizeInBytes = buffer_size(persistent.vertex_uv, "UV buffer"),
+                .StrideInBytes = sizeof(data::DataPersistent::PackedUV),
             },
         };
         const D3D12_INDEX_BUFFER_VIEW index_view{
@@ -251,28 +275,39 @@ namespace fjr::render {
         const UINT64 command_region_size =
             static_cast<UINT64>(indirect_draw_capacity_per_class_) *
             sizeof(data::DataPerFrame::IndirectGPUDraw);
-        for (std::uint32_t raster_class = 0;
-            raster_class < data::Consts::RASTER_CLASS_CNT;
-            ++raster_class) {
 
-            const auto sampler = raster_class == static_cast<std::uint32_t>(
-                data::EnumRasterClass::TERRAIN)
-                ? persistent.clamp_sampler
-                : persistent.wrap_sampler;
-            command_list->SetGraphicsRootDescriptorTable(
-                static_cast<UINT>(RootParameter::SAMPLERS),
-                persistent.samplers.get_gpu(sampler));
+        const auto execute_indirect =
+            [&](data::EnumRasterClass raster_class) {
+                const auto index = static_cast<std::uint32_t>(raster_class);
+                command_list->ExecuteIndirect(
+                    command_signature_.Get(),
+                    indirect_draw_capacity_per_class_,
+                    frame.indirect_gpu_draw.get(),
+                    static_cast<UINT64>(index) * command_region_size,
+                    frame.indirect_gpu_draw_counts.get(),
+                    static_cast<UINT64>(index) * sizeof(std::uint32_t));
+            };
 
-            command_list->SetPipelineState(
-                pipeline_states_[raster_class].Get());
-            command_list->ExecuteIndirect(
-                command_signature_.Get(),
-                indirect_draw_capacity_per_class_,
-                frame.indirect_gpu_draw.get(),
-                static_cast<UINT64>(raster_class) * command_region_size,
-                frame.indirect_gpu_draw_counts.get(),
-                static_cast<UINT64>(raster_class) * sizeof(std::uint32_t));
-        }
+        command_list->SetPipelineState(opaque_pipeline_state_.Get());
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
+            persistent.samplers.get_gpu(persistent.wrap_sampler));
+        execute_indirect(data::EnumRasterClass::PYRAMID);
+
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
+            persistent.samplers.get_gpu(persistent.clamp_sampler));
+        execute_indirect(data::EnumRasterClass::TERRAIN);
+
+        command_list->SetGraphicsRootDescriptorTable(
+            static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
+            persistent.samplers.get_gpu(persistent.wrap_sampler));
+        execute_indirect(data::EnumRasterClass::OPAQUE_SINGLE_SIDED);
+        execute_indirect(data::EnumRasterClass::RIVER);
+
+        command_list->SetPipelineState(alpha_pipeline_state_.Get());
+        execute_indirect(data::EnumRasterClass::ALPHA_TESTED);
     }
 
 } // namespace fjr::render
+#endif

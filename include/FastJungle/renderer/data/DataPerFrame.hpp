@@ -23,14 +23,15 @@ namespace fjr::render::data {
             float world_position_padding = 0.0f;
             DirectX::XMFLOAT4 normalized_frustum_planes[6];
 
-            float lod_projection_scale;
-            float lod_error_threshold_px;
-            float impostor_transition_radius_px;
-            float cull_radius_px;
+            float lod_projection_scale = 0.0f;
+            float lod_error_threshold_px = 0.0f;
+            float impostor_transition_radius_px = 0.0f;
+            float cull_radius_px = 0.0f;
 
-            uint32_t spatial_cluster_count;
-            uint32_t mesh_lod_count;
-            DirectX::XMFLOAT2 padding_funny{};
+            uint32_t spatial_cluster_count = 0;
+            uint32_t mesh_lod_count = 0;
+            uint32_t cam_pixel_width = 0;
+            uint32_t cam_pixel_height = 0;
 
             DirectX::XMFLOAT3 environment_color{};
             float environment_intensity = 0.0f;
@@ -39,6 +40,7 @@ namespace fjr::render::data {
 
             void fill_from_camera(
                 const Camera& camera,
+                uint32_t viewport_width,
                 uint32_t viewport_height,
                 uint32_t scene_spatial_cluster_count,
                 uint32_t scene_mesh_lod_count,

@@ -31,47 +31,48 @@ namespace fjr::render::data::geom {
             return static_cast<uint16_t>(std::min(q, 65535u));
         }
 
-        DataPersistent::PackedPosition pack_position(
-            const DirectX::XMFLOAT3& value,
-            const DirectX::XMFLOAT3& minimum,
-            const DirectX::XMFLOAT3& extent) {
 
-            DataPersistent::PackedPosition ret{};
+    }
 
-            ret.x = quantize_unorm16(value.x, minimum.x, extent.x);
-            ret.y = quantize_unorm16(value.y, minimum.y, extent.y);
-            ret.z = quantize_unorm16(value.z, minimum.z, extent.z);
+    DataPersistent::PackedPosition BuilderGeomVertex::pack_position(
+        const DirectX::XMFLOAT3& value,
+        const DirectX::XMFLOAT3& minimum,
+        const DirectX::XMFLOAT3& extent) {
 
-            return ret;
-        }
+        DataPersistent::PackedPosition ret{};
 
-        DataPersistent::PackedNormal pack_normal(
-            const DirectX::XMFLOAT3& value) {
+        ret.x = quantize_unorm16(value.x, minimum.x, extent.x);
+        ret.y = quantize_unorm16(value.y, minimum.y, extent.y);
+        ret.z = quantize_unorm16(value.z, minimum.z, extent.z);
 
-            DataPersistent::PackedNormal ret{};
+        return ret;
+    }
 
-            ret.value =
-                normal_to_10u(value.x) |
-                (normal_to_10u(value.y) << 10u) |
-                (normal_to_10u(value.z) << 20u) |
-                (3u << 30u);
+    DataPersistent::PackedNormal BuilderGeomVertex::pack_normal(
+        const DirectX::XMFLOAT3& value) {
 
-            return ret;
-        }
+        DataPersistent::PackedNormal ret{};
 
-        DataPersistent::PackedUV pack_uv(
-            const DirectX::XMFLOAT2& value,
-            const DirectX::XMFLOAT3& minimum,
-            const DirectX::XMFLOAT3& extent) {
+        ret.value =
+            normal_to_10u(value.x) |
+            (normal_to_10u(value.y) << 10u) |
+            (normal_to_10u(value.z) << 20u) |
+            (3u << 30u);
 
-            DataPersistent::PackedUV ret{};
+        return ret;
+    }
 
-            ret.x = quantize_unorm16(value.x, minimum.x, extent.x);
-            ret.y = quantize_unorm16(value.y, minimum.y, extent.y);
+    DataPersistent::PackedUV BuilderGeomVertex::pack_uv(
+        const DirectX::XMFLOAT2& value,
+        const DirectX::XMFLOAT3& minimum,
+        const DirectX::XMFLOAT3& extent) {
 
-            return ret;
-        }
+        DataPersistent::PackedUV ret{};
 
+        ret.x = quantize_unorm16(value.x, minimum.x, extent.x);
+        ret.y = quantize_unorm16(value.y, minimum.y, extent.y);
+
+        return ret;
     }
 
     std::vector<DataPersistent::VertexDecodeParams> BuilderGeomVertex::build(

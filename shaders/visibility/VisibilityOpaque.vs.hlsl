@@ -1,5 +1,7 @@
+#include "../common/ConstBufCamera.hlsli"
 #include "../common/ConstantDraw.hlsli"
 #include "../common/RenderData.hlsli"
+#include "../common/Quaternion.hlsli"
 
 struct VS_input
 {
@@ -9,31 +11,20 @@ struct VS_input
 struct VS_output
 {
     float4 position : SV_Position;
-    nointerpolation uint instance_id;
+    nointerpolation uint instance_id : TEXCOORD0;
 };
 
 StructuredBuffer<uint> visible_instances : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
-StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t5);
+StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t2);
 
-static const uint MATERIAL_FLAG_IMPOSTOR = 1u;
-
-
-float3 RotateForwardVector(float3 value, float4 quaternion)
-{
-    const float3 twice_cross = 2.0f * cross(quaternion.xyz, value);
-    return value +
-        quaternion.w * twice_cross +
-        cross(quaternion.xyz, twice_cross);
-}
-
-float4 main(VS_input input, uint local_instance_id : SV_InstanceID)
+VS_output main(VS_input input, uint local_instance_id : SV_InstanceID)
 {
     const uint instance_id = visible_instances[visible_instance_offset + local_instance_id];
     const InstanceTransform instance = instances[instance_id];
     VertexDecodeParams decode = vertex_decode_params[submesh_id];
     
-    float3 position = decode.position_min.xyz + input.position.xyz * decode.position_extent.xyz;
+    const float3 position = decode.position_min.xyz + input.position.xyz * decode.position_extent.xyz;
 
     const float3 world_position = instance.position +
         RotateForwardVector(position * instance.scale, instance.rotation);

@@ -65,9 +65,34 @@ namespace fjr::render::data {
         static_assert(sizeof(PackedUV) == 4);
         static_assert(std::is_trivially_copyable_v<PackedUV>);
 
-        dx::Buffer vertex_pos{};
-        dx::Buffer vertex_normal{};
-        dx::Buffer vertex_uv{};
+        struct OpaqueVertex0 {
+            PackedPosition position;
+        };
+        static_assert(sizeof(OpaqueVertex0) == 8);
+
+        struct OpaqueVertex1 {
+            PackedNormal normal;
+            PackedUV uv;
+        };
+        static_assert(sizeof(OpaqueVertex1) == 8);
+
+        struct AlphaVertex0 {
+            PackedPosition position;
+            PackedUV uv;
+        };
+        static_assert(sizeof(AlphaVertex0) == 12);
+
+        struct AlphaVertex1 {
+            PackedNormal normal;
+        };
+        static_assert(sizeof(AlphaVertex1) == 4);
+
+        dx::Buffer vertex_opaque_visibility{};
+        dx::Buffer vertex_opaque_shading{};
+
+        dx::Buffer vertex_alpha_visibility{};
+        dx::Buffer vertex_alpha_shading{};
+
         dx::Buffer index{};
 
         struct VertexDecodeParams {

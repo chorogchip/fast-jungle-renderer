@@ -1,5 +1,8 @@
 #include "../common/ConstBufCamera.hlsli"
 #include "../common/RenderData.hlsli"
+#include "../common/Quaternion.hlsli"
+#include "../common/Shading.hlsli"
+#include "Barycentric.hlsli"
 
 #define RASTER_CLASS_PYRAMID 0
 #define RASTER_CLASS_TERRAIN 1
@@ -8,39 +11,21 @@
 #define RASTER_CLASS_ALPHA 4
 #define RASTER_CLASS_BILBOARD 5
 
-Texture2D<uint2> vis_buffer : register(t0);
-
-Buffer<uint> indices : register(t1);
-StructuredBuffer<InstanceTransform> instances : register(t2);
+StructuredBuffer<InstanceTransform> instances : register(t1);
+StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t2);
 Buffer<float4> vertices_pos : register(t3);
 Buffer<float4> vertices_uvnorm : register(t4);
-StructuredBuffer<SubMesh> submeshes : register(t5);
-StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t6);
+Buffer<uint> indices : register(t5);
+StructuredBuffer<SubMesh> submeshes : register(t6);
 
-StructuredBuffer<Material> materials : register(t7);
-Texture2D<float4> scene_textures[] : register(t8);
+Texture2D<uint2> vis_buffer : register(t7);
+StructuredBuffer<Material> materials : register(t8);
+Texture2D<float4> scene_textures[] : register(t0, space1);
 
 SamplerState material_sampler : register(s0);
 SamplerState environment_sampler : register(s1);
 
 RWTexture2D<float4> frame_buffer : register(u0);
-
-cbuffer ResolveConstants : register(b1)
-{
-    uint g_pixel_width;
-    uint g_pixel_height;
-};
-
-static const float PI = 3.14159265358979323846f;
-
-
-float3 RotateForwardVector(float3 value, float4 quaternion)
-{
-    const float3 twice_cross = 2.0f * cross(quaternion.xyz, value);
-    return value +
-        quaternion.w * twice_cross +
-        cross(quaternion.xyz, twice_cross);
-}
 
 float3 DecodeOctNormal(float2 encoded)
 {
@@ -55,114 +40,7 @@ float3 DecodeOctNormal(float2 encoded)
     return normalize(normal);
 }
 
-float2 ClipToPixel(float4 clip_pos, float2 viewport_size)
-{
-    float2 ndc = clip_pos.xy / clip_pos.w;
-    return float2(
-        (ndc.x * 0.5f + 0.5f) * viewport_size.x,
-        (0.5f - ndc.y * 0.5f) * viewport_size.y);
-}
-
-struct BarycentricGradient
-{
-    float3 value;
-    float3 dx;
-    float3 dy;
-};
-
-BarycentricGradient CalcBaryWithGrad(
-    float2 p, float2 p0, float2 p1, float2 p2)
-{
-    float2 e1 = p1 - p0;
-    float2 e2 = p2 - p0;
-    float2 d = p - p0;
-    
-    float det = e1.x * e2.y - e1.y * e2.x;
-    float det_inv = rcp(det);
-    
-    float lambda1 = (d.x * e2.y - d.y * e2.x) * det_inv;
-    float lambda2 = (d.y * e1.x - d.x * e1.y) * det_inv;
-    float lambda0 = 1.0f - lambda1 - lambda2;
-    
-    float2 grad_lambda1 = float2(e2.y, -e2.x) * det_inv;
-    float2 grad_lambda2 = float2(-e1.y, e1.x) * det_inv;
-    float2 grad_lambda0 = -grad_lambda1 - grad_lambda2;
-    
-    BarycentricGradient result;
-    result.value = float3(lambda0, lambda1, lambda2);
-    result.dx = float3(grad_lambda0.x, grad_lambda1.x, grad_lambda2.x);
-    result.dy = float3(grad_lambda0.y, grad_lambda1.y, grad_lambda2.y);
-
-    return result;
-}
-
-struct PerspectiveBarycentricGradient
-{
-    float3 value;
-    float3 dx;
-    float3 dy;
-};
-
-PerspectiveBarycentricGradient CalcPerspectiveBaryWithGrad(
-    BarycentricGradient bary, float3 inv_w)
-{
-    float D = dot(bary.value, inv_w);
-    float inv_D = rcp(D);
-    
-    float Dx = dot(bary.dx, inv_w);
-    float Dy = dot(bary.dy, inv_w);
-    
-    PerspectiveBarycentricGradient result;
-    result.value = bary.value * inv_w * inv_D;
-    result.dx = (bary.dx * inv_w - result.value * Dx) * inv_D;
-    result.dy = (bary.dy * inv_w - result.value * Dy) * inv_D;
-
-    return result;
-}
-
-float2 InterpolateFloat2(float2 v0, float2 v1, float2 v2, float3 bary)
-{
-    return v0 * bary.x + v1 * bary.y + v2 * bary.z;
-}
-
-float3 InterpolateFloat3(float3 v0, float3 v1, float3 v2, float3 bary)
-{
-    return v0 * bary.x + v1 * bary.y + v2 * bary.z;
-}
-
-
-float NormDistGGX(float nh, float roughness)
-{
-    const float a = roughness * roughness;
-    const float a2 = a * a;
-    
-    const float denominator = nh * nh * (a2 - 1.0f) + 1.0f;
-    return a2 / max(PI * denominator * denominator, 1.0e-6f);
-}
-
-float GeometryGGX(float n_dot_v, float n_dot_l, float roughness)
-{
-    const float k = (roughness + 1.0f) * (roughness + 1.0f) * 0.125f;
-    const float view = n_dot_v / max(n_dot_v * (1.0f - k) + k, 1.0e-4f);
-    const float light = n_dot_l / max(n_dot_l * (1.0f - k) + k, 1.0e-4f);
-    return view * light;
-}
-
-float3 FresnelSchlick(float vh)
-{
-    const float F0 = 0.04f;
-    return F0.xxx + (1.0f - F0).xxx * pow(1.0f - vh, 5.0f);
-}
-
-float2 environment_uv(float3 direction)
-{
-    direction = normalize(direction);
-    return float2(
-        atan2(direction.x, direction.z) / (2.0f * PI) + 0.5f,
-        acos(clamp(direction.y, -1.0f, 1.0f)) / PI);
-}
-
-float3 normal_from_map(
+float3 NormalFromMap(
     float3 world_normal,
     float3 position_dx,
     float3 position_dy,
@@ -199,19 +77,11 @@ float3 normal_from_map(
         normal * tangent_normal.z);
 }
 
-float3 ApplyFog(float3 color, float distance,
-    float3 fog_color, float fog_start, float fog_end)
-{
-    float fog = saturate((distance - fog_start) / (fog_end - fog_start));
-    return lerp(color, fog_color, fog);
-}
-
-
 [numthreads(16, 16, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
 {
     const uint2 pixel = tid.xy;
-    if (pixel.x >= g_pixel_width || pixel.y >= g_pixel_height)
+    if (pixel.x >= cam_pixel_width || pixel.y >= cam_pixel_height)
         return;
     
     const uint2 visibility = vis_buffer.Load(int3(pixel, 0));
@@ -277,7 +147,7 @@ void main(uint3 tid : SV_DispatchThreadID)
     const float3 wnormal1 = normalize(RotateForwardVector(norm1 * inv_scale, instance.rotation));
     const float3 wnormal2 = normalize(RotateForwardVector(norm2 * inv_scale, instance.rotation));
     
-    const float2 viewport = float2(g_pixel_width, g_pixel_height);
+    const float2 viewport = float2(cam_pixel_width, cam_pixel_height);
 
     const float2 pixel0 = ClipToPixel(cp0, viewport);
     const float2 pixel1 = ClipToPixel(cp1, viewport);
@@ -301,19 +171,16 @@ void main(uint3 tid : SV_DispatchThreadID)
     
     const Material material = materials[material_id];
 
-    float3 albedo = material.base_color *
-        scene_textures[
-            NonUniformResourceIndex(material.texture_basecolor)].SampleGrad(
-                material_sampler, texCoord, texCoordDx, texCoordDy).rgb;
+    const float3 albedo = material.base_color * scene_textures[
+        NonUniformResourceIndex(material.texture_basecolor)].SampleGrad(
+            material_sampler, texCoord, texCoordDx, texCoordDy).rgb;
 
-    float roughness = material.roughness *
-        scene_textures[
-            NonUniformResourceIndex(material.texture_roughness)].SampleGrad(
-                material_sampler, texCoord, texCoordDx, texCoordDy).r;
+    const float roughness = clamp(material.roughness * scene_textures[
+        NonUniformResourceIndex(material.texture_roughness)].SampleGrad(
+            material_sampler, texCoord, texCoordDx, texCoordDy).r,
+        0.045f, 1.0f);
     
-    roughness = clamp(roughness, 0.045f, 1.0f);
-    
-    const float3 normal = normal_from_map(
+    const float3 normal = NormalFromMap(
         normal_sample, position_world_dx, position_world_dy,
         texCoord, texCoordDx, texCoordDy, material);
     
@@ -335,25 +202,20 @@ void main(uint3 tid : SV_DispatchThreadID)
         fresnel * NormDistGGX(nh, roughness) * GeometryGGX(nv, nl, roughness)
             / max(4.0f * nv * nl, 1.0e-4f);
     
-    float3 environment = environment_color * environment_intensity *
+    const float3 environment = environment_color * environment_intensity *
         scene_textures[environment_texture].SampleLevel(
-            environment_sampler,
-            environment_uv(normal),
-            0.0f).rgb;
-
+            environment_sampler, EnvironmentUV(normal), 0.0f).rgb;
     
-    float3 pbr_color = (diffuse + specular) * nl + albedo * environment;
+    const float3 pbr_color = (diffuse + specular) * nl + albedo * environment;
     
     
-    float3 fog_color = float3(0.015f, 0.025f, 0.04f);
-    float fog_start = 3000.0f;
-    float fog_end = 3500.0f;
+    const float3 fog_color = float3(0.015f, 0.025f, 0.04f);
+    const float fog_start = 3000.0f;
+    const float fog_end = 3500.0f;
     
-    float4 final_color = float4(
+    const float4 final_color = float4(
         ApplyFog(pbr_color, dist, fog_color, fog_start, fog_end),
         1.0f);
     
     frame_buffer[pixel] = final_color;
 }
-
-// ªÏ∑¡¡‡

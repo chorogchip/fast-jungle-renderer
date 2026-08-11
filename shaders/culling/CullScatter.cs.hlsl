@@ -1,4 +1,4 @@
-#include "common/CullingWork.hlsli"
+#include "CullingWork.hlsli"
 
 RWStructuredBuffer<uint> visible_instances : register(u2);
 RWStructuredBuffer<uint> bin_offsets : register(u4);

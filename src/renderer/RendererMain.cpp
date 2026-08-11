@@ -2,19 +2,13 @@
 
 namespace fjr::render {
 
-    namespace {
-
-        constexpr bool DRAW_TRIANGLE_IDS = false;
-
-    } // namespace
-
     void RendererMain::init(
         void* window,
         uint32_t width, uint32_t height,
         const scene::StaticScene& scene) {
 
         RendererBase::init(window, width, height, false);
-        
+
         // init scene
         environment_light_ = scene.environment_light;
 
@@ -67,27 +61,34 @@ namespace fjr::render {
         gpu_culling_pass_.init(
             device_.Get(),
             data_persistant_.submesh_count);
-        forward_pass_.init(
-            device_.Get(),
-            data_persistant_.texture_descriptors.get_count(),
-            data_persistant_.submesh_count);
-        //triangle_id_pass_.init( device_.Get(), data_persistant_.texture_descriptors.get_count(), data_persistant_.submesh_count);
 
+        visibility_pass_.init(
+            device_.Get(),
+            heap_srv_cbv_uav_,
+            heap_rtv_,
+            data_persistant_.submesh_count,
+            width,
+            height);
+
+        resolve_pass_.init(
+            device_.Get(),
+            heap_srv_cbv_uav_,
+            data_persistant_,
+            data_persistant_.texture_descriptors.get_count(),
+            width,
+            height);
     }
 
     void RendererMain::resize(uint32_t width, uint32_t height) {
 
         RendererBase::resize(width, height);
+        visibility_pass_.resize(device_.Get(), width, height);
+        resolve_pass_.resize( device_.Get(), width, height);
         camera.set_aspect_ratio(
             static_cast<float>(width) / static_cast<float>(height));
-        // forward_pass_.views.desc_dsv = desc_dsv_.get_cpu();
-        // forward_pass_.views.width = width;
-        // forward_pass_.views.height = height;
     }
 
     void RendererMain::render() {
-
-        // start
 
         const std::uint32_t frame =
             swap_chain_.get_current_frame();
@@ -98,59 +99,54 @@ namespace fjr::render {
 
         context.reset();
 
-        // camera
-
         data_per_frame_[frame].camera.data().fill_from_camera(
             camera,
+            swap_chain_.get_width(),
             swap_chain_.get_height(),
             data_persistant_.spatial_cluster_count,
             data_persistant_.mesh_lod_count,
             environment_light_);
 
-        // prepare pass
-
-        swap_chain_.get_current_buffer().transition(
-            context.get(),
-            D3D12_RESOURCE_STATE_RENDER_TARGET);
-
         context.SetDescriptorHeaps(
             heap_sampler_.get(),
             heap_srv_cbv_uav_.get());
-
-        // record
 
         gpu_culling_pass_.record(
             context,
             data_persistant_,
             data_per_frame_[frame]);
 
-        if constexpr (DRAW_TRIANGLE_IDS) {
-            triangle_id_pass_.record(
-                context,
-                data_persistant_,
-                data_per_frame_[frame],
-                data_per_frame_[frame].camera.get_address(),
-                desc_rtv_.get_cpu(frame),
-                desc_dsv_.get_cpu(),
-                swap_chain_.get_width(),
-                swap_chain_.get_height());
-        }
-        else {
-            forward_pass_.record(
-                context,
-                data_persistant_,
-                data_per_frame_[frame],
-                data_per_frame_[frame].camera.get_address(),
-                desc_rtv_.get_cpu(frame),
-                desc_dsv_.get_cpu(),
-                swap_chain_.get_width(),
-                swap_chain_.get_height());
-        }
+        visibility_pass_.record(
+            context,
+            data_persistant_,
+            data_per_frame_[frame],
+            desc_dsv_.get_cpu(),
+            swap_chain_.get_width(),
+            swap_chain_.get_height());
+
+        resolve_pass_.record(
+            context,
+            data_persistant_,
+            data_per_frame_[frame],
+            visibility_pass_.get_srv(),
+            swap_chain_.get_width(),
+            swap_chain_.get_height());
+
+        resolve_pass_.get_frame_buffer().transition(
+            context.get(),
+            D3D12_RESOURCE_STATE_COPY_SOURCE);
 
         swap_chain_.get_current_buffer().transition(
-            context.get(), D3D12_RESOURCE_STATE_PRESENT);
+            context.get(),
+            D3D12_RESOURCE_STATE_COPY_DEST);
 
-        // end
+        context.get()->CopyResource(
+            swap_chain_.get_current_buffer().get(),
+            resolve_pass_.get_frame_buffer().get());
+
+        swap_chain_.get_current_buffer().transition(
+            context.get(),
+            D3D12_RESOURCE_STATE_PRESENT);
 
         context.close();
         command_queue_.execute(context.get());

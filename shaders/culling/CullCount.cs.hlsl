@@ -1,4 +1,4 @@
-#include "common/CullingWork.hlsli"
+#include "CullingWork.hlsli"
 
 RWStructuredBuffer<uint> bin_counts : register(u3);
 
@@ -22,6 +22,7 @@ void main(
             cluster.bounds_center,
             cluster.bounds_radius) ? 1 : 0;
     }
+    
     GroupMemoryBarrierWithGroupSync();
 
     if (cluster_visible == 0 ||

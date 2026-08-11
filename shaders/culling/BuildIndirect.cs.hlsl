@@ -1,6 +1,11 @@
-#include "RenderData.hlsli"
-#include "common/CameraConstants.hlsli"
-#include "common/CullingDispatchConstants.hlsli"
+#include "../common/RenderData.hlsli"
+#include "../common/ConstBufCamera.hlsli"
+
+cbuffer CullingDispatchConstants : register(b1)
+{
+    uint indirect_draw_capacity_per_class;
+    uint raster_class_count;
+};
 
 StructuredBuffer<MeshLod> mesh_lods : register(t3);
 StructuredBuffer<SubMesh> submeshes : register(t4);

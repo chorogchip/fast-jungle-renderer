@@ -18,61 +18,150 @@
 
 namespace fjr::render::data {
 
-
     BuilderGeometry::Result BuilderGeometry::build(
         data::DataPersistent& output,
         dx::ResourceUploader& uploader,
         ID3D12Device* device,
         const scene::StaticScene& scene) {
 
-        // vertices
+        auto submeshes = geom::BuilderGeomSubmesh::build(scene);
 
-        std::vector<DataPersistent::PackedPosition> positions;
-        std::vector<DataPersistent::PackedNormal> normals;
-        std::vector<DataPersistent::PackedUV> uvs;
+        std::vector<DataPersistent::OpaqueVertex0> opaque0;
+        std::vector<DataPersistent::OpaqueVertex1> opaque1;
 
-        positions.reserve(scene.vertices.size());
-        normals.reserve(scene.vertices.size());
-        uvs.reserve(scene.vertices.size());
+        std::vector<DataPersistent::AlphaVertex0> alpha0;
+        std::vector<DataPersistent::AlphaVertex1> alpha1;
 
-        auto vertex_decode_params = geom::BuilderGeomVertex::build(
-            positions, normals, uvs, scene);
+        std::vector<DataPersistent::VertexDecodeParams> vertex_decode_params;
+        vertex_decode_params.resize(scene.submeshes.size());
 
-        output.vertex_pos.init(
+        opaque0.reserve(scene.vertices.size());
+        opaque1.reserve(scene.vertices.size());
+        alpha0.reserve(scene.vertices.size());
+        alpha1.reserve(scene.vertices.size());
+
+        for (uint32_t sm = 0; sm < static_cast<uint32_t>(scene.submeshes.size()); ++sm) {
+
+            const auto& src_sm = scene.submeshes[sm];
+            auto& dst_sm = submeshes[sm];
+            auto& decode = vertex_decode_params[sm];
+
+            const bool alpha = enm::has(src_sm.flags,
+                scene::StaticScene::EnumSubmeshFlag::ALPHA_TESTED);
+
+            math::AABB aabb_pos{};
+            math::AABB aabb_uv{};
+
+            for (uint32_t v = 0; v < src_sm.vertex_count; ++v) {
+                const auto& src = scene.vertices[src_sm.vertex_offset + v];
+                aabb_pos.merge(src.position);
+                aabb_uv.merge(src.uv.x, src.uv.y, 0.0f);
+            }
+
+            const DirectX::XMFLOAT3 pos_min = aabb_pos.min;
+            const DirectX::XMFLOAT3 pos_extent = aabb_pos.get_size();
+            const DirectX::XMFLOAT3 uv_min = aabb_uv.min;
+            const DirectX::XMFLOAT3 uv_extent = aabb_uv.get_size();
+
+            decode.position_min = {
+                pos_min.x, pos_min.y, pos_min.z, 0.0f };
+
+            decode.position_extent = {
+                pos_extent.x, pos_extent.y, pos_extent.z, 0.0f };
+
+            decode.uv_min_extent = {
+                uv_min.x, uv_min.y, uv_extent.x, uv_extent.y };
+
+            if (alpha) {
+
+                dst_sm.base_vertex = static_cast<int32_t>(alpha0.size());
+                for (uint32_t v = 0; v < src_sm.vertex_count; ++v) {
+
+                    const auto& src = scene.vertices[src_sm.vertex_offset + v];
+
+                    const auto position = geom::BuilderGeomVertex::pack_position(
+                        src.position, pos_min, pos_extent);
+
+                    const auto uv = geom::BuilderGeomVertex::pack_uv(
+                        src.uv, uv_min, uv_extent);
+
+                    const auto normal = geom::BuilderGeomVertex::pack_normal(
+                        src.normal);
+
+                    alpha0.push_back({ position, uv });
+                    alpha1.push_back({ normal });
+                }
+
+            } else {
+
+                dst_sm.base_vertex = static_cast<int32_t>(opaque0.size());
+                for (uint32_t v = 0; v < src_sm.vertex_count; ++v) {
+
+                    const auto& src = scene.vertices[src_sm.vertex_offset + v];
+                    const auto position = geom::BuilderGeomVertex::pack_position(
+                        src.position, pos_min, pos_extent);
+
+                    const auto uv = geom::BuilderGeomVertex::pack_uv(
+                        src.uv, uv_min, uv_extent);
+
+                    const auto normal = geom::BuilderGeomVertex::pack_normal(
+                        src.normal);
+
+                    opaque0.push_back({ position });
+                    opaque1.push_back({ normal, uv });
+                }
+            }
+        }
+
+        output.vertex_opaque_visibility.init(
             device,
-            positions.size() * sizeof(positions[0]),
+            opaque0.size() * sizeof(DataPersistent::OpaqueVertex0),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COMMON);
 
         uploader.upload_buffer(
-            output.vertex_pos,
-            std::as_bytes(std::span<const DataPersistent::PackedPosition>{ positions }),
-            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            output.vertex_opaque_visibility,
+            std::as_bytes(std::span<const DataPersistent::OpaqueVertex0>{ opaque0 }),
+            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER |
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-        output.vertex_normal.init(
+        output.vertex_opaque_shading.init(
             device,
-            normals.size() * sizeof(normals[0]),
+            opaque1.size() * sizeof(DataPersistent::OpaqueVertex1),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COMMON);
 
         uploader.upload_buffer(
-            output.vertex_normal,
-            std::as_bytes(std::span<const DataPersistent::PackedNormal>{ normals }),
-            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            output.vertex_opaque_shading,
+            std::as_bytes(std::span<const DataPersistent::OpaqueVertex1>{ opaque1 }),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-        output.vertex_uv.init(
+        output.vertex_alpha_visibility.init(
             device,
-            uvs.size() * sizeof(uvs[0]),
+            alpha0.size() * sizeof(DataPersistent::AlphaVertex0),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COMMON);
 
         uploader.upload_buffer(
-            output.vertex_uv,
-            std::as_bytes(std::span<const DataPersistent::PackedUV>{ uvs }),
-            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            output.vertex_alpha_visibility,
+            std::as_bytes(std::span<const DataPersistent::AlphaVertex0>{ alpha0}),
+            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER |
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        output.vertex_alpha_shading.init(
+            device,
+            alpha1.size() * sizeof(DataPersistent::AlphaVertex1),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.vertex_alpha_shading,
+            std::as_bytes(std::span<const DataPersistent::AlphaVertex1>{alpha1 }),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         output.index.init(
             device,
@@ -84,11 +173,13 @@ namespace fjr::render::data {
         uploader.upload_buffer(
             output.index,
             std::as_bytes(std::span<const uint32_t>{ scene.indices }),
-            D3D12_RESOURCE_STATE_INDEX_BUFFER);
+            D3D12_RESOURCE_STATE_INDEX_BUFFER |
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         output.vertex_decode_params.init(
             device,
-            vertex_decode_params.size() * sizeof(vertex_decode_params[0]),
+            vertex_decode_params.size() *
+            sizeof(DataPersistent::VertexDecodeParams),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COMMON);
@@ -98,7 +189,6 @@ namespace fjr::render::data {
             std::as_bytes(std::span<const DataPersistent::VertexDecodeParams>{ vertex_decode_params }),
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-
         std::vector<DataPersistent::MeshLod> mesh_lods;
         mesh_lods.resize(scene.mesh_lods.size());
 
@@ -107,7 +197,9 @@ namespace fjr::render::data {
             for (uint32_t lod = 0; lod < mesh.lod_count; ++lod) {
 
                 const uint32_t source_id = mesh.lod_offset + lod;
+
                 const auto& source = scene.mesh_lods[source_id];
+
                 auto& destination = mesh_lods[source_id];
 
                 destination.submesh_offset = source.submesh_offset;
@@ -123,8 +215,6 @@ namespace fjr::render::data {
 
         Result result{};
         result.meshes = geom::BuilderGeomMesh::build(scene);
-
-        auto submeshes = geom::BuilderGeomSubmesh::build(scene);
 
         output.submesh.init(
             device,
@@ -150,6 +240,7 @@ namespace fjr::render::data {
             std::as_bytes(std::span<const DataPersistent::MeshLod>{ mesh_lods }),
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+
         output.mesh.init(
             device,
             result.meshes.size() * sizeof(result.meshes[0]),
@@ -165,4 +256,4 @@ namespace fjr::render::data {
         return result;
     }
 
-} // namespace fjr::render
+} // namespace fjr::render::data

@@ -2,6 +2,7 @@
 
 #include "../common/ConstBufCamera.hlsli"
 #include "../common/ConstantDraw.hlsli"
+#include "../common/RenderData.hlsli"
 
 StructuredBuffer<Mesh> meshes : register(t2);
 StructuredBuffer<MeshLod> mesh_lods : register(t3);
@@ -76,8 +77,8 @@ uint SelectConventionalMeshLod(
         ? world_radius / mesh.bounds_radius
         : 1.0f;
 
-    const float safe_distance =
-        max(distance_to_camera, 1.0e-4f);
+    const float projection_over_distance =
+        lod_projection_scale / distance_to_camera;
 
     [loop]
     for (uint i = 0; i + 1 < mesh.lod_count; ++i)
@@ -85,22 +86,15 @@ uint SelectConventionalMeshLod(
         const MeshLod lod =
             mesh_lods[mesh.lod_offset + i];
 
-        const float world_error =
-            lod.next_lod_error * lod_error_scale;
-
         const float screen_error_px =
-            world_error *
-            lod_projection_scale /
-            safe_distance;
+            lod.next_lod_error *
+            lod_error_scale *
+            projection_over_distance;
 
-        if (screen_error_px <= lod_error_threshold_px)
-        {
-            selected_lod = i + 1;
-        }
-        else
-        {
+        if (screen_error_px > lod_error_threshold_px)
             break;
-        }
+
+        selected_lod = i + 1;
     }
 
     return selected_lod;

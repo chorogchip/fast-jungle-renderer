@@ -44,7 +44,7 @@ namespace fjr::render {
         heap_rtv_.init(
             device_.Get(),
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-            FRAME_COUNT,
+            FRAME_COUNT + 1,
             false);
 
         desc_rtv_ = heap_rtv_.alloc(FRAME_COUNT);

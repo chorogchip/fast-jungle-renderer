@@ -10,7 +10,7 @@
 
 namespace fjr::render {
 
-    class GpuCullingPass final {
+    class PassGPUCull final {
     public:
         void init(
             ID3D12Device* device,

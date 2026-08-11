@@ -14,7 +14,8 @@ cbuffer CameraConstants : register(b0)
 	
     uint spatial_cluster_count;
     uint mesh_lod_count;
-    float2 padding_funny;
+    uint cam_pixel_width;
+    uint cam_pixel_height;
 
     float3 environment_color;
     float environment_intensity;

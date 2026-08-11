@@ -1,4 +1,4 @@
-#include "FastJungle/renderer/pass/GpuCullingPass.hpp"
+#include "FastJungle/renderer/pass/PassGPUCull.hpp"
 
 #include <algorithm>
 #include <array>
@@ -64,7 +64,7 @@ namespace fjr::render {
 
     } // namespace
 
-    void GpuCullingPass::init(
+    void PassGPUCull::init(
         ID3D12Device* device,
         std::uint32_t indirect_draw_capacity_per_class) {
 
@@ -111,22 +111,22 @@ namespace fjr::render {
 
         clear_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
-            shader_directory / "Clear.cs.dxil");
+            shader_directory / "culling" / "Clear.cs.dxil");
         count_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
-            shader_directory / "CullCount.cs.dxil");
+            shader_directory / "culling" / "CullCount.cs.dxil");
         scan_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
-            shader_directory / "BinScan.cs.dxil");
+            shader_directory / "culling" / "BinScan.cs.dxil");
         scatter_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
-            shader_directory / "CullScatter.cs.dxil");
+            shader_directory / "culling" / "CullScatter.cs.dxil");
         build_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
-            shader_directory / "BuildIndirect.cs.dxil");
+            shader_directory / "culling" / "BuildIndirect.cs.dxil");
     }
 
-    void GpuCullingPass::record(
+    void PassGPUCull::record(
         dx::CommandContext& context,
         const data::DataPersistent& persistent,
         data::DataPerFrame& frame) const {

@@ -84,22 +84,3 @@ struct VertexDecodeParams
 };
 
 static const uint INVALID_INDEX = 0xffffffffu;
-
-
-/*
-StructuredBuffer<SpatialCluster> spatial_clusters : register(t0);
-StructuredBuffer<InstanceTransform> instances     : register(t1);
-StructuredBuffer<Mesh> meshes                     : register(t2);
-StructuredBuffer<MeshLod> mesh_lods               : register(t3);
-StructuredBuffer<SubMesh> submeshes               : register(t4);
-StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t5);
-
-RWStructuredBuffer<IndirectGPUDraw> indirect_draws : register(u0);
-RWStructuredBuffer<uint> indirect_draw_counts      : register(u1);
-RWStructuredBuffer<uint> visible_instances         : register(u2);
-
-RWStructuredBuffer<uint> bin_counts  : register(u3);
-RWStructuredBuffer<uint> bin_offsets : register(u4);
-RWStructuredBuffer<uint> bin_cursors : register(u5);
-
-*/
