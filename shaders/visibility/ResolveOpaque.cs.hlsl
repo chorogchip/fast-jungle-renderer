@@ -159,6 +159,7 @@ void main(uint3 tid : SV_DispatchThreadID)
     const bool back_face = (visibility.y & 0x80000000u) != 0u;
     
     const SubMesh submesh = submeshes[submesh_id];
+    const Material material = materials[material_id];
     
     const uint index_ofs = submesh.index_offset + triangle_id * 3;
     const uint index0 = indices[index_ofs];
@@ -220,29 +221,83 @@ void main(uint3 tid : SV_DispatchThreadID)
 
     const InstanceTransform instance = instances[instance_id];
     const VertexDecodeParams decode = vertex_decode_params[submesh_id];
-    
-    const float3 op0 = decode.position_min.xyz + p0 * decode.position_extent.xyz;
-    const float3 op1 = decode.position_min.xyz + p1 * decode.position_extent.xyz;
-    const float3 op2 = decode.position_min.xyz + p2 * decode.position_extent.xyz;
-    
-    const float3 wp0 = instance.position + RotateForwardVector(op0 * instance.scale, instance.rotation);
-    const float3 wp1 = instance.position + RotateForwardVector(op1 * instance.scale, instance.rotation);
-    const float3 wp2 = instance.position + RotateForwardVector(op2 * instance.scale, instance.rotation);
-    
-    const float4 cp0 = mul(float4(wp0, 1.0f), cam_view_projection);
-    const float4 cp1 = mul(float4(wp1, 1.0f), cam_view_projection);
-    const float4 cp2 = mul(float4(wp2, 1.0f), cam_view_projection);
-    
+
     const float2 uv0 = decode.uv_min_extent.xy +
         DecodeUVR16G16(packed_uv0) * decode.uv_min_extent.zw;
     const float2 uv1 = decode.uv_min_extent.xy +
         DecodeUVR16G16(packed_uv1) * decode.uv_min_extent.zw;
     const float2 uv2 = decode.uv_min_extent.xy +
         DecodeUVR16G16(packed_uv2) * decode.uv_min_extent.zw;
-    
-    const float3 norm0 = DecodeNormalR10G10B10(packed_normal0);
-    const float3 norm1 = DecodeNormalR10G10B10(packed_normal1);
-    const float3 norm2 = DecodeNormalR10G10B10(packed_normal2);
+
+    float3 op0 = decode.position_min.xyz + p0 * decode.position_extent.xyz;
+    float3 op1 = decode.position_min.xyz + p1 * decode.position_extent.xyz;
+    float3 op2 = decode.position_min.xyz + p2 * decode.position_extent.xyz;
+
+    float3 norm0 = DecodeNormalR10G10B10(packed_normal0);
+    float3 norm1 = DecodeNormalR10G10B10(packed_normal1);
+    float3 norm2 = DecodeNormalR10G10B10(packed_normal2);
+
+    if ((material.flags & MATERIAL_FLAG_IMPOSTOR) != 0u)
+    {
+        const float3 local_center_scaled =
+            material.impostor_center * instance.scale;
+        const float3 world_center = instance.position + RotateForwardVector(
+            local_center_scaled,
+            instance.rotation);
+
+        float3 local_to_camera = RotateInverseVector(
+            cam_world_position - world_center,
+            instance.rotation);
+        local_to_camera.y = 0.0f;
+        local_to_camera = normalize(local_to_camera);
+
+        const float3 local_forward = -local_to_camera;
+        const float3 local_right = normalize(cross(
+            float3(0.0f, 1.0f, 0.0f),
+            local_forward));
+        const float2 plane0 = float2(
+            uv0.x * 2.0f - 1.0f,
+            1.0f - uv0.y * 2.0f);
+        const float2 plane1 = float2(
+            uv1.x * 2.0f - 1.0f,
+            1.0f - uv1.y * 2.0f);
+        const float2 plane2 = float2(
+            uv2.x * 2.0f - 1.0f,
+            1.0f - uv2.y * 2.0f);
+
+        op0 = material.impostor_center +
+            local_right * (plane0.x * material.impostor_half_width) +
+            float3(
+                0.0f,
+                plane0.y * material.impostor_half_height,
+                0.0f);
+        op1 = material.impostor_center +
+            local_right * (plane1.x * material.impostor_half_width) +
+            float3(
+                0.0f,
+                plane1.y * material.impostor_half_height,
+                0.0f);
+        op2 = material.impostor_center +
+            local_right * (plane2.x * material.impostor_half_width) +
+            float3(
+                0.0f,
+                plane2.y * material.impostor_half_height,
+                0.0f);
+        norm0 = local_to_camera;
+        norm1 = local_to_camera;
+        norm2 = local_to_camera;
+    }
+
+    const float3 wp0 = instance.position + RotateForwardVector(
+        op0 * instance.scale, instance.rotation);
+    const float3 wp1 = instance.position + RotateForwardVector(
+        op1 * instance.scale, instance.rotation);
+    const float3 wp2 = instance.position + RotateForwardVector(
+        op2 * instance.scale, instance.rotation);
+
+    const float4 cp0 = mul(float4(wp0, 1.0f), cam_view_projection);
+    const float4 cp1 = mul(float4(wp1, 1.0f), cam_view_projection);
+    const float4 cp2 = mul(float4(wp2, 1.0f), cam_view_projection);
     
     const float3 inv_scale = sign(instance.scale) / max(abs(instance.scale), 1.0e-8f);
     
@@ -276,8 +331,6 @@ void main(uint3 tid : SV_DispatchThreadID)
         raster_class == RASTER_CLASS_RIVER) && back_face)
         normal_sample = -normal_sample;
     
-    const Material material = materials[material_id];
-
     const uint material_mode = material.flags & MATERIAL_MODE_MASK;
     const bool clamp_material = raster_class == RASTER_CLASS_TERRAIN;
     const bool is_water = material_mode == MATERIAL_MODE_WATER;

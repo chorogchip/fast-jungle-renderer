@@ -67,7 +67,7 @@ namespace fjr::render {
         root_builder.set_root_srv(RootParameter::VERTEX_DECODE_PARAMS)
             .reg(2).vis_vertex().add();
         root_builder.set_root_srv(RootParameter::MATERIALS)
-            .reg(3).vis_pixel().add();
+            .reg(3).vis_all().add();
         root_builder.set_resource_table(RootParameter::TEXTURES)
             .srv().reg(0).space(1)
             .count(texture_descriptor_count)

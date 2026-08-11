@@ -11,6 +11,7 @@ cbuffer BakeMaterial : register(b1)
     uint roughness_texture;
     uint roughness_channel;
     uint normal_texture;
+    uint render_back_faces;
 };
 
 Texture2D<float4> source_textures[] : register(t0);
@@ -79,8 +80,13 @@ float3 surface_view_normal(PixelInput input)
         normal * tangent_z);
 }
 
-PixelOutput main(PixelInput input)
+PixelOutput main(PixelInput input, bool front_face : SV_IsFrontFace)
 {
+    if (!front_face && render_back_faces == 0u)
+    {
+        discard;
+    }
+
     float4 albedo_alpha = base_color_opacity;
     if (base_color_texture != INVALID_INDEX)
     {
@@ -106,7 +112,14 @@ PixelOutput main(PixelInput input)
 
     PixelOutput output;
     output.albedo_alpha = albedo_alpha;
-    const float3 view_normal = surface_view_normal(input);
+    float3 view_normal = surface_view_normal(input);
+    if (!front_face)
+    {
+        // Runtime alpha rendering keeps both sides and flips the complete
+        // mapped normal on a back face. Bake the same shading normal so the
+        // impostor does not retain normals pointing away from its viewer.
+        view_normal = -view_normal;
+    }
     const float3 card_normal = float3(
         view_normal.x,
         -view_normal.y,

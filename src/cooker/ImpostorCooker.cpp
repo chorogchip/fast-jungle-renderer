@@ -221,8 +221,9 @@ namespace fjr::cooker {
             std::uint32_t roughness_texture = StaticScene::INVALID_INDEX;
             std::uint32_t roughness_channel = 0;
             std::uint32_t normal_texture = StaticScene::INVALID_INDEX;
+            std::uint32_t render_back_faces = 0;
         };
-        static_assert(sizeof(BakeMaterialConstants) == 48);
+        static_assert(sizeof(BakeMaterialConstants) == 52);
 
         struct TextureSource final {
             dx::Texture texture;
@@ -366,7 +367,8 @@ namespace fjr::cooker {
 
         [[nodiscard]] BakeMaterialConstants material_constants(
             const StaticScene& scene,
-            const StaticScene::Material& material) {
+            const StaticScene::Material& material,
+            StaticScene::EnumSubmeshFlag submesh_flags) {
             const auto binding = [&scene](std::uint32_t binding_index)
                 -> const StaticScene::TextureBinding* {
                 if (binding_index == StaticScene::INVALID_INDEX) {
@@ -383,6 +385,10 @@ namespace fjr::cooker {
                 material.base_color.w * material.opacity,
             };
             result.roughness_value = material.roughness;
+            result.render_back_faces =
+                (static_cast<std::uint32_t>(submesh_flags) &
+                    static_cast<std::uint32_t>(
+                        StaticScene::EnumSubmeshFlag::ALPHA_TESTED)) != 0u;
 
             if (const auto* base = binding(material.texture_binding_base_color)) {
                 result.base_color_texture = base->texture;
@@ -1282,7 +1288,9 @@ namespace fjr::cooker {
                         const auto& submesh = scene.submeshes[
                             lod.submesh_offset + local_submesh];
                         const auto constants = material_constants(
-                            scene, scene.materials[submesh.material]);
+                            scene,
+                            scene.materials[submesh.material],
+                            submesh.flags);
                         context->SetGraphicsRoot32BitConstants(
                             static_cast<UINT>(RootParameter::MATERIAL),
                             sizeof(constants) / sizeof(std::uint32_t),

@@ -7,3 +7,10 @@ float3 RotateForwardVector(float3 value, float4 quaternion)
         quaternion.w * twice_cross +
         cross(quaternion.xyz, twice_cross);
 }
+
+float3 RotateInverseVector(float3 value, float4 quaternion)
+{
+    return RotateForwardVector(
+        value,
+        float4(-quaternion.xyz, quaternion.w));
+}
