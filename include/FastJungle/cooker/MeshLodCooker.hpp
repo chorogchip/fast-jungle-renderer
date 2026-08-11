@@ -29,7 +29,7 @@ namespace fjr::cooker {
 
         // LODs at or after this level receive a dedicated dense vertex block.
         // Set to LOD_COUNT to retain the legacy shared-LOD0 vertex layout.
-        std::uint32_t compact_lod_first = 5;
+        std::uint32_t compact_lod_first = 3;  // 3 is optimal
     };
 
     struct MeshLodCookStats final {
