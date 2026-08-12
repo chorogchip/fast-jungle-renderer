@@ -1,0 +1,13 @@
+metric,value
+draw_count,507.0
+range_start_min,12152.0
+range_end_max,54657097.0
+range_width_median,6.0
+range_width_mean,12049.68047337278
+midpoint_jump_median,4.0
+midpoint_jump_mean,879294.2974308301
+midpoint_jump_max,45755536.0
+mean_overlap_ratio_prev,0.14517327520935003
+median_overlap_ratio_prev,0.2
+exact_no_overlap_count,175.0
+high_overlap_count_ge_0_8,0.0
