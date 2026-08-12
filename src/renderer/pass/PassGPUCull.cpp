@@ -58,19 +58,44 @@ namespace fjr::render {
     void PassGPUCull::init(
         ID3D12Device* device,
         dx::DescriptorHeap& heap_uav,
+        uint32_t mesh_lod_count,
         uint32_t instance_count,
         std::uint32_t indirect_draw_capacity_per_class) {
 
         indirect_draw_capacity_per_class_ =
             std::max(indirect_draw_capacity_per_class, 1u);
 
+        const UINT64 bin_byte_size =
+            static_cast<UINT64>(std::max(mesh_lod_count, 1u)) *
+            sizeof(std::uint32_t);
+
+        bin_counts_.init(
+            device,
+            bin_byte_size,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        bin_offsets_.init(
+            device,
+            bin_byte_size,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        bin_cursors_.init(
+            device,
+            bin_byte_size,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         cull_results_.init(
             device,
             instance_count * sizeof(uint16_t),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COMMON);
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         cull_result_uav_ = heap_uav.alloc();
         cull_results_.create_typed_uav(
@@ -147,14 +172,6 @@ namespace fjr::render {
             command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         frame.visible_instance.transition(
             command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        frame.bin_counts.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        frame.bin_offsets.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        frame.bin_cursors.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        cull_results_.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         command_list->SetComputeRootSignature(root_signature_.Get());
 
@@ -198,13 +215,13 @@ namespace fjr::render {
             frame.visible_instance->GetGPUVirtualAddress());
         command_list->SetComputeRootUnorderedAccessView(
             static_cast<UINT>(RootParameter::BIN_COUNTS),
-            frame.bin_counts->GetGPUVirtualAddress());
+            bin_counts_->GetGPUVirtualAddress());
         command_list->SetComputeRootUnorderedAccessView(
             static_cast<UINT>(RootParameter::BIN_OFFSETS),
-            frame.bin_offsets->GetGPUVirtualAddress());
+            bin_offsets_->GetGPUVirtualAddress());
         command_list->SetComputeRootUnorderedAccessView(
             static_cast<UINT>(RootParameter::BIN_CURSORS),
-            frame.bin_cursors->GetGPUVirtualAddress());
+            bin_cursors_->GetGPUVirtualAddress());
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::CULL_RESULTS),
             cull_result_uav_.get_gpu());
@@ -213,16 +230,16 @@ namespace fjr::render {
         command_list->Dispatch(dispatch_groups(std::max(
             persistent.mesh_lod_count,
             data::Consts::RASTER_CLASS_CNT)), 1, 1);
-        frame.bin_counts.uav_barrier(command_list);
+        bin_counts_.uav_barrier(command_list);
 
         command_list->SetPipelineState(count_pipeline_.Get());
         command_list->Dispatch(std::max(persistent.spatial_cluster_count, 1u), 1, 1);
-        frame.bin_counts.uav_barrier(command_list);
+        bin_counts_.uav_barrier(command_list);
 
         command_list->SetPipelineState(scan_pipeline_.Get());
         command_list->Dispatch(1, 1, 1);
-        frame.bin_offsets.uav_barrier(command_list);
-        frame.bin_cursors.uav_barrier(command_list);
+        bin_offsets_.uav_barrier(command_list);
+        bin_cursors_.uav_barrier(command_list);
         cull_results_.uav_barrier(command_list);
 
         command_list->SetPipelineState(scatter_pipeline_.Get());
@@ -239,6 +256,10 @@ namespace fjr::render {
             command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         frame.visible_instance.transition(
             command_list, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        bin_counts_.uav_barrier(command_list);
+        bin_offsets_.uav_barrier(command_list);
+        bin_cursors_.uav_barrier(command_list);
+        cull_results_.uav_barrier(command_list);
     }
 
 } // namespace fjr::render

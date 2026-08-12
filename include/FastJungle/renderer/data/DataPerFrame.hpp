@@ -87,14 +87,9 @@ namespace fjr::render::data {
         dx::Buffer indirect_gpu_draw_counts{};
         dx::Buffer visible_instance{};  // first uint32_t, instance transform id. later uint16_t.
 
-        dx::Buffer bin_counts{};  // uint32_t. per meshlod
-        dx::Buffer bin_offsets{};  // uint32_t, exclusive prefix sum of bin_counts
-        dx::Buffer bin_cursors{};  // uint32_t, result of scatter
-
         static DataPerFrame build(
             ID3D12Device* device,
             uint32_t instance_count,
-            uint32_t mesh_lod_count,
             uint32_t indirect_draw_capacity_per_class);
     };
 

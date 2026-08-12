@@ -52,7 +52,6 @@ namespace fjr::render {
             frame = data::DataPerFrame::build(
                 device_.Get(),
                 data_persistant_.instance_count,
-                data_persistant_.mesh_lod_count,
                 data_persistant_.submesh_count);
         }
 
@@ -61,6 +60,7 @@ namespace fjr::render {
         gpu_culling_pass_.init(
             device_.Get(),
             heap_srv_cbv_uav_,
+            data_persistant_.mesh_lod_count,
             data_persistant_.instance_count,
             data_persistant_.submesh_count);
 

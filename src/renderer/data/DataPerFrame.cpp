@@ -88,7 +88,6 @@ namespace fjr::render::data {
     DataPerFrame DataPerFrame::build(
         ID3D12Device* device,
         uint32_t instance_count,
-        uint32_t mesh_lod_count,
         uint32_t indirect_draw_capacity_per_class) {
 
         DataPerFrame ret{};
@@ -119,32 +118,6 @@ namespace fjr::render::data {
             device,
             static_cast<UINT64>(std::max(instance_count, 1u)) *
                 sizeof(std::uint32_t),
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COMMON);
-
-
-        const UINT64 bin_byte_size =
-            static_cast<UINT64>(std::max(mesh_lod_count, 1u)) *
-            sizeof(std::uint32_t);
-
-        ret.bin_counts.init(
-            device,
-            bin_byte_size,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COMMON);
-
-        ret.bin_offsets.init(
-            device,
-            bin_byte_size,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COMMON);
-
-        ret.bin_cursors.init(
-            device,
-            bin_byte_size,
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
