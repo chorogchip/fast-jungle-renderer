@@ -21,6 +21,9 @@ namespace fjr::dx {
             ID3D12GraphicsCommandList* command_list,
             D3D12_RESOURCE_STATES state);
 
+        void uav_barrier(
+            ID3D12GraphicsCommandList* command_list) const;
+
         [[nodiscard]]
         ID3D12Resource* get() const noexcept {
             return resource_.Get();

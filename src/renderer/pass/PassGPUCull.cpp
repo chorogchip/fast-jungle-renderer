@@ -48,19 +48,9 @@ namespace fjr::render {
             return dx::PSOUtils::create_compute(device, description);
         }
 
-        void global_uav_barrier(ID3D12GraphicsCommandList* command_list) {
-            D3D12_RESOURCE_BARRIER barrier{};
-            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier.UAV.pResource = nullptr;
-            command_list->ResourceBarrier(1, &barrier);
-        }
-
         [[nodiscard]]
-        UINT dispatch_groups(std::uint32_t item_count) noexcept {
-            return std::max(
-                1u,
-                (item_count + THREAD_COUNT - 1) / THREAD_COUNT);
+        UINT dispatch_groups(uint32_t item_count) noexcept {
+            return (std::max)(1u, (item_count + THREAD_COUNT - 1) / THREAD_COUNT);
         }
 
     } // namespace
@@ -220,46 +210,35 @@ namespace fjr::render {
             cull_result_uav_.get_gpu());
 
         command_list->SetPipelineState(clear_pipeline_.Get());
-        command_list->Dispatch(
-            dispatch_groups(std::max(
-                persistent.mesh_lod_count,
-                data::Consts::RASTER_CLASS_CNT)),
-            1,
-            1);
-        global_uav_barrier(command_list);
+        command_list->Dispatch(dispatch_groups(std::max(
+            persistent.mesh_lod_count,
+            data::Consts::RASTER_CLASS_CNT)), 1, 1);
+        frame.bin_counts.uav_barrier(command_list);
 
         command_list->SetPipelineState(count_pipeline_.Get());
-        command_list->Dispatch(
-            std::max(persistent.spatial_cluster_count, 1u),
-            1,
-            1);
-        global_uav_barrier(command_list);
+        command_list->Dispatch(std::max(persistent.spatial_cluster_count, 1u), 1, 1);
+        frame.bin_counts.uav_barrier(command_list);
 
         command_list->SetPipelineState(scan_pipeline_.Get());
         command_list->Dispatch(1, 1, 1);
-        global_uav_barrier(command_list);
+        frame.bin_offsets.uav_barrier(command_list);
+        frame.bin_cursors.uav_barrier(command_list);
+        cull_results_.uav_barrier(command_list);
 
         command_list->SetPipelineState(scatter_pipeline_.Get());
-        command_list->Dispatch(
-            std::max(persistent.spatial_cluster_count, 1u),
-            1,
-            1);
-        global_uav_barrier(command_list);
+        command_list->Dispatch(std::max(persistent.spatial_cluster_count, 1u), 1, 1);
+        frame.indirect_gpu_draw_counts.uav_barrier(command_list);
 
         command_list->SetPipelineState(build_pipeline_.Get());
-        command_list->Dispatch(
-            dispatch_groups(persistent.mesh_lod_count),
-            1,
-            1);
-        global_uav_barrier(command_list);
+        command_list->Dispatch(dispatch_groups(persistent.mesh_lod_count), 1, 1);
+        cull_results_.uav_barrier(command_list);
 
         frame.indirect_gpu_draw.transition(
             command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         frame.indirect_gpu_draw_counts.transition(
             command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         frame.visible_instance.transition(
-            command_list,
-            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            command_list, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     }
 
 } // namespace fjr::render

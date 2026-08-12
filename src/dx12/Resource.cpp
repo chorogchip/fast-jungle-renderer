@@ -27,4 +27,12 @@ namespace fjr::dx {
         state_ = state;
     }
 
+    void Resource::uav_barrier(ID3D12GraphicsCommandList* command_list) const {
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.UAV.pResource = resource_.Get();
+        command_list->ResourceBarrier(1, &barrier);
+    }
+
 } // namespace fjr::dx
