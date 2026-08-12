@@ -60,6 +60,8 @@ namespace fjr::render {
 
         gpu_culling_pass_.init(
             device_.Get(),
+            heap_srv_cbv_uav_,
+            data_persistant_.instance_count,
             data_persistant_.submesh_count);
 
         visibility_pass_.init(

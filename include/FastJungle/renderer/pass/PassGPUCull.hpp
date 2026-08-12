@@ -4,7 +4,9 @@
 #include <d3d12.h>
 #include <wrl.h>
 
+#include "FastJungle/dx12/Buffer.hpp"
 #include "FastJungle/dx12/CommandContext.hpp"
+#include "FastJungle/dx12/DescriptorHeap.hpp"
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
 #include "FastJungle/renderer/data/DataPersistent.hpp"
 
@@ -14,12 +16,14 @@ namespace fjr::render {
     public:
         void init(
             ID3D12Device* device,
+            dx::DescriptorHeap& heap_uav,
+            uint32_t instance_count,
             std::uint32_t indirect_draw_capacity_per_class);
 
         void record(
             dx::CommandContext& context,
             const data::DataPersistent& persistent,
-            data::DataPerFrame& frame) const;
+            data::DataPerFrame& frame);
 
     private:
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
@@ -28,7 +32,9 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12PipelineState> scan_pipeline_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> scatter_pipeline_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> build_pipeline_;
-        std::uint32_t indirect_draw_capacity_per_class_ = 0;
+        uint32_t indirect_draw_capacity_per_class_ = 0;
+        dx::Buffer cull_results_{};  // uint16_t, per instance cullcount result cache
+        dx::DescAlloc cull_result_uav_{};
     };
 
 } // namespace fjr::render

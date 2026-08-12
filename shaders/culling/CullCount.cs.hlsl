@@ -1,6 +1,7 @@
 #include "CullingWork.hlsli"
 
 RWStructuredBuffer<uint> bin_counts : register(u3);
+RWBuffer<uint> cull_results : register(u6);
 
 groupshared uint cluster_visible;
 
@@ -12,7 +13,7 @@ void main(
     const uint cluster_id = group_id.x;
     if (cluster_id >= spatial_cluster_count)
         return;
-
+    
     const SpatialCluster cluster = spatial_clusters[cluster_id];
 
     if (group_thread_id.x == 0)
@@ -24,19 +25,24 @@ void main(
     }
     
     GroupMemoryBarrierWithGroupSync();
-
-    if (cluster_visible == 0 ||
-        group_thread_id.x >= cluster.instance_count)
-    {
+    
+    if (group_thread_id.x >= cluster.instance_count)
         return;
-    }
-
-    const uint instance_id =
-        cluster.instance_offset + group_thread_id.x;
-
-    uint mesh_lod_id;
-    if (ResolveVisibleMeshLod(cluster, instance_id, mesh_lod_id))
+    
+    const uint instance_id = cluster.instance_offset + group_thread_id.x;
+    uint mesh_lod_id = CULL_RESULT_CULLED;
+    
+    if (cluster_visible)
     {
-        InterlockedAdd(bin_counts[mesh_lod_id], 1);
+        if (ResolveVisibleMeshLod(cluster, instance_id, mesh_lod_id))
+        {
+            InterlockedAdd(bin_counts[mesh_lod_id], 1);
+        }
+        else
+        {
+            mesh_lod_id = CULL_RESULT_CULLED;
+        }
     }
+    
+    cull_results[instance_id] = mesh_lod_id;
 }

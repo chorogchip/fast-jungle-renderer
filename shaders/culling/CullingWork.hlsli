@@ -4,6 +4,7 @@
 
 StructuredBuffer<SpatialCluster> spatial_clusters : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
+static const uint CULL_RESULT_CULLED = 0xffffu;
 
 bool ResolveVisibleMeshLod(
     SpatialCluster cluster,

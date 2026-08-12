@@ -29,6 +29,7 @@ namespace fjr::render {
             BIN_COUNTS,
             BIN_OFFSETS,
             BIN_CURSORS,
+            CULL_RESULTS,
             COUNT,
         };
 
@@ -66,10 +67,24 @@ namespace fjr::render {
 
     void PassGPUCull::init(
         ID3D12Device* device,
+        dx::DescriptorHeap& heap_uav,
+        uint32_t instance_count,
         std::uint32_t indirect_draw_capacity_per_class) {
 
         indirect_draw_capacity_per_class_ =
             std::max(indirect_draw_capacity_per_class, 1u);
+
+
+        cull_results_.init(
+            device,
+            instance_count * sizeof(uint16_t),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        cull_result_uav_ = heap_uav.alloc();
+        cull_results_.create_typed_uav(
+            device, cull_result_uav_.get_cpu(), DXGI_FORMAT_R16_UINT, 0, instance_count);
 
         dx::RootSignatureBuilder root_builder;
         root_builder.init(RootParameter::COUNT);
@@ -103,11 +118,14 @@ namespace fjr::render {
             .reg(4).vis_all().add();
         root_builder.set_root_uav(RootParameter::BIN_CURSORS)
             .reg(5).vis_all().add();
+        root_builder.set_resource_table(RootParameter::CULL_RESULTS)
+            .uav().reg(6).count(1).add_range()
+            .vis_all().add();
 
         root_signature_ = root_builder.build(device);
 
         const std::filesystem::path shader_directory{
-            FASTJUNGLE_SHADER_OUTPUT_DIR};
+            FASTJUNGLE_SHADER_OUTPUT_DIR };
 
         clear_pipeline_ = create_pipeline(
             device, root_signature_.Get(),
@@ -129,7 +147,7 @@ namespace fjr::render {
     void PassGPUCull::record(
         dx::CommandContext& context,
         const data::DataPersistent& persistent,
-        data::DataPerFrame& frame) const {
+        data::DataPerFrame& frame) {
 
         auto* command_list = context.get();
 
@@ -144,6 +162,8 @@ namespace fjr::render {
         frame.bin_offsets.transition(
             command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         frame.bin_cursors.transition(
+            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        cull_results_.transition(
             command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         command_list->SetComputeRootSignature(root_signature_.Get());
@@ -195,6 +215,9 @@ namespace fjr::render {
         command_list->SetComputeRootUnorderedAccessView(
             static_cast<UINT>(RootParameter::BIN_CURSORS),
             frame.bin_cursors->GetGPUVirtualAddress());
+        command_list->SetComputeRootDescriptorTable(
+            static_cast<UINT>(RootParameter::CULL_RESULTS),
+            cull_result_uav_.get_gpu());
 
         command_list->SetPipelineState(clear_pipeline_.Get());
         command_list->Dispatch(
