@@ -1,5 +1,7 @@
 #include "FastJungle/renderer/data/geometry/BuilderGeomSubmesh.hpp"
 
+#include <cassert>
+
 #include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 
@@ -27,7 +29,10 @@ namespace fjr::render::data::geom {
     }
 
 	std::vector<DataPersistent::SubMesh> BuilderGeomSubmesh::build(
-		const scene::StaticScene& scene) {
+		const scene::StaticScene& scene,
+        std::span<const std::int32_t> base_vertices) {
+
+        assert(base_vertices.size() == scene.submeshes.size());
 
 		std::vector<DataPersistent::SubMesh> submeshes{};
         submeshes.resize(scene.submeshes.size());
@@ -39,8 +44,6 @@ namespace fjr::render::data::geom {
 
             const bool alpha_tested = enm::has(source.flags,
                 scene::StaticScene::EnumSubmeshFlag::ALPHA_TESTED);
-            const bool double_sided = enm::has(source.flags,
-                scene::StaticScene::EnumSubmeshFlag::DOUBLE_SIDED);
 
             destination.raster_class = alpha_tested
                 ? data::EnumRasterClass::ALPHA_TESTED
@@ -48,7 +51,7 @@ namespace fjr::render::data::geom {
             destination.material_id = source.material;
             destination.index_offset = source.index_offset;
             destination.index_count = source.index_count;
-            destination.base_vertex = static_cast<int32_t>(source.vertex_offset);
+            destination.base_vertex = base_vertices[index];
         }
 
         set_static_mesh_raster_class(

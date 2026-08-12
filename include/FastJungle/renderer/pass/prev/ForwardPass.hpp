@@ -16,7 +16,7 @@ namespace fjr::render {
         void init(
             ID3D12Device* device,
             UINT texture_descriptor_count,
-            std::uint32_t indirect_draw_capacity_per_class);
+            uint32_t indirect_draw_capacity_per_class);
 
         void record(
             dx::CommandContext& context,
@@ -33,7 +33,7 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12CommandSignature> command_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> opaque_pipeline_state_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> alpha_pipeline_state_;
-        std::uint32_t indirect_draw_capacity_per_class_ = 0;
+        uint32_t indirect_draw_capacity_per_class_ = 0;
     };
 
 } // namespace fjr::render

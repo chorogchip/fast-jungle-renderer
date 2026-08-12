@@ -1,17 +1,17 @@
 #pragma once
 
-#include "culling.hlsli"
+#include "CullingCommon.hlsli"
+#include "CullingResult.hlsli"
 
 StructuredBuffer<SpatialCluster> spatial_clusters : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
-static const uint CULL_RESULT_CULLED = 0xffffu;
 
 bool ResolveVisibleMeshLod(
     SpatialCluster cluster,
+    Mesh mesh,
     uint instance_id,
     out uint mesh_lod_id)
 {
-    const Mesh mesh = meshes[cluster.mesh_id];
     const InstanceTransform instance = instances[instance_id];
 
     float3 world_center;
@@ -62,7 +62,7 @@ bool ResolveVisibleMeshLod(
                  instance.rotation.w);
 
             float3 camera_to_object =
-                RotateQuaternion(
+                RotateForwardVector(
                     world_center - cam_world_position,
                     inverse_rotation);
 

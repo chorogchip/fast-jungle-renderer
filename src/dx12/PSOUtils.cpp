@@ -102,7 +102,8 @@ namespace fjr::dx {
     Microsoft::WRL::ComPtr<ID3D12PipelineState>
         PSOUtils::create_graphics(
             ID3D12Device* device,
-            const D3D12_GRAPHICS_PIPELINE_STATE_DESC& description) {
+            const D3D12_GRAPHICS_PIPELINE_STATE_DESC& description,
+            std::source_location loc) {
 
         Microsoft::WRL::ComPtr<ID3D12PipelineState>
             pipeline_state;
@@ -110,7 +111,8 @@ namespace fjr::dx {
         abort_failed(device->CreateGraphicsPipelineState(
             &description,
             IID_PPV_ARGS(
-                pipeline_state.ReleaseAndGetAddressOf())));
+                pipeline_state.ReleaseAndGetAddressOf())),
+            loc);
 
         return pipeline_state;
     }
@@ -118,7 +120,8 @@ namespace fjr::dx {
     Microsoft::WRL::ComPtr<ID3D12PipelineState>
         PSOUtils::create_compute(
             ID3D12Device* device,
-            const D3D12_COMPUTE_PIPELINE_STATE_DESC& description) {
+            const D3D12_COMPUTE_PIPELINE_STATE_DESC& description,
+            std::source_location loc) {
 
         Microsoft::WRL::ComPtr<ID3D12PipelineState>
             pipeline_state;
@@ -126,7 +129,8 @@ namespace fjr::dx {
         abort_failed(device->CreateComputePipelineState(
             &description,
             IID_PPV_ARGS(
-                pipeline_state.ReleaseAndGetAddressOf())));
+                pipeline_state.ReleaseAndGetAddressOf())),
+            loc);
 
         return pipeline_state;
     }

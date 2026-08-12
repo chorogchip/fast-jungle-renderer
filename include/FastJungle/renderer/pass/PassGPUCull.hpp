@@ -18,8 +18,9 @@ namespace fjr::render {
             ID3D12Device* device,
             dx::DescriptorHeap& heap_uav,
             uint32_t mesh_lod_count,
+            uint32_t spatial_cluster_count,
             uint32_t instance_count,
-            std::uint32_t indirect_draw_capacity_per_class);
+            uint32_t indirect_draw_capacity_per_class);
 
         void record(
             dx::CommandContext& context,
@@ -36,7 +37,7 @@ namespace fjr::render {
         uint32_t indirect_draw_capacity_per_class_ = 0;
         dx::Buffer bin_counts_{};  // uint32_t. per meshlod
         dx::Buffer bin_offsets_{};  // uint32_t, exclusive prefix sum of bin_counts
-        dx::Buffer bin_cursors_{};  // uint32_t, result of scatter
+        dx::Buffer cluster_bin_bases_{};  // uint32_t, per cluster/local bin
         dx::Buffer cull_results_{};  // uint16_t, per instance cullcount result cache
         dx::DescAlloc cull_result_uav_{};
     };

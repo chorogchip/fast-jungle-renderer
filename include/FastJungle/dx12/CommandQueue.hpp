@@ -4,6 +4,7 @@
 #include <wrl.h>
 #include <d3d12.h>
 
+#include <source_location>
 #include <span>
 
 namespace fjr::dx {
@@ -21,19 +22,31 @@ namespace fjr::dx {
 
         void init(
             ID3D12Device* device,
-            D3D12_COMMAND_LIST_TYPE type);
+            D3D12_COMMAND_LIST_TYPE type,
+            std::source_location loc =
+                std::source_location::current());
 
         void execute(ID3D12CommandList* command_list);
         void execute(ID3D12CommandList* const* command_lists, UINT count);
 
-        [[nodiscard]] UINT64 signal();
+        [[nodiscard]] UINT64 signal(
+            std::source_location loc =
+                std::source_location::current());
 
-        void wait(UINT64 fence_value);
-        void flush();
+        void wait(
+            UINT64 fence_value,
+            std::source_location loc =
+                std::source_location::current());
+
+        void flush(
+            std::source_location loc =
+                std::source_location::current());
 
         void wait(
             const CommandQueue& other,
-            UINT64 fence_value);
+            UINT64 fence_value,
+            std::source_location loc =
+                std::source_location::current());
 
         [[nodiscard]] ID3D12CommandQueue* get_command_queue() const noexcept {
             return command_queue_.Get();

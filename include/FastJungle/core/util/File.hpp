@@ -11,7 +11,7 @@ namespace fjr::util {
         File() = delete;
 
         [[nodiscard]]
-        static std::uint64_t size(const std::filesystem::path& path);
+        static uint64_t size(const std::filesystem::path& path);
 
         [[nodiscard]]
         static std::ifstream open_read(const std::filesystem::path& path);
@@ -25,7 +25,9 @@ namespace fjr::util {
 
         static void require_size(
             const std::filesystem::path& path,
-            std::uint64_t expected);
+            uint64_t expected);
+
+        static void create_directories(const std::filesystem::path& path);
     };
 
 } // namespace fjr::util

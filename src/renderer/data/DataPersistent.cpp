@@ -9,7 +9,7 @@
 #include "FastJungle/dx12/ResourceUploader.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 #include "FastJungle/renderer/data/geometry/BuilderGeometry.hpp"
-#include "FastJungle/renderer/data/BuilderMaterial.hpp"
+#include "FastJungle/renderer/data/material/BuilderMaterial.hpp"
 #include "FastJungle/renderer/data/BuilderSpatial.hpp"
 
 namespace fjr::render::data {

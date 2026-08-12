@@ -39,8 +39,7 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "FASTJUNGLE_BUILD": "cooker",
-        "FASTJUNGLE_ENABLE_OPENEXR": "ON"
+        "FASTJUNGLE_BUILD": "cooker"
       }
     },
     {
@@ -49,8 +48,7 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "FASTJUNGLE_BUILD": "cooker",
-        "FASTJUNGLE_ENABLE_OPENEXR": "ON"
+        "FASTJUNGLE_BUILD": "cooker"
       }
     }
   ],

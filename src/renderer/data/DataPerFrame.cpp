@@ -1,10 +1,8 @@
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
 
 #include <algorithm>
-#include <cmath>
 
 #include "FastJungle/renderer/Camera.hpp"
-#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render::data {
 
@@ -19,8 +17,7 @@ namespace fjr::render::data {
         uint32_t viewport_width,
         uint32_t viewport_height,
         uint32_t scene_spatial_cluster_count,
-        uint32_t scene_mesh_lod_count,
-        const scene::StaticScene::EnvironmentLight& environment) {
+        uint32_t scene_mesh_lod_count) {
 
         view_projection = camera.get_view_projection_mat();
         world_position = camera.get_position();
@@ -66,11 +63,6 @@ namespace fjr::render::data {
                 &normalized_frustum_planes[i], planes[i]);
         }
 
-        environment_color = environment.color;
-        environment_intensity =
-            environment.intensity * std::exp2(environment.exposure);
-        environment_texture = environment.texture;
-
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
             camera.get_projection_mat()._22;
@@ -109,7 +101,7 @@ namespace fjr::render::data {
 
         ret.indirect_gpu_draw_counts.init(
             device,
-            data::Consts::RASTER_CLASS_CNT * sizeof(std::uint32_t),
+            data::Consts::RASTER_CLASS_CNT * sizeof(uint32_t),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
@@ -117,7 +109,7 @@ namespace fjr::render::data {
         ret.visible_instance.init(
             device,
             static_cast<UINT64>(std::max(instance_count, 1u)) *
-                sizeof(std::uint32_t),
+                sizeof(uint32_t),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);

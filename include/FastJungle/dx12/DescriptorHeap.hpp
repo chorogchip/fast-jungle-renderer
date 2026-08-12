@@ -2,6 +2,7 @@
 
 #include <wrl.h>
 #include <d3d12.h>
+#include <source_location>
 
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/dx12/View.hpp"
@@ -17,7 +18,9 @@ namespace fjr::dx {
             ID3D12Device* device,
             D3D12_DESCRIPTOR_HEAP_TYPE type,
             UINT capacity,
-            bool shader_visible);
+            bool shader_visible,
+            std::source_location loc =
+                std::source_location::current());
 
         void reset();
 

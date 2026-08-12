@@ -82,6 +82,9 @@ namespace fjr::util {
         [[nodiscard]]
         bool has_extension_case_insensitive(std::string_view extension) const;
 
+        [[nodiscard]]
+        std::string normalized_key() const;
+
         Path& append(const Path& other);
 
         [[nodiscard]]
@@ -112,5 +115,8 @@ namespace fjr::util {
     private:
         native_type path_;
     };
+
+    [[nodiscard]]
+    std::string path_leaf(std::string_view path);
 
 } // namespace fjr::util

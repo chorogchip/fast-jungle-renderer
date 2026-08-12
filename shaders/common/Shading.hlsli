@@ -1,6 +1,5 @@
 #pragma once
 
-#include "RenderData.hlsli"
 #include "Math.hlsli"
 
 float NormDistGGX(float nh, float roughness)

@@ -5,13 +5,17 @@
 
 #include <d3d12.h>
 #include <new>
+#include <source_location>
 
 namespace fjr::dx {
 
     template<typename T>
     class MappedCBuffer {
     public:
-        void init(ID3D12Device* device) {
+        void init(
+            ID3D12Device* device,
+            std::source_location loc =
+                std::source_location::current()) {
             constexpr UINT64 alignment =
                 D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
             constexpr UINT64 size =
@@ -22,11 +26,12 @@ namespace fjr::dx {
                 size,
                 D3D12_HEAP_TYPE_UPLOAD,
                 D3D12_RESOURCE_FLAG_NONE,
-                D3D12_RESOURCE_STATE_GENERIC_READ);
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                loc);
 
             void* mapped = nullptr;
             const D3D12_RANGE read_range{0, 0};
-            abort_failed(buffer_->Map(0, &read_range, &mapped));
+            abort_failed(buffer_->Map(0, &read_range, &mapped), loc);
             data_ = ::new (mapped) T{};
         }
 

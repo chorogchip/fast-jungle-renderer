@@ -7,7 +7,6 @@
 #include "FastJungle/dx12/MappedCBuffer.hpp"
 #include "FastJungle/renderer/Camera.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
-#include "FastJungle/scene/StaticScene.hpp"
 
 namespace fjr::render {
     class Camera;
@@ -33,18 +32,12 @@ namespace fjr::render::data {
             uint32_t cam_pixel_width = 0;
             uint32_t cam_pixel_height = 0;
 
-            DirectX::XMFLOAT3 environment_color{};
-            float environment_intensity = 0.0f;
-            uint32_t environment_texture = Consts::IND_ERR;
-            DirectX::XMFLOAT3 environment_padding{};
-
             void fill_from_camera(
                 const Camera& camera,
                 uint32_t viewport_width,
                 uint32_t viewport_height,
                 uint32_t scene_spatial_cluster_count,
-                uint32_t scene_mesh_lod_count,
-                const scene::StaticScene::EnvironmentLight& environment);
+                uint32_t scene_mesh_lod_count);
         };
         static_assert(sizeof(CameraConstants) == Consts::CBUF_ALIGN);
         static_assert(

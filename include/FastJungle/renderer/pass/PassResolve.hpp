@@ -1,67 +1,40 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include <d3d12.h>
 #include <wrl.h>
 
 #include "FastJungle/dx12/CommandContext.hpp"
-#include "FastJungle/dx12/DescriptorHeap.hpp"
-#include "FastJungle/dx12/Texture.hpp"
-#include "FastJungle/renderer/data/DataPerFrame.hpp"
-#include "FastJungle/renderer/data/DataPersistent.hpp"
+#include "FastJungle/dx12/View.hpp"
 
 namespace fjr::render {
 
     class PassResolve final {
     public:
+        struct PassResolveResources final {
+            std::vector<D3D12_GPU_VIRTUAL_ADDRESS> cameras{};
+            dx::DescAlloc inputs{};
+            dx::DescAlloc textures{};
+            dx::DescAlloc samplers{};
+            dx::DescAlloc frame_buffer_uav{};
+        };
+
         void init(
             ID3D12Device* device,
-            dx::DescriptorHeap& heap_srv_cbv_uav,
-            dx::DescriptorHeap& heap_cpu_srv_cbv_uav,
-            const data::DataPersistent& persistent,
-            UINT width,
-            UINT height);
-
-        void resize(
-            ID3D12Device* device,
-            UINT width,
-            UINT height);
+            PassResolveResources resources);
 
         void record(
             dx::CommandContext& context,
-            const data::DataPersistent& persistent,
-            const data::DataPerFrame& frame,
-            D3D12_GPU_DESCRIPTOR_HANDLE visibility_buffer,
+            uint32_t frame_index,
             UINT width,
             UINT height);
-
-        [[nodiscard]]
-        dx::Texture& get_frame_buffer() noexcept {
-            return frame_buffer_;
-        }
-
-        [[nodiscard]]
-        const dx::Texture& get_frame_buffer() const noexcept {
-            return frame_buffer_;
-        }
 
     private:
-        void create_geometry_views(
-            ID3D12Device* device,
-            const data::DataPersistent& persistent);
-
-        void create_frame_buffer(
-            ID3D12Device* device,
-            UINT width,
-            UINT height);
-
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline_state_;
 
-        dx::DescAlloc geometry_views_;
-        dx::DescAlloc frame_buffer_uav_;
-        dx::DescAlloc frame_buffer_clear_uav_;
-        dx::Texture frame_buffer_;
+        PassResolveResources resources_{};
     };
 
 } // namespace fjr::render

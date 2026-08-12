@@ -120,6 +120,7 @@ int WINAPI wWinMain(
 
 
     app->init(hwnd, width, height, *scene);
+    scene.reset();
 
     ShowWindow(hwnd, show_command);
     UpdateWindow(hwnd);

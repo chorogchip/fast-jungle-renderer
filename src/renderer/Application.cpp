@@ -6,20 +6,6 @@
 
 namespace fjr {
 
-    namespace {
-
-        double calc_ema(double* ema, double sample) {
-            constexpr double rise_alpha = 1.0;
-            constexpr double fall_alpha = 0.02;
-
-            const double alpha =
-                sample > *ema ? rise_alpha : fall_alpha;
-
-            *ema += alpha * (sample - *ema);
-            return *ema;
-        }
-    }
-
     void Application::init(
         void* native_window,
         uint32_t width, uint32_t height,
@@ -37,16 +23,11 @@ namespace fjr {
     void Application::run(std::function<bool()> pump_messages) {
 
         using Clock = std::chrono::steady_clock;
-        auto time_previous = Clock::now();
 
         while (pump_messages()) {
             const auto time_begin = Clock::now();
 
-            const float delta_seconds =
-                std::chrono::duration<float>(
-                    time_begin - time_previous).count();
-            time_previous = time_begin;
-            camera_controller_.update(delta_seconds);
+            camera_controller_.update();
 
             renderer_.render();
             const auto time_end = Clock::now();
@@ -56,10 +37,7 @@ namespace fjr {
                     time_end - time_begin).count();
 
             fjr::log::Logger::g_logger_debug_out <<
-                "Frame Time: [" << frame_time_ms <<
-                " ms] EMA: [" <<
-                calc_ema(&frame_time_ema_, frame_time_ms) <<
-                " ms]\n";
+                "Frame Time: [" << frame_time_ms << " ms]\n";
             fjr::log::Logger::g_logger_debug_out.flush_debug_string();
         }
 

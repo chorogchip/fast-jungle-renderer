@@ -1,6 +1,7 @@
 #include "FastJungle/renderer/CameraController.hpp"
 
 #include <Windows.h>
+#include <chrono>
 #include <cmath>
 
 #include "FastJungle/renderer/Camera.hpp"
@@ -8,7 +9,17 @@
 
 namespace fjr::render {
 
-    void CameraController::update(float delta_seconds) {
+    void CameraController::bind(Camera* camera) {
+        camera_ = camera;
+        previous_update_time_ = std::chrono::steady_clock::now();
+    }
+
+    void CameraController::update() {
+        const auto update_time = std::chrono::steady_clock::now();
+        const float delta_seconds = std::chrono::duration<float>(
+            update_time - previous_update_time_).count();
+        previous_update_time_ = update_time;
+
         if (camera_ == nullptr) {
             return;
         }

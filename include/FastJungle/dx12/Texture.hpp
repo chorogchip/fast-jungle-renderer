@@ -1,18 +1,16 @@
 #pragma once
 
-#include "FastJungle/dx12/View.hpp"
 #include "FastJungle/dx12/Resource.hpp"
 
 #include <d3d12.h>
+#include <source_location>
 
 namespace fjr::dx {
 
-    enum class TextureType {
-        texture2d,
-        texture2d_array,
-        texture_cube,
-        texture_cube_array,
-        texture3d
+    enum class TextureSrvType {
+        texture,
+        cube,
+        cube_array
     };
 
     struct TextureViewRange {
@@ -35,20 +33,21 @@ namespace fjr::dx {
         void init(
             ID3D12Device* device,
             const D3D12_RESOURCE_DESC& description,
-            TextureType type,
             D3D12_RESOURCE_STATES initial_state,
-            const D3D12_CLEAR_VALUE* clear_value = nullptr);
+            const D3D12_CLEAR_VALUE* clear_value = nullptr,
+            std::source_location loc =
+                std::source_location::current());
 
         void attach(
             ID3D12Resource* resource,
-            TextureType type,
             D3D12_RESOURCE_STATES initial_state);
 
         void create_srv(
             ID3D12Device* device,
             D3D12_CPU_DESCRIPTOR_HANDLE location,
             const TextureViewRange& range,
-            DXGI_FORMAT format) const;
+            DXGI_FORMAT format,
+            TextureSrvType type = TextureSrvType::texture) const;
 
         void create_uav(
             ID3D12Device* device,
@@ -75,8 +74,6 @@ namespace fjr::dx {
             DXGI_FORMAT format,
             D3D12_DSV_FLAGS flags) const;
 
-    private:
-        TextureType type_ = TextureType::texture2d;
     };
 
 } // namespace fjr::dx

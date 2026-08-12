@@ -1,5 +1,6 @@
 #include "FastJungle/scene/StaticSceneReader.hpp"
 
+#include "FastJungle/core/util/BinaryIO.hpp"
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/scene/StaticSceneValidation.hpp"
@@ -44,7 +45,7 @@ namespace fjr::scene {
 
         auto texture_source = util::File::open_read(
             metadata.texture_payload.path);
-        static_scene_file_io::Reader texture_reader{
+        util::BinaryReader texture_reader{
             texture_source,
             util::File::size(metadata.texture_payload.path),
             metadata.texture_payload.path
@@ -74,7 +75,7 @@ namespace fjr::scene {
         const std::filesystem::path& path) {
 
         auto source = util::File::open_read(path);
-        static_scene_file_io::Reader reader{
+        util::BinaryReader reader{
             source,
             util::File::size(path),
             path
@@ -98,7 +99,7 @@ namespace fjr::scene {
 
         const auto external_path = texture_path(path);
         auto texture_source = util::File::open_read(external_path);
-        static_scene_file_io::Reader texture_reader{
+        util::BinaryReader texture_reader{
             texture_source,
             util::File::size(external_path),
             external_path
@@ -129,7 +130,7 @@ namespace fjr::scene {
         const std::filesystem::path& path) {
 
         auto source = util::File::open_read(path);
-        static_scene_file_io::Reader reader{
+        util::BinaryReader reader{
             source,
             util::File::size(path),
             path

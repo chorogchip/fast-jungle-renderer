@@ -11,7 +11,7 @@ namespace fjr::util {
 
         TemporaryFile(const TemporaryFile&) = delete;
         TemporaryFile& operator=(const TemporaryFile&) = delete;
-        TemporaryFile(TemporaryFile&&) = delete;
+        TemporaryFile(TemporaryFile&& other) noexcept;
         TemporaryFile& operator=(TemporaryFile&&) = delete;
 
         [[nodiscard]]

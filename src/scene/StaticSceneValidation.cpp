@@ -13,7 +13,7 @@ namespace fjr::scene {
 
     void StaticSceneValidator::validate(
         const StaticScene& scene,
-        std::uint64_t texture_payload_size) {
+        uint64_t texture_payload_size) {
 
         if (scene.strings.empty() || scene.strings.front() != '\0') {
             log::Logger::g_logger
@@ -33,7 +33,7 @@ namespace fjr::scene {
                 "texture data",
                 StaticScene::INVALID_INDEX_64);
 
-            for (std::uint32_t index = 0;
+            for (uint32_t index = 0;
                  index < texture.mip_count;
                  ++index) {
                 const auto& mip = scene.texture_mips[
@@ -59,7 +59,7 @@ namespace fjr::scene {
         }
 
         const auto validate_optional_binding = [&scene](
-            std::uint32_t binding,
+            uint32_t binding,
             std::string_view subject) {
             if (binding != StaticScene::INVALID_INDEX) {
                 require_index(
@@ -108,8 +108,8 @@ namespace fjr::scene {
                     submesh.material,
                     scene.materials.size(),
                     "submesh material");
-                if ((static_cast<std::uint32_t>(submesh.flags) &
-                    static_cast<std::uint32_t>(
+                if ((static_cast<uint32_t>(submesh.flags) &
+                    static_cast<uint32_t>(
                         StaticScene::EnumSubmeshFlag::ALPHA_TESTED)) != 0) {
                     alpha_tested_materials[submesh.material] = true;
                 }
@@ -118,7 +118,7 @@ namespace fjr::scene {
                 log::Logger::g_logger
                     << log::abrt("Invalid StaticScene submesh triangle count.");
             }
-            for (std::uint32_t local_index = 0;
+            for (uint32_t local_index = 0;
                  local_index < submesh.index_count;
                  ++local_index) {
                 if (scene.indices[submesh.index_offset + local_index] >=
@@ -179,7 +179,7 @@ namespace fjr::scene {
             }
 
             float previous_deviation = 0.0f;
-            for (std::uint32_t local_lod = 0;
+            for (uint32_t local_lod = 0;
                  local_lod < mesh.lod_count;
                  ++local_lod) {
                 const auto& lod = scene.mesh_lods[mesh.lod_offset + local_lod];
@@ -196,7 +196,7 @@ namespace fjr::scene {
                         << log::abrt("Invalid StaticScene mesh LOD contract.");
                 }
 
-                for (std::uint32_t local_submesh = 0;
+                for (uint32_t local_submesh = 0;
                      local_submesh < lod.submesh_count;
                      ++local_submesh) {
                     const auto& base = scene.submeshes[
@@ -231,11 +231,11 @@ namespace fjr::scene {
             }
         }
 
-		const auto lod0_corner_count = [&scene](std::uint32_t mesh_index) {
+		const auto lod0_corner_count = [&scene](uint32_t mesh_index) {
 			const auto& mesh = scene.meshes[mesh_index];
 			const auto& lod0 = scene.mesh_lods[mesh.lod_offset];
-			std::uint64_t count = 0;
-			for (std::uint32_t local = 0; local < lod0.submesh_count; ++local) {
+			uint64_t count = 0;
+			for (uint32_t local = 0; local < lod0.submesh_count; ++local) {
 				count += scene.submeshes[lod0.submesh_offset + local].index_count;
 			}
 			return count;
@@ -256,7 +256,7 @@ namespace fjr::scene {
 
 		auto validate_corner_stream = [&scene, &lod0_corner_count](
 			const auto& stream,
-			std::uint64_t value_size,
+			uint64_t value_size,
 			std::string_view subject) {
 
 			require_index(stream.mesh, scene.meshes.size(), subject);
@@ -283,7 +283,7 @@ namespace fjr::scene {
 				stream, scene.corner_texcoord2_values.size(), "corner texcoord stream");
 		}
 
-		std::uint64_t expected_instance_offset = 0;
+		uint64_t expected_instance_offset = 0;
 		for (const auto& batch : scene.point_batches) {
 			require_index(
 				batch.mesh,
@@ -328,8 +328,8 @@ namespace fjr::scene {
     }
 
     void StaticSceneValidator::require_index(
-        std::uint64_t index,
-        std::uint64_t size,
+        uint64_t index,
+        uint64_t size,
         std::string_view subject) {
 
         if (index < size) {
@@ -342,11 +342,11 @@ namespace fjr::scene {
     }
 
     void StaticSceneValidator::require_range(
-        std::uint64_t offset,
-        std::uint64_t count,
-        std::uint64_t size,
+        uint64_t offset,
+        uint64_t count,
+        uint64_t size,
         std::string_view subject,
-        std::uint64_t invalid_offset) {
+        uint64_t invalid_offset) {
 
         if (count == 0 && offset == invalid_offset) {
             return;

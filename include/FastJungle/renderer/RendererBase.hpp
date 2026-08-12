@@ -35,7 +35,7 @@ namespace fjr::render {
         Camera camera;
 
     protected:
-        static constexpr std::uint32_t FRAME_COUNT = 2;
+        static constexpr uint32_t FRAME_COUNT = 2;
 
         Microsoft::WRL::ComPtr<ID3D12Device> device_;
 

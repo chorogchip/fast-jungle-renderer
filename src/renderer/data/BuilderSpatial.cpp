@@ -12,6 +12,7 @@
 #include <DirectXMath.h>
 
 #include "FastJungle/core/math/Morton.hpp"
+#include "FastJungle/core/util/CheckedCast.hpp"
 #include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 
@@ -19,53 +20,13 @@ namespace fjr::render::data {
 
     namespace {
 
+        using util::checked_u32;
+
         using InstanceTransform =
             DataPersistent::InstanceTransform;
         using SpatialCluster =
             DataPersistent::SpatialCluster;
         using Mesh = DataPersistent::Mesh;
-
-        [[nodiscard]]
-        std::uint32_t checked_u32(
-            std::size_t value,
-            const char* message) {
-
-            if (value >
-                std::numeric_limits<
-                std::uint32_t>::max()) {
-
-                log::Logger::g_logger <<
-                    log::abrt(message);
-            }
-
-            return static_cast<std::uint32_t>(
-                value);
-        }
-
-        template <typename T>
-        void upload_buffer(
-            dx::Buffer& output,
-            dx::ResourceUploader& uploader,
-            ID3D12Device* device,
-            std::span<const T> source) {
-
-            if (source.empty()) {
-                return;
-            }
-
-            output.init(
-                device,
-                static_cast<UINT64>(
-                    source.size_bytes()),
-                D3D12_HEAP_TYPE_DEFAULT,
-                D3D12_RESOURCE_FLAG_NONE,
-                D3D12_RESOURCE_STATE_COMMON);
-
-            uploader.upload_buffer(
-                output,
-                std::as_bytes(source),
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        }
 
         [[nodiscard]]
         InstanceTransform decompose_transform(
@@ -325,7 +286,7 @@ namespace fjr::render::data {
         }
 
         [[nodiscard]]
-        std::uint32_t point_morton_code(
+        uint32_t point_morton_code(
             float x,
             float z,
             std::int32_t cell_x,
@@ -355,7 +316,7 @@ namespace fjr::render::data {
                                 1.0);
 
                         return static_cast<
-                            std::uint32_t>(
+                            uint32_t>(
                                 normalized *
                                 65535.0 +
                                 0.5);
@@ -367,12 +328,12 @@ namespace fjr::render::data {
         }
 
         struct PreparedPoint {
-            std::uint32_t source_id = 0;
+            uint32_t source_id = 0;
 
             std::int32_t cell_x = 0;
             std::int32_t cell_z = 0;
 
-            std::uint32_t morton = 0;
+            uint32_t morton = 0;
 
             InstanceTransform transform{};
         };
@@ -381,7 +342,7 @@ namespace fjr::render::data {
         PreparedPoint prepare_point(
             const scene::StaticScene::PointBatch& batch,
             const scene::StaticScene::PointInstance& source,
-            std::uint32_t source_id,
+            uint32_t source_id,
             float cell_size) {
 
             const auto world =
@@ -436,7 +397,7 @@ namespace fjr::render::data {
             std::vector<InstanceTransform>& instances,
             std::vector<SpatialCluster>& clusters,
             std::span<const PreparedPoint> points,
-            std::uint32_t mesh_id,
+            uint32_t mesh_id,
             const Mesh& mesh) {
 
             if (points.empty()) {
@@ -521,11 +482,11 @@ namespace fjr::render::data {
                 points.clear();
                 points.reserve(count);
 
-                for (std::uint32_t local_id = 0;
+                for (uint32_t local_id = 0;
                     local_id < batch.instances.count;
                     ++local_id) {
 
-                    const std::uint32_t source_id =
+                    const uint32_t source_id =
                         batch.instances.offset +
                         local_id;
 
@@ -601,7 +562,7 @@ namespace fjr::render::data {
             std::vector<SpatialCluster>& clusters,
             const scene::StaticScene& scene,
             std::span<const Mesh> meshes,
-            std::uint32_t instance_id) {
+            uint32_t instance_id) {
 
             if (instance_id ==
                 scene::StaticScene::INVALID_INDEX) {
@@ -677,7 +638,7 @@ namespace fjr::render::data {
                     "Static instance range is invalid.");
             }
 
-            for (std::uint32_t local_id = 0;
+            for (uint32_t local_id = 0;
                 local_id < range.count;
                 ++local_id) {
 
@@ -786,19 +747,33 @@ namespace fjr::render::data {
             scene,
             meshes);
 
-        upload_buffer(
-            output.instance_transform,
-            uploader,
+        output.instance_transform.init(
             device,
-            std::span<const InstanceTransform>{
-            instance_transforms });
+            static_cast<UINT64>(
+                instance_transforms.size() *
+                sizeof(InstanceTransform)),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
 
-        upload_buffer(
-            output.spatial_cluster,
-            uploader,
+        uploader.upload_buffer(
+            output.instance_transform,
+            instance_transforms,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        output.spatial_cluster.init(
             device,
-            std::span<const SpatialCluster>{
-            spatial_clusters });
+            static_cast<UINT64>(
+                spatial_clusters.size() *
+                sizeof(SpatialCluster)),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.spatial_cluster,
+            spatial_clusters,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         Result result;
 

@@ -2,8 +2,11 @@
 
 #include <wrl.h>
 #include <d3d12.h>
+#include <source_location>
 
 namespace fjr::dx {
+
+    class Resource;
 
     class CommandContext {
     public:
@@ -18,12 +21,18 @@ namespace fjr::dx {
         void init(
             ID3D12Device* device,
             D3D12_COMMAND_LIST_TYPE type,
-            UINT32 frame_index);
+            UINT32 frame_index,
+            std::source_location loc =
+                std::source_location::current());
 
         void reset(
-            ID3D12PipelineState* initial_pipeline_state = nullptr);
+            ID3D12PipelineState* initial_pipeline_state = nullptr,
+            std::source_location loc =
+                std::source_location::current());
 
-        void close();
+        void close(
+            std::source_location loc =
+                std::source_location::current());
 
         [[nodiscard]] ID3D12GraphicsCommandList* get() const noexcept {
             return command_list_.Get();
@@ -63,6 +72,12 @@ namespace fjr::dx {
 
         void RSSetViewPortScissorRect(UINT width, UINT height);
 
+        void transition(
+            Resource& resource,
+            D3D12_RESOURCE_STATES state);
+
+        void uav_barrier(const Resource& resource);
+
         void SetDescriptorHeaps(
             ID3D12DescriptorHeap* heap1);
 
@@ -75,7 +90,46 @@ namespace fjr::dx {
             ID3D12DescriptorHeap* heap2,
             ID3D12DescriptorHeap* heap3);
 
+        void Dispatch(
+            UINT group_count_x,
+            UINT group_count_y = 1,
+            UINT group_count_z = 1) {
+
+            command_list_->Dispatch(
+                group_count_x,
+                group_count_y,
+                group_count_z);
+        }
+
+        template<UINT THREAD_COUNT_X>
+        void Dispatch(UINT item_count) {
+            static_assert(THREAD_COUNT_X > 0);
+
+            Dispatch(
+                div_round_up<THREAD_COUNT_X>(item_count),
+                1,
+                1);
+        }
+
+        template<UINT THREAD_COUNT_X, UINT THREAD_COUNT_Y>
+        void Dispatch(UINT width, UINT height) {
+            static_assert(THREAD_COUNT_X > 0);
+            static_assert(THREAD_COUNT_Y > 0);
+
+            Dispatch(
+                div_round_up<THREAD_COUNT_X>(width),
+                div_round_up<THREAD_COUNT_Y>(height),
+                1);
+        }
+
     private:
+        template<UINT DIVISOR>
+        [[nodiscard]]
+        static constexpr UINT div_round_up(UINT value) noexcept {
+            static_assert(DIVISOR > 0);
+            return value / DIVISOR + (value % DIVISOR != 0);
+        }
+
         Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator_;
         Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list_;
 

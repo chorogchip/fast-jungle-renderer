@@ -1,3 +1,5 @@
+#include "ImpostorBakeCommon.hlsli"
+
 cbuffer BakeCamera : register(b0)
 {
     row_major float4x4 object_to_view;
@@ -11,21 +13,13 @@ struct VertexInput
     float2 uv : TEXCOORD0;
 };
 
-struct PixelInput
-{
-    float4 position : SV_POSITION;
-    float3 view_normal : NORMAL;
-    float2 uv : TEXCOORD0;
-    float3 view_position : TEXCOORD1;
-};
-
-PixelInput main(VertexInput input)
+ImpostorBakePixelInput main(VertexInput input)
 {
     const float4 view_position = mul(
         float4(input.position, 1.0f),
         object_to_view);
 
-    PixelInput output;
+    ImpostorBakePixelInput output;
     output.position = mul(
         float4(input.position, 1.0f),
         object_to_clip);

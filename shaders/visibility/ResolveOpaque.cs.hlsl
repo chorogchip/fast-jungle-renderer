@@ -3,6 +3,7 @@
 #include "../common/Quaternion.hlsli"
 #include "../common/Shading.hlsli"
 #include "Barycentric.hlsli"
+#include "VisibilityCommon.hlsli"
 
 #define RASTER_CLASS_PYRAMID 0
 #define RASTER_CLASS_TERRAIN 1
@@ -10,31 +11,20 @@
 #define RASTER_CLASS_RIVER 3
 #define RASTER_CLASS_ALPHA 4
 
-StructuredBuffer<InstanceTransform> instances : register(t1);
-StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t2);
-Buffer<float4> vertices_pos : register(t3);
+StructuredBuffer<InstanceTransform> instances : register(t0);
+StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t1);
+Buffer<float4> vertices_pos : register(t2);
 
-struct OpaqueShadingVertex
-{
-    uint normal;
-    uint uv;
-};
-StructuredBuffer<OpaqueShadingVertex> vertices_shading : register(t4);
+StructuredBuffer<OpaqueShadingVertex> vertices_shading : register(t3);
 
-struct AlphaVisibilityVertex
-{
-    uint position_xy;
-    uint position_zw;
-    uint uv;
-};
-StructuredBuffer<AlphaVisibilityVertex> vertices_alpha_visibility : register(t5);
-StructuredBuffer<uint> vertices_alpha_normal : register(t6);
+StructuredBuffer<AlphaVisibilityVertex> vertices_alpha_visibility : register(t4);
+StructuredBuffer<uint> vertices_alpha_normal : register(t5);
 
-Buffer<uint> indices : register(t7);
-StructuredBuffer<SubMesh> submeshes : register(t8);
+Buffer<uint> indices : register(t6);
+StructuredBuffer<SubMesh> submeshes : register(t7);
 
-Texture2D<uint2> vis_buffer : register(t9);
-StructuredBuffer<Material> materials : register(t10);
+Texture2D<uint2> vis_buffer : register(t8);
+StructuredBuffer<Material> materials : register(t9);
 Texture2D<float4> scene_textures[] : register(t0, space1);
 
 SamplerState material_sampler : register(s0);
@@ -143,20 +133,21 @@ void main(uint3 tid : SV_DispatchThreadID)
         return;
     
     const uint2 visibility = vis_buffer.Load(int3(pixel, 0));
-    if (visibility.y == 0xffffffff)
+    if (IsVisibilityEmpty(visibility))
         return;
-    
-    const uint submesh_id =
-        ((visibility.x >> 22) & 0x3ffu) | ((visibility.y & 1u) << 10);
+
+    const VisibilityRecord visibility_record =
+        UnpackVisibility(visibility);
+    const uint submesh_id = visibility_record.submesh_id;
     
     const uint raster_class = submeshes[submesh_id].raster_class;
     if (raster_class > RASTER_CLASS_ALPHA)
         return;
     
     const uint material_id = submeshes[submesh_id].material_id;
-    const uint triangle_id = visibility.x & 0x3fffffu;
-    const uint instance_id = (visibility.y & 0x7ffffffeu) >> 1u;
-    const bool back_face = (visibility.y & 0x80000000u) != 0u;
+    const uint triangle_id = visibility_record.triangle_id;
+    const uint instance_id = visibility_record.instance_id;
+    const bool back_face = visibility_record.back_face;
     
     const SubMesh submesh = submeshes[submesh_id];
     const Material material = materials[material_id];

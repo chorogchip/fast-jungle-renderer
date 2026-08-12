@@ -114,6 +114,15 @@ namespace fjr::util {
         return actual == expected;
     }
 
+    std::string Path::normalized_key() const {
+        std::error_code error;
+        auto absolute_path = std::filesystem::absolute(path_, error);
+        if (error) {
+            absolute_path = path_;
+        }
+        return to_lower(absolute_path.lexically_normal().generic_string());
+    }
+
     Path& Path::append(const Path& other) {
         path_ /= other.path_;
         return *this;
@@ -141,6 +150,13 @@ namespace fjr::util {
             });
 
         return result;
+    }
+
+    std::string path_leaf(std::string_view path) {
+        const auto separator = path.find_last_of("/\\");
+        return separator == std::string_view::npos
+            ? std::string{path}
+            : std::string{path.substr(separator + 1)};
     }
 
 } // namespace fjr::util

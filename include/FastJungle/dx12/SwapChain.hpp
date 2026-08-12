@@ -5,6 +5,7 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 
+#include <source_location>
 #include <vector>
 
 #include "FastJungle/dx12/Texture.hpp"
@@ -28,10 +29,19 @@ namespace fjr::dx {
             UINT width,
             UINT height,
             UINT frame_count,
-            bool vsync);
+            bool vsync,
+            std::source_location loc =
+                std::source_location::current());
 
-        void present();
-        void resize(UINT width, UINT height);
+        void present(
+            std::source_location loc =
+                std::source_location::current());
+
+        void resize(
+            UINT width,
+            UINT height,
+            std::source_location loc =
+                std::source_location::current());
 
         [[nodiscard]] UINT get_current_frame() const noexcept {
             return current_frame_;

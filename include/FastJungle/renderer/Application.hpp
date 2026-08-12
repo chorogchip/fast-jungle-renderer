@@ -4,7 +4,7 @@
 #include <functional>
 
 #include "FastJungle/renderer/CameraController.hpp"
-#include "FastJungle/renderer/RendererMain.hpp"
+#include "FastJungle/renderer/RendererJungle.hpp"
 
 namespace fjr {
 
@@ -28,8 +28,7 @@ namespace fjr {
 
     private:
         render::CameraController camera_controller_;
-        render::RendererMain renderer_;
-        double frame_time_ema_;
+        render::RendererJungle renderer_;
     };
 
 } // namespace fjr

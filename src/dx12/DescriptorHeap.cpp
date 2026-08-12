@@ -8,7 +8,8 @@ namespace fjr::dx {
         ID3D12Device* device,
         D3D12_DESCRIPTOR_HEAP_TYPE type,
         UINT capacity,
-        bool shader_visible) {
+        bool shader_visible,
+        std::source_location loc) {
 
         descriptor_heap_.Reset();
         capacity_ = capacity;
@@ -24,7 +25,8 @@ namespace fjr::dx {
 
         abort_failed(device->CreateDescriptorHeap(
             &description,
-            IID_PPV_ARGS(descriptor_heap_.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(descriptor_heap_.ReleaseAndGetAddressOf())),
+            loc);
 
         descriptor_size_ = device->GetDescriptorHandleIncrementSize(type);
 

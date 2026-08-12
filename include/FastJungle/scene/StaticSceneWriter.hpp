@@ -4,6 +4,7 @@
 #include <filesystem>
 
 #include "FastJungle/scene/StaticScene.hpp"
+#include "FastJungle/scene/StaticTexturePayload.hpp"
 
 namespace fjr::scene {
 
@@ -18,13 +19,7 @@ namespace fjr::scene {
         static void save(
             const std::filesystem::path& path,
             const StaticScene& scene,
-            const std::filesystem::path& texture_payload_path,
-            std::uint64_t texture_payload_size);
-
-        static void save_metadata(
-            const std::filesystem::path& path,
-            const StaticScene& scene,
-            std::uint64_t texture_payload_size);
+            StaticTexturePayload texture_payload);
 
         [[nodiscard]]
         static std::filesystem::path texture_path(

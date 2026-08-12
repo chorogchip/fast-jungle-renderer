@@ -7,16 +7,16 @@ namespace fjr::math {
     class Morton final {
     public:
         [[nodiscard]]
-        static std::uint32_t encode_2d(
-            std::uint32_t x,
-            std::uint32_t y) noexcept {
+        static uint32_t encode_2d(
+            uint32_t x,
+            uint32_t y) noexcept {
 
             return spread_bits(x) | (spread_bits(y) << 1u);
         }
 
     private:
         [[nodiscard]]
-        static std::uint32_t spread_bits(std::uint32_t value) noexcept {
+        static uint32_t spread_bits(uint32_t value) noexcept {
 
             value &= 0x0000ffffu;
             value = (value | (value << 8u)) & 0x00ff00ffu;

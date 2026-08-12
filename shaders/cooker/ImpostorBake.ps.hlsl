@@ -1,4 +1,5 @@
-static const uint INVALID_INDEX = 0xffffffffu;
+#include "../common/RenderConstants.hlsli"
+#include "ImpostorBakeCommon.hlsli"
 
 cbuffer BakeMaterial : register(b1)
 {
@@ -17,20 +18,11 @@ cbuffer BakeMaterial : register(b1)
 Texture2D<float4> source_textures[] : register(t0);
 SamplerState source_sampler : register(s0);
 
-struct PixelInput
-{
-    float4 position : SV_POSITION;
-    float3 view_normal : NORMAL;
-    float2 uv : TEXCOORD0;
-    float3 view_position : TEXCOORD1;
-};
-
 struct PixelOutput
 {
     float4 albedo_alpha : SV_TARGET0;
     float4 normal : SV_TARGET1;
-    float depth : SV_TARGET2;
-    float roughness : SV_TARGET3;
+    float roughness : SV_TARGET2;
 };
 
 float select_channel(float4 value, uint channel)
@@ -45,7 +37,7 @@ float select_channel(float4 value, uint channel)
     }
 }
 
-float3 surface_view_normal(PixelInput input)
+float3 surface_view_normal(ImpostorBakePixelInput input)
 {
     const float3 normal = normalize(input.view_normal);
     if (normal_texture == INVALID_INDEX)
@@ -80,7 +72,9 @@ float3 surface_view_normal(PixelInput input)
         normal * tangent_z);
 }
 
-PixelOutput main(PixelInput input, bool front_face : SV_IsFrontFace)
+PixelOutput main(
+    ImpostorBakePixelInput input,
+    bool front_face : SV_IsFrontFace)
 {
     if (!front_face && render_back_faces == 0u)
     {
@@ -125,7 +119,6 @@ PixelOutput main(PixelInput input, bool front_face : SV_IsFrontFace)
         -view_normal.y,
         -view_normal.z);
     output.normal = float4(card_normal * 0.5f + 0.5f, 1.0f);
-    output.depth = input.view_position.z;
     output.roughness = roughness_texture == INVALID_INDEX
         ? roughness_value
         : select_channel(source_textures[roughness_texture].Sample(

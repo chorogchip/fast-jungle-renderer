@@ -13,7 +13,7 @@
 
 namespace fjr::cooker::internal {
 
-    enum class JungleComponent : std::uint32_t {
+    enum class JungleComponent : uint32_t {
         ROOT,
         CAMERA,
         PYRAMID,
@@ -59,8 +59,6 @@ namespace fjr::cooker::internal {
 
         [[nodiscard]] static scene::StaticScene::EnumPointCategory
         point_category(JungleComponent component);
-
-        static void validate_contract(const scene::StaticScene& source);
 
     private:
         std::unordered_map<std::string, JungleComponent>

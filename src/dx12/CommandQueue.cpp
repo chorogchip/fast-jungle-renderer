@@ -41,7 +41,8 @@ namespace fjr::dx {
 
     void CommandQueue::init(
         ID3D12Device* device,
-        D3D12_COMMAND_LIST_TYPE type) {
+        D3D12_COMMAND_LIST_TYPE type,
+        std::source_location loc) {
 
         if (fence_event_) {
             CloseHandle(fence_event_);
@@ -62,12 +63,14 @@ namespace fjr::dx {
 
         abort_failed(device->CreateCommandQueue(
             &description,
-            IID_PPV_ARGS(command_queue_.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(command_queue_.ReleaseAndGetAddressOf())),
+            loc);
 
         abort_failed(device->CreateFence(
             fence_value_,
             D3D12_FENCE_FLAG_NONE,
-            IID_PPV_ARGS(fence_.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(fence_.ReleaseAndGetAddressOf())),
+            loc);
 
         fence_event_ = CreateEvent(
             nullptr,
@@ -76,7 +79,7 @@ namespace fjr::dx {
             nullptr);
 
         if (!fence_event_) {
-            abort_failed(HRESULT_FROM_WIN32(GetLastError()));
+            abort_failed(HRESULT_FROM_WIN32(GetLastError()), loc);
         }
     }
 
@@ -90,41 +93,47 @@ namespace fjr::dx {
             count, command_lists);
     }
 
-    UINT64 CommandQueue::signal() {
+    UINT64 CommandQueue::signal(std::source_location loc) {
         const UINT64 value = ++fence_value_;
 
         abort_failed(command_queue_->Signal(
             fence_.Get(),
-            value));
+            value),
+            loc);
 
         return value;
     }
 
-    void CommandQueue::wait(UINT64 fence_value) {
+    void CommandQueue::wait(
+        UINT64 fence_value,
+        std::source_location loc) {
         if (fence_->GetCompletedValue() >= fence_value) {
             return;
         }
 
         abort_failed(fence_->SetEventOnCompletion(
             fence_value,
-            fence_event_));
+            fence_event_),
+            loc);
 
         WaitForSingleObject(
             fence_event_,
             INFINITE);
     }
 
-    void CommandQueue::flush() {
-        wait(signal());
+    void CommandQueue::flush(std::source_location loc) {
+        wait(signal(loc), loc);
     }
 
     void CommandQueue::wait(
         const CommandQueue& other,
-        UINT64 fence_value) {
+        UINT64 fence_value,
+        std::source_location loc) {
 
         abort_failed(command_queue_->Wait(
             other.fence_.Get(),
-            fence_value));
+            fence_value),
+            loc);
     }
 
 } // namespace fjr::dx

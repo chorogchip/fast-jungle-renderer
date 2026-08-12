@@ -55,7 +55,7 @@ namespace fjr::render {
         desc_rtv_ = heap_rtv_.alloc(FRAME_COUNT);
         desc_dsv_ = heap_dsv_.alloc();
 
-        for (std::uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
+        for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             command_contexts_[frame].init(
                 device_.Get(),
                 D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -75,8 +75,8 @@ namespace fjr::render {
     }
 
     void RendererBase::resize(
-        std::uint32_t width,
-        std::uint32_t height) {
+        uint32_t width,
+        uint32_t height) {
 
         command_queue_.flush();
         swap_chain_.resize(width, height);
@@ -84,8 +84,8 @@ namespace fjr::render {
     }
 
     void RendererBase::create_size_dependent_resources(
-        std::uint32_t width,
-        std::uint32_t height) {
+        uint32_t width,
+        uint32_t height) {
 
         for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             swap_chain_.get_buffer(frame).create_rtv(
@@ -116,7 +116,6 @@ namespace fjr::render {
         buffer_depth_.init(
             device_.Get(),
             depth_description,
-            dx::TextureType::texture2d,
             D3D12_RESOURCE_STATE_DEPTH_WRITE,
             &clear_value);
 

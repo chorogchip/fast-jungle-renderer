@@ -1,7 +1,0 @@
-﻿slot,shader_semantics,assigned_materials,missing_materials,assigned_percent,unique_bindings,unique_textures,valid_payload_assignments,all_assigned_resolve_to_payload,channels,color_space_flags,dxgi_formats,unique_payload_bytes
-base_color,constant multiplied by texture RGB (and alpha unless RGB-only),175,12,0.9358288770053476,175,101,175,True,RGB:138; RGBA:37,SRGB:175,BC1_UNORM:138; BC7_UNORM:37,648021408
-normal,texture only; no material normal constant,174,13,0.93048128342246,174,99,174,True,RGB:174,LINEAR:174,BC5_UNORM:174,1132464720
-roughness,texture overrides constant,174,13,0.93048128342246,174,37,174,True,G:64; R:110,LINEAR:174,BC4_UNORM:110; BC7_UNORM:64,222299984
-metallic,texture overrides constant,64,123,0.3422459893048128,64,1,64,True,B:64,LINEAR:64,BC7_UNORM:64,1392
-opacity,constant * base alpha * opacity texture,20,167,0.10695187165775401,20,4,20,True,R:20,LINEAR:20,BC4_UNORM:20,44739296
-emissive,constant RGB multiplied by texture RGB,0,187,0.0,0,0,0,N/A,,,,0

@@ -1,12 +1,14 @@
 #include "SceneSpace.hpp"
 
-#include "CookError.hpp"
+#include "FastJungle/core/util/Logger.hpp"
 
 #include "FastJungle/scene/StaticScene.hpp"
 
 #include <cmath>
 
 namespace fjr::cooker::internal {
+
+    using log::fail;
 
     namespace {
 

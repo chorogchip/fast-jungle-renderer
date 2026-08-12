@@ -16,9 +16,4 @@ cbuffer CameraConstants : register(b0)
     uint mesh_lod_count;
     uint cam_pixel_width;
     uint cam_pixel_height;
-
-    float3 environment_color;
-    float environment_intensity;
-    uint environment_texture;
-    float3 environment_padding;
 };

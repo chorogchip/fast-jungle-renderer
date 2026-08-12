@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <wrl.h>
 
+#include <source_location>
 #include <type_traits>
 #include <vector>
 
@@ -191,7 +192,9 @@ namespace fjr::dx {
 
         [[nodiscard]]
         Microsoft::WRL::ComPtr<ID3D12RootSignature> build(
-            ID3D12Device* device) const;
+            ID3D12Device* device,
+            std::source_location loc =
+                std::source_location::current()) const;
 
     private:
         enum class ParameterKind {

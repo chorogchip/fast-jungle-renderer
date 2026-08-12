@@ -15,7 +15,8 @@ namespace fjr::dx {
         UINT width,
         UINT height,
         UINT frame_count,
-        bool vsync) {
+        bool vsync,
+        std::source_location loc) {
 
         width_ = width;
         height_ = height;
@@ -53,30 +54,32 @@ namespace fjr::dx {
             &description,
             nullptr,
             nullptr,
-            swap_chain.ReleaseAndGetAddressOf()));
+            swap_chain.ReleaseAndGetAddressOf()),
+            loc);
 
         abort_failed(factory->MakeWindowAssociation(
             hwnd,
-            DXGI_MWA_NO_ALT_ENTER));
+            DXGI_MWA_NO_ALT_ENTER),
+            loc);
 
-        abort_failed(swap_chain.As(&swap_chain_));
+        abort_failed(swap_chain.As(&swap_chain_), loc);
 
         buffers_.resize(frame_count_);
 
         for (UINT i = 0; i < frame_count_; ++i) {
             Microsoft::WRL::ComPtr<ID3D12Resource> buf;
             abort_failed(swap_chain_->GetBuffer(
-                i, IID_PPV_ARGS(buf.GetAddressOf())));
+                i, IID_PPV_ARGS(buf.GetAddressOf())),
+                loc);
             buffers_[i].attach(
                 buf.Get(),
-                TextureType::texture2d,
                 D3D12_RESOURCE_STATE_PRESENT);
         }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();
     }
 
-    void SwapChain::present() {
+    void SwapChain::present(std::source_location loc) {
         const UINT sync_interval = vsync_ ? 1 : 0;
         const UINT flags = !vsync_ && tearing_supported_
             ? DXGI_PRESENT_ALLOW_TEARING
@@ -89,15 +92,18 @@ namespace fjr::dx {
             message << "DXGI Present failed with HRESULT 0x"
                 << std::uppercase << std::hex << std::setw(8)
                 << std::setfill('0')
-                << static_cast<std::uint32_t>(result);
+                << static_cast<uint32_t>(result);
             message << ".";
-            log::Logger::g_logger << log::abrt(message.str());
+            log::Logger::g_logger << log::abrt(message.str(), loc);
         }
 
         current_frame_ = swap_chain_->GetCurrentBackBufferIndex();
     }
 
-    void SwapChain::resize(UINT width, UINT height) {
+    void SwapChain::resize(
+        UINT width,
+        UINT height,
+        std::source_location loc) {
         if (width == 0 || height == 0) return;
         for (auto& buffer : buffers_) buffer.reset();
 
@@ -108,7 +114,8 @@ namespace fjr::dx {
             DXGI_FORMAT_R8G8B8A8_UNORM,
             tearing_supported_
                 ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING
-                : 0));
+                : 0),
+            loc);
 
         width_ = width;
         height_ = height;
@@ -116,10 +123,10 @@ namespace fjr::dx {
         for (UINT i = 0; i < frame_count_; ++i) {
             Microsoft::WRL::ComPtr<ID3D12Resource> buf;
             abort_failed(swap_chain_->GetBuffer(
-                i, IID_PPV_ARGS(buf.ReleaseAndGetAddressOf())));
+                i, IID_PPV_ARGS(buf.ReleaseAndGetAddressOf())),
+                loc);
             buffers_[i].attach(
                 buf.Get(),
-                TextureType::texture2d,
                 D3D12_RESOURCE_STATE_PRESENT);
         }
 

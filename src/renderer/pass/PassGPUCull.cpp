@@ -13,9 +13,7 @@ namespace fjr::render {
 
     namespace {
 
-        constexpr std::uint32_t THREAD_COUNT = 256;
-
-        enum class RootParameter : std::uint32_t {
+        enum class RootParameter : uint32_t {
             DISPATCH_CONSTANTS,
             CAMERA,
             SPATIAL_CLUSTERS,
@@ -28,30 +26,10 @@ namespace fjr::render {
             VISIBLE_INSTANCES,
             BIN_COUNTS,
             BIN_OFFSETS,
-            BIN_CURSORS,
+            CLUSTER_BIN_BASES,
             CULL_RESULTS,
             COUNT,
         };
-
-        [[nodiscard]]
-        Microsoft::WRL::ComPtr<ID3D12PipelineState> create_pipeline(
-            ID3D12Device* device,
-            ID3D12RootSignature* root_signature,
-            const std::filesystem::path& shader_path) {
-
-            dx::Shader shader;
-            shader.load(shader_path);
-
-            auto description = dx::PSOUtils::default_compute_desc();
-            description.pRootSignature = root_signature;
-            description.CS = shader.get_bytecode();
-            return dx::PSOUtils::create_compute(device, description);
-        }
-
-        [[nodiscard]]
-        UINT dispatch_groups(uint32_t item_count) noexcept {
-            return (std::max)(1u, (item_count + THREAD_COUNT - 1) / THREAD_COUNT);
-        }
 
     } // namespace
 
@@ -59,15 +37,16 @@ namespace fjr::render {
         ID3D12Device* device,
         dx::DescriptorHeap& heap_uav,
         uint32_t mesh_lod_count,
+        uint32_t spatial_cluster_count,
         uint32_t instance_count,
-        std::uint32_t indirect_draw_capacity_per_class) {
+        uint32_t indirect_draw_capacity_per_class) {
 
         indirect_draw_capacity_per_class_ =
             std::max(indirect_draw_capacity_per_class, 1u);
 
         const UINT64 bin_byte_size =
             static_cast<UINT64>(std::max(mesh_lod_count, 1u)) *
-            sizeof(std::uint32_t);
+            sizeof(uint32_t);
 
         bin_counts_.init(
             device,
@@ -83,9 +62,13 @@ namespace fjr::render {
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-        bin_cursors_.init(
+        const UINT64 cluster_bin_base_byte_size =
+            static_cast<UINT64>(std::max(spatial_cluster_count, 1u)) *
+            data::Consts::CULL_RESERVATION_STRIDE * sizeof(uint32_t);
+
+        cluster_bin_bases_.init(
             device,
-            bin_byte_size,
+            cluster_bin_base_byte_size,
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -131,7 +114,7 @@ namespace fjr::render {
             .reg(3).vis_all().add();
         root_builder.set_root_uav(RootParameter::BIN_OFFSETS)
             .reg(4).vis_all().add();
-        root_builder.set_root_uav(RootParameter::BIN_CURSORS)
+        root_builder.set_root_uav(RootParameter::CLUSTER_BIN_BASES)
             .reg(5).vis_all().add();
         root_builder.set_resource_table(RootParameter::CULL_RESULTS)
             .uav().reg(6).count(1).add_range()
@@ -142,21 +125,29 @@ namespace fjr::render {
         const std::filesystem::path shader_directory{
             FASTJUNGLE_SHADER_OUTPUT_DIR };
 
-        clear_pipeline_ = create_pipeline(
-            device, root_signature_.Get(),
-            shader_directory / "culling" / "Clear.cs.dxil");
-        count_pipeline_ = create_pipeline(
-            device, root_signature_.Get(),
-            shader_directory / "culling" / "CullCount.cs.dxil");
-        scan_pipeline_ = create_pipeline(
-            device, root_signature_.Get(),
-            shader_directory / "culling" / "BinScan.cs.dxil");
-        scatter_pipeline_ = create_pipeline(
-            device, root_signature_.Get(),
-            shader_directory / "culling" / "CullScatter.cs.dxil");
-        build_pipeline_ = create_pipeline(
-            device, root_signature_.Get(),
-            shader_directory / "culling" / "BuildIndirect.cs.dxil");
+        dx::Shader shader;
+        auto description = dx::PSOUtils::default_compute_desc();
+        description.pRootSignature = root_signature_.Get();
+
+        shader.load(shader_directory / "culling" / "Clear.cs.dxil");
+        description.CS = shader.get_bytecode();
+        clear_pipeline_ = dx::PSOUtils::create_compute(device, description);
+
+        shader.load(shader_directory / "culling" / "CullCount.cs.dxil");
+        description.CS = shader.get_bytecode();
+        count_pipeline_ = dx::PSOUtils::create_compute(device, description);
+
+        shader.load(shader_directory / "culling" / "BinScan.cs.dxil");
+        description.CS = shader.get_bytecode();
+        scan_pipeline_ = dx::PSOUtils::create_compute(device, description);
+
+        shader.load(shader_directory / "culling" / "CullScatter.cs.dxil");
+        description.CS = shader.get_bytecode();
+        scatter_pipeline_ = dx::PSOUtils::create_compute(device, description);
+
+        shader.load(shader_directory / "culling" / "BuildIndirect.cs.dxil");
+        description.CS = shader.get_bytecode();
+        build_pipeline_ = dx::PSOUtils::create_compute(device, description);
     }
 
     void PassGPUCull::record(
@@ -166,16 +157,19 @@ namespace fjr::render {
 
         auto* command_list = context.get();
 
-        frame.indirect_gpu_draw.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        frame.indirect_gpu_draw_counts.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        frame.visible_instance.transition(
-            command_list, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        context.transition(
+            frame.indirect_gpu_draw,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        context.transition(
+            frame.indirect_gpu_draw_counts,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        context.transition(
+            frame.visible_instance,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         command_list->SetComputeRootSignature(root_signature_.Get());
 
-        const std::array<std::uint32_t, 2> dispatch_constants{
+        const std::array<uint32_t, 2> dispatch_constants{
             indirect_draw_capacity_per_class_,
             data::Consts::RASTER_CLASS_CNT,
         };
@@ -220,46 +214,48 @@ namespace fjr::render {
             static_cast<UINT>(RootParameter::BIN_OFFSETS),
             bin_offsets_->GetGPUVirtualAddress());
         command_list->SetComputeRootUnorderedAccessView(
-            static_cast<UINT>(RootParameter::BIN_CURSORS),
-            bin_cursors_->GetGPUVirtualAddress());
+            static_cast<UINT>(RootParameter::CLUSTER_BIN_BASES),
+            cluster_bin_bases_->GetGPUVirtualAddress());
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::CULL_RESULTS),
             cull_result_uav_.get_gpu());
 
         command_list->SetPipelineState(clear_pipeline_.Get());
-        command_list->Dispatch(dispatch_groups(std::max(
+        context.Dispatch<256>((std::max)(
             persistent.mesh_lod_count,
-            data::Consts::RASTER_CLASS_CNT)), 1, 1);
-        bin_counts_.uav_barrier(command_list);
+            data::Consts::RASTER_CLASS_CNT));
+        context.uav_barrier(bin_counts_);
 
         command_list->SetPipelineState(count_pipeline_.Get());
-        command_list->Dispatch(std::max(persistent.spatial_cluster_count, 1u), 1, 1);
-        bin_counts_.uav_barrier(command_list);
+        context.Dispatch((std::max)(persistent.spatial_cluster_count, 1u));
+        context.uav_barrier(bin_counts_);
 
         command_list->SetPipelineState(scan_pipeline_.Get());
-        command_list->Dispatch(1, 1, 1);
-        bin_offsets_.uav_barrier(command_list);
-        bin_cursors_.uav_barrier(command_list);
-        cull_results_.uav_barrier(command_list);
+        context.Dispatch(1, 1, 1);
+        context.uav_barrier(bin_offsets_);
+        context.uav_barrier(cluster_bin_bases_);
+        context.uav_barrier(cull_results_);
 
         command_list->SetPipelineState(scatter_pipeline_.Get());
-        command_list->Dispatch(std::max(persistent.spatial_cluster_count, 1u), 1, 1);
-        frame.indirect_gpu_draw_counts.uav_barrier(command_list);
+        context.Dispatch((std::max)(persistent.spatial_cluster_count, 1u));
+        context.uav_barrier(frame.indirect_gpu_draw_counts);
 
         command_list->SetPipelineState(build_pipeline_.Get());
-        command_list->Dispatch(dispatch_groups(persistent.mesh_lod_count), 1, 1);
-        cull_results_.uav_barrier(command_list);
+        context.Dispatch<256>(persistent.mesh_lod_count);
 
-        frame.indirect_gpu_draw.transition(
-            command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-        frame.indirect_gpu_draw_counts.transition(
-            command_list, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-        frame.visible_instance.transition(
-            command_list, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        bin_counts_.uav_barrier(command_list);
-        bin_offsets_.uav_barrier(command_list);
-        bin_cursors_.uav_barrier(command_list);
-        cull_results_.uav_barrier(command_list);
+        context.transition(
+            frame.indirect_gpu_draw,
+            D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+        context.transition(
+            frame.indirect_gpu_draw_counts,
+            D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+        context.transition(
+            frame.visible_instance,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        context.uav_barrier(bin_counts_);
+        context.uav_barrier(bin_offsets_);
+        context.uav_barrier(cluster_bin_bases_);
+        context.uav_barrier(cull_results_);
     }
 
 } // namespace fjr::render

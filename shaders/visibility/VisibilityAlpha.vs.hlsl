@@ -2,6 +2,7 @@
 #include "../common/ConstantDraw.hlsli"
 #include "../common/RenderData.hlsli"
 #include "../common/Quaternion.hlsli"
+#include "VisibilityCommon.hlsli"
 
 struct VSInput
 {
@@ -9,19 +10,14 @@ struct VSInput
     float2 uv : TEXCOORD0;
 };
 
-struct VSOutput
-{
-    float4 position : SV_Position;
-    float2 uv : TEXCOORD0;
-    nointerpolation uint instance_id : TEXCOORD1;
-};
-
 StructuredBuffer<uint> visible_instances : register(t0);
 StructuredBuffer<InstanceTransform> instances : register(t1);
 StructuredBuffer<VertexDecodeParams> vertex_decode_params : register(t2);
 StructuredBuffer<Material> materials : register(t3);
 
-VSOutput main(VSInput input, uint local_instance_id : SV_InstanceID)
+AlphaVisibilityVertexOutput main(
+    VSInput input,
+    uint local_instance_id : SV_InstanceID)
 {
     const uint instance_id = visible_instances[
         visible_instance_offset + local_instance_id];
@@ -68,7 +64,7 @@ VSOutput main(VSInput input, uint local_instance_id : SV_InstanceID)
         object_position * instance.scale,
         instance.rotation);
 
-    VSOutput output;
+    AlphaVisibilityVertexOutput output;
     output.position = mul(
         float4(world_position, 1.0f),
         cam_view_projection);

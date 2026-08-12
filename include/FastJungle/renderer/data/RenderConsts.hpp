@@ -33,10 +33,19 @@ namespace fjr::render::data {
         };
 
         static inline constexpr uint32_t PNT_CLUSTER_SZ = 256;
+        static inline constexpr uint32_t CULL_MAX_CONVENTIONAL_LODS = 7;
+        static inline constexpr uint32_t CULL_MAX_IMPOSTOR_DIRECTIONS = 8;
+        static inline constexpr uint32_t CULL_BUCKET_COUNT =
+            CULL_MAX_CONVENTIONAL_LODS + CULL_MAX_IMPOSTOR_DIRECTIONS;
+        static inline constexpr uint32_t CULL_RESERVATION_STRIDE = 16;
         static inline constexpr uint32_t INSTANCE_KIND_CNT =
             static_cast<uint32_t>(EnumInstanceKind::COUNT);
         static inline constexpr uint32_t RASTER_CLASS_CNT =
             static_cast<uint32_t>(EnumRasterClass::COUNT);
     };
+
+    static_assert(Consts::PNT_CLUSTER_SZ <= 256);
+    static_assert(Consts::CULL_BUCKET_COUNT <=
+        Consts::CULL_RESERVATION_STRIDE);
 
 }

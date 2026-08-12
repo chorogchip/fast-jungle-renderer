@@ -13,10 +13,10 @@ namespace fjr::cooker::internal {
     public:
         constexpr SceneHandle() noexcept = default;
 
-        explicit constexpr SceneHandle(std::uint32_t value) noexcept
+        explicit constexpr SceneHandle(uint32_t value) noexcept
             : value_(value) {}
 
-        [[nodiscard]] constexpr std::uint32_t value() const noexcept {
+        [[nodiscard]] constexpr uint32_t value() const noexcept {
             return value_;
         }
 
@@ -27,7 +27,7 @@ namespace fjr::cooker::internal {
         auto operator<=>(const SceneHandle&) const = default;
 
     private:
-        std::uint32_t value_ = scene::StaticScene::INVALID_INDEX;
+        uint32_t value_ = scene::StaticScene::INVALID_INDEX;
     };
 
     struct StringOffsetTag;
@@ -53,7 +53,7 @@ namespace fjr::cooker::internal {
         static_assert(std::is_class_v<Handle>);
 
         Handle first;
-        std::uint32_t count = 0;
+        uint32_t count = 0;
 
         [[nodiscard]] constexpr scene::StaticScene::IndexRange
         serialized() const noexcept {

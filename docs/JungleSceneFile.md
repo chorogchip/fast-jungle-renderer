@@ -119,14 +119,9 @@ OpenUSD first builds static scene data and texture payload mappings.
 After the stage is released, the cooker generates mesh LODs and dense vertex
 blocks for the two coarsest levels, then decodes and compresses one texture at
 a time into a temporary payload. The
-writer creates and atomically replaces
-`.fjtex` first, then creates and replaces `.fjscene` last. A failed cook cannot
+writer creates and atomically replaces `.fjtex` first, then creates and
+replaces `.fjscene` last. A failed cook cannot
 publish a new scene header that points at an incomplete new texture file.
-
-The cooker reads only magic and version from existing file headers before
-deciding whether to reuse them. A current `.fjtex` avoids texture decoding and
-compression while a fresh `.fjscene` receives its texture records through the
-payload mapping.
 
 `StaticSceneReader::load_metadata` reads and validates static data without
 materializing texture pixels. `StaticSceneReader::load` additionally reads the

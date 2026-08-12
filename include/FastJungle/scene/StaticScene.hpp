@@ -201,16 +201,11 @@ namespace fjr::scene {
 			// with a baked impostor appear in the dense impostors vector.
 			uint32_t mesh = INVALID_INDEX;
 			// Eight (currently) direction cards, stored consecutively as ordinary
-			// meshes and textures.  The card materials own albedo/alpha, normal,
-			// roughness and metallic bindings; depth is not a material semantic.
+			// meshes. Their materials own the baked texture bindings.
 			uint32_t card_mesh_offset = INVALID_INDEX;
-			uint32_t depth_texture_offset = INVALID_INDEX;
 			uint32_t direction_count = 0;
-			// All directions share this object-local linear-depth encoding:
-			// depth = depth_min + encoded * depth_range.
-			DirectX::XMFLOAT2 depth_min_range{};
 		};
-		static_assert(sizeof(Impostor) == 24);
+		static_assert(sizeof(Impostor) == 12);
 
 		struct Mesh {
 			uint32_t name = INVALID_INDEX;

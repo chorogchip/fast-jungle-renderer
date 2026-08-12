@@ -1,7 +1,7 @@
 #include "JungleSceneProfile.hpp"
 
-#include "CookError.hpp"
-#include "PathKey.hpp"
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/core/util/Path.hpp"
 
 #include <pxr/usd/sdf/layer.h>
 #include <pxr/usd/sdf/primSpec.h>
@@ -14,6 +14,8 @@
 #include <string_view>
 
 namespace fjr::cooker::internal {
+
+    using log::fail;
 
     namespace {
 
@@ -82,7 +84,7 @@ namespace fjr::cooker::internal {
         const std::filesystem::path root_path{root->GetRealPath()};
         std::array<bool, component_index(JungleComponent::COUNT)> seen{};
         source_layer_components_.emplace(
-            normalized_path_key(root_path),
+            util::Path{root_path}.normalized_key(),
             JungleComponent::ROOT);
         seen[component_index(JungleComponent::ROOT)] = true;
 
@@ -107,7 +109,7 @@ namespace fjr::cooker::internal {
                 (root_directory / std::filesystem::path{authored_string})
                     .lexically_normal();
             source_layer_components_.emplace(
-                normalized_path_key(real_path),
+                util::Path{real_path}.normalized_key(),
                 *component);
         }
 
@@ -133,7 +135,7 @@ namespace fjr::cooker::internal {
                     path = layer->GetIdentifier();
                 }
                 const auto found = source_layer_components_.find(
-                    normalized_path_key(path));
+                    util::Path{path}.normalized_key());
                 if (found == source_layer_components_.end()) {
                     continue;
                 }
@@ -200,68 +202,6 @@ namespace fjr::cooker::internal {
             return Category::RIVER_SEEDLING;
         default:
             fail("Non-point component received as a point category.");
-        }
-    }
-
-    void JungleSceneProfile::validate_contract(
-        const scene::StaticScene& source) {
-
-        constexpr std::size_t EXPECTED_POINT_BATCHES = 58;
-        constexpr std::size_t EXPECTED_POINT_INSTANCES = 8'674'676;
-
-        if (source.point_batches.size() != EXPECTED_POINT_BATCHES) {
-
-            fail("Jungle point batch count changed.");
-        }
-        if (source.point_instances.size() != EXPECTED_POINT_INSTANCES) {
-            fail("Jungle point instance count changed.");
-        }
-
-        std::array<
-            bool,
-            static_cast<std::size_t>(
-                scene::StaticScene::EnumPointCategory::COUNT)>
-            seen_categories{};
-
-        std::uint32_t expected_instance_offset = 0;
-        for (const auto& batch : source.point_batches) {
-            const auto category_index =
-                static_cast<std::size_t>(batch.category);
-            if (category_index >= seen_categories.size()) {
-                fail("Point category is invalid.");
-            }
-            if (batch.instances.count == 0 ||
-                batch.instances.offset != expected_instance_offset) {
-
-                fail("Point batch instances are not contiguous.");
-            }
-            seen_categories[category_index] = true;
-            expected_instance_offset += batch.instances.count;
-        }
-        if (expected_instance_offset != source.point_instances.size()) {
-
-            fail("Point batches do not cover all point data.");
-        }
-        if (std::ranges::find(seen_categories, false) !=
-            seen_categories.end()) {
-
-            fail("A required Jungle point category is empty.");
-        }
-
-        const auto& components = source.components;
-        if (components.terrain.extended.count == 0 ||
-            components.terrain.cinematic.count == 0) {
-            fail("Both compiler-known Terrain regions must be non-empty.");
-        }
-        const auto static_count =
-            4u + components.terrain.extended.count +
-            components.terrain.cinematic.count;
-        if (static_count != source.static_mesh_instances.size()) {
-            fail("Static components do not cover all static instances.");
-        }
-        if (source.camera.name == scene::StaticScene::INVALID_INDEX ||
-            source.environment_light.name == scene::StaticScene::INVALID_INDEX) {
-            fail("Jungle root must provide one camera and environment light.");
         }
     }
 

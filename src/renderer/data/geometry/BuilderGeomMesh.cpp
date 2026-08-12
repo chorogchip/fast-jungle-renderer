@@ -1,6 +1,7 @@
 #include "FastJungle/renderer/data/geometry/BuilderGeomMesh.hpp"
 
 #include "FastJungle/core/util/EnumUtils.hpp"
+#include "FastJungle/core/util/Logger.hpp"
 #include "FastJungle/renderer/data/RenderConsts.hpp"
 
 namespace fjr::render::data::geom {
@@ -16,6 +17,13 @@ namespace fjr::render::data::geom {
             using namespace DirectX;
 
             const auto& source_mesh = scene.meshes[mesh_id];
+
+            if (source_mesh.lod_count >
+                Consts::CULL_MAX_CONVENTIONAL_LODS) {
+                log::Logger::g_logger << log::abrt(
+                    "Mesh LOD count exceeds the GPU culling bucket layout.");
+            }
+
             const auto& lod0 = scene.mesh_lods[source_mesh.lod_offset];
 
             math::AABB bounds{};
@@ -71,6 +79,12 @@ namespace fjr::render::data::geom {
             meshes[mesh_id] = build_mesh(scene, mesh_id);
 
         for (const auto& impostor : scene.impostors) {
+            if (impostor.direction_count >
+                Consts::CULL_MAX_IMPOSTOR_DIRECTIONS) {
+                log::Logger::g_logger << log::abrt(
+                    "Impostor direction count exceeds the GPU culling bucket layout.");
+            }
+
             const auto first_card_lod = scene.meshes[
                 impostor.card_mesh_offset].lod_offset;
             auto& destination = meshes[impostor.mesh];

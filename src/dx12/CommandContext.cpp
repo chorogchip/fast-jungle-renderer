@@ -1,5 +1,6 @@
 #include "FastJungle/dx12/CommandContext.hpp"
 
+#include "FastJungle/dx12/Resource.hpp"
 #include "FastJungle/dx12/WindowsUtils.hpp"
 
 namespace fjr::dx {
@@ -7,7 +8,8 @@ namespace fjr::dx {
     void CommandContext::init(
         ID3D12Device* device,
         D3D12_COMMAND_LIST_TYPE type,
-        UINT32 frame_index) {
+        UINT32 frame_index,
+        std::source_location loc) {
 
         allocator_.Reset();
         command_list_.Reset();
@@ -18,35 +20,63 @@ namespace fjr::dx {
 
         abort_failed(device->CreateCommandAllocator(
             type_,
-            IID_PPV_ARGS(allocator_.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(allocator_.ReleaseAndGetAddressOf())),
+            loc);
 
         abort_failed(device->CreateCommandList(
             0,
             type_,
             allocator_.Get(),
             nullptr,
-            IID_PPV_ARGS(command_list_.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(command_list_.ReleaseAndGetAddressOf())),
+            loc);
 
-        abort_failed(command_list_->Close());
+        abort_failed(command_list_->Close(), loc);
     }
 
     void CommandContext::reset(
-        ID3D12PipelineState* initial_pipeline_state) {
+        ID3D12PipelineState* initial_pipeline_state,
+        std::source_location loc) {
 
-        abort_failed(allocator_->Reset());
+        abort_failed(allocator_->Reset(), loc);
 
         abort_failed(command_list_->Reset(
             allocator_.Get(),
-            initial_pipeline_state));
+            initial_pipeline_state),
+            loc);
 
     }
 
-    void CommandContext::close() {
-        abort_failed(command_list_->Close());
+    void CommandContext::close(std::source_location loc) {
+        abort_failed(command_list_->Close(), loc);
     }
 
+    void CommandContext::transition(
+        Resource& resource,
+        D3D12_RESOURCE_STATES state) {
 
+        if (resource.state_ == state) return;
 
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = resource.resource_.Get();
+        barrier.Transition.Subresource =
+            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrier.Transition.StateBefore = resource.state_;
+        barrier.Transition.StateAfter = state;
+
+        command_list_->ResourceBarrier(1, &barrier);
+        resource.state_ = state;
+    }
+
+    void CommandContext::uav_barrier(const Resource& resource) {
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.UAV.pResource = resource.resource_.Get();
+        command_list_->ResourceBarrier(1, &barrier);
+    }
 
     void CommandContext::RSSetViewPortScissorRect(UINT width, UINT height) {
 

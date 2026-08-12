@@ -7,6 +7,8 @@
 
 namespace fjr::dx {
 
+    class CommandContext;
+
     class Resource {
     public:
         Resource() = default;
@@ -16,13 +18,6 @@ namespace fjr::dx {
 
         Resource(Resource&&) noexcept = default;
         Resource& operator=(Resource&&) noexcept = default;
-
-        void transition(
-            ID3D12GraphicsCommandList* command_list,
-            D3D12_RESOURCE_STATES state);
-
-        void uav_barrier(
-            ID3D12GraphicsCommandList* command_list) const;
 
         [[nodiscard]]
         ID3D12Resource* get() const noexcept {
@@ -53,6 +48,10 @@ namespace fjr::dx {
         }
 
         Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
+
+    private:
+        friend class CommandContext;
+
         D3D12_RESOURCE_STATES state_ = D3D12_RESOURCE_STATE_COMMON;
     };
 

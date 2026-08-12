@@ -19,7 +19,7 @@ namespace fjr::dx {
 			message << "DirectX call failed with HRESULT 0x"
 				<< std::uppercase << std::hex << std::setw(8)
 				<< std::setfill('0')
-				<< static_cast<std::uint32_t>(result) << ".";
+				<< static_cast<uint32_t>(result) << ".";
 			// Record the HRESULT and abort atomically so another logger flush
 			// cannot separate the diagnostic from its fatal location.
 			log::Logger::g_logger << log::abrt(message.str(), loc);

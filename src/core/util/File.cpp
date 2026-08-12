@@ -6,7 +6,7 @@
 
 namespace fjr::util {
 
-    std::uint64_t File::size(const std::filesystem::path& path) {
+    uint64_t File::size(const std::filesystem::path& path) {
         std::error_code error;
         const auto result = std::filesystem::file_size(path, error);
         if (error) {
@@ -62,15 +62,26 @@ namespace fjr::util {
 
     void File::require_size(
         const std::filesystem::path& path,
-        std::uint64_t expected) {
+        uint64_t expected) {
 
-        const std::uint64_t actual = size(path);
+        const uint64_t actual = size(path);
         if (actual != expected) {
             log::Logger::g_logger
                 << "File size is invalid: " << path << '\n'
                 << "  expected: " << expected << '\n'
                 << "  actual: " << actual << '\n';
             log::Logger::g_logger.abort();
+        }
+    }
+
+    void File::create_directories(const std::filesystem::path& path) {
+        std::error_code error;
+        std::filesystem::create_directories(path, error);
+        if (error) {
+            log::Logger::g_logger
+                << "Failed to create directory: " << path << '\n'
+                << error.message() << '\n'
+                << log::abrt();
         }
     }
 

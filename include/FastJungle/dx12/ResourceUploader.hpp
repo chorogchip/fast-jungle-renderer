@@ -3,8 +3,9 @@
 #include <d3d12.h>
 
 #include <cstddef>
-#include <cstdint>
+#include <source_location>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 #include "FastJungle/dx12/Buffer.hpp"
@@ -15,17 +16,9 @@
 namespace fjr::dx {
 
     struct TextureSubresourceData {
-        const std::byte* source = nullptr;
-        UINT64 source_row_pitch = 0;
-        UINT64 source_slice_pitch = 0;
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT base_footprint{};
-        UINT row_count = 0;
-        UINT64 row_size = 0;
-    };
-
-    struct TextureUploadDesc {
-        std::span<const TextureSubresourceData> subresources;
-        UINT64 required_upload_size = 0;
+        std::span<const std::byte> data;
+        UINT64 row_pitch = 0;
+        UINT64 slice_pitch = 0;
     };
 
     class ResourceUploader final {
@@ -40,35 +33,63 @@ namespace fjr::dx {
             ID3D12Device* device,
             CommandQueue& command_queue,
             std::size_t page_size,
-            std::size_t page_count);
+            std::size_t page_count,
+            std::source_location loc =
+                std::source_location::current());
 
         void upload_buffer(
             Buffer& destination,
             std::span<const std::byte> source,
-            D3D12_RESOURCE_STATES final_state);
+            D3D12_RESOURCE_STATES final_state,
+            std::source_location loc =
+                std::source_location::current());
 
-        void upload_buffer_gathered(
+        template<typename T, typename Allocator>
+            requires (
+                std::is_trivially_copyable_v<T> &&
+                !std::is_same_v<std::remove_cv_t<T>, bool>)
+        void upload_buffer(
             Buffer& destination,
-            std::span<const std::byte> source,
-            std::size_t element_size,
-            std::span<const std::uint32_t> source_order,
-            D3D12_RESOURCE_STATES final_state);
+            const std::vector<T, Allocator>& source,
+            D3D12_RESOURCE_STATES final_state,
+            std::source_location loc =
+                std::source_location::current()) {
+
+            upload_buffer(
+                destination,
+                std::as_bytes(std::span{ source }),
+                final_state,
+                loc);
+        }
 
         void upload_texture(
             Texture& destination,
-            const TextureUploadDesc& source,
-            D3D12_RESOURCE_STATES final_state);
+            std::span<const TextureSubresourceData> source,
+            D3D12_RESOURCE_STATES final_state,
+            std::source_location loc =
+                std::source_location::current());
 
-        void flush();
-        void reset();
+        void submit(
+            std::source_location loc =
+                std::source_location::current());
+
+        void wait(
+            std::source_location loc =
+                std::source_location::current());
+
+        void reset(
+            std::source_location loc =
+                std::source_location::current());
 
     private:
-        void begin_recording();
+        void begin_recording(std::source_location loc);
 
         UINT64 reserve_upload_space(
             UINT64 size,
-            UINT64 alignment);
+            UINT64 alignment,
+            std::source_location loc);
 
+        ID3D12Device* device_ = nullptr;
         CommandQueue* command_queue_ = nullptr;
         std::vector<CommandContext> contexts_;
         std::vector<Buffer> upload_buffers_;
@@ -77,6 +98,7 @@ namespace fjr::dx {
         UINT64 page_size_ = 0;
         std::size_t current_page_ = 0;
         bool recording_ = false;
+        std::source_location source_location_{};
     };
 
 } // namespace fjr::dx

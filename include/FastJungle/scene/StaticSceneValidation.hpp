@@ -15,20 +15,20 @@ namespace fjr::scene {
 
         static void validate(
             const StaticScene& scene,
-            std::uint64_t texture_payload_size);
+            uint64_t texture_payload_size);
 
     private:
         static void require_index(
-            std::uint64_t index,
-            std::uint64_t size,
+            uint64_t index,
+            uint64_t size,
             std::string_view subject);
 
         static void require_range(
-            std::uint64_t offset,
-            std::uint64_t count,
-            std::uint64_t size,
+            uint64_t offset,
+            uint64_t count,
+            uint64_t size,
             std::string_view subject,
-            std::uint64_t invalid_offset = StaticScene::INVALID_INDEX);
+            uint64_t invalid_offset = StaticScene::INVALID_INDEX);
     };
 
 } // namespace fjr::scene

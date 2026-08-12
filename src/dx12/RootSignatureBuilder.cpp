@@ -391,7 +391,8 @@ namespace fjr::dx {
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature>
         RootSignatureBuilder::build(
-            ID3D12Device* device) const {
+            ID3D12Device* device,
+            std::source_location loc) const {
 
         const bool all_initialized = std::all_of(
             initialized_.begin(),
@@ -402,7 +403,8 @@ namespace fjr::dx {
 
         if (!all_initialized) {
             log::Logger::g_logger << log::abrt(
-                "Every root parameter must be initialized.");
+                "Every root parameter must be initialized.",
+                loc);
         }
 
         std::vector<D3D12_ROOT_PARAMETER1> root_parameters(
@@ -501,7 +503,8 @@ namespace fjr::dx {
         abort_failed(D3D12SerializeVersionedRootSignature(
             &description,
             serialized.ReleaseAndGetAddressOf(),
-            errors.ReleaseAndGetAddressOf()));
+            errors.ReleaseAndGetAddressOf()),
+            loc);
 
         Microsoft::WRL::ComPtr<ID3D12RootSignature>
             root_signature;
@@ -511,7 +514,8 @@ namespace fjr::dx {
             serialized->GetBufferPointer(),
             serialized->GetBufferSize(),
             IID_PPV_ARGS(
-                root_signature.ReleaseAndGetAddressOf())));
+                root_signature.ReleaseAndGetAddressOf())),
+            loc);
 
         return root_signature;
     }

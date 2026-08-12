@@ -86,7 +86,9 @@ namespace fjr::dx {
 
         [[nodiscard]]
         Microsoft::WRL::ComPtr<ID3D12Device>
-            create_high_performance_device(IDXGIFactory4* factory) {
+            create_high_performance_device(
+                IDXGIFactory4* factory,
+                std::source_location loc) {
 
             Microsoft::WRL::ComPtr<IDXGIFactory6> factory6;
             if (FAILED(factory->QueryInterface(
@@ -103,10 +105,10 @@ namespace fjr::dx {
                 if (result == DXGI_ERROR_NOT_FOUND) {
                     break;
                 }
-                abort_failed(result);
+                abort_failed(result, loc);
 
                 DXGI_ADAPTER_DESC1 description{};
-                abort_failed(adapter->GetDesc1(&description));
+                abort_failed(adapter->GetDesc1(&description), loc);
                 if (enm::has(
                     description.Flags,
                     static_cast<UINT>(DXGI_ADAPTER_FLAG_SOFTWARE))) {
@@ -128,7 +130,9 @@ namespace fjr::dx {
 
         [[nodiscard]]
         Microsoft::WRL::ComPtr<ID3D12Device>
-            create_best_legacy_device(IDXGIFactory4* factory) {
+            create_best_legacy_device(
+                IDXGIFactory4* factory,
+                std::source_location loc) {
 
             Microsoft::WRL::ComPtr<ID3D12Device> best_device;
             std::size_t best_dedicated_video_memory = 0;
@@ -142,10 +146,10 @@ namespace fjr::dx {
                 if (result == DXGI_ERROR_NOT_FOUND) {
                     break;
                 }
-                abort_failed(result);
+                abort_failed(result, loc);
 
                 DXGI_ADAPTER_DESC1 description{};
-                abort_failed(adapter->GetDesc1(&description));
+                abort_failed(adapter->GetDesc1(&description), loc);
                 if (enm::has(
                     description.Flags,
                     static_cast<UINT>(DXGI_ADAPTER_FLAG_SOFTWARE))) {
@@ -176,7 +180,8 @@ namespace fjr::dx {
 
     } // namespace
 
-    Microsoft::WRL::ComPtr<IDXGIFactory4> DeviceUtils::create_factory() {
+    Microsoft::WRL::ComPtr<IDXGIFactory4>
+        DeviceUtils::create_factory(std::source_location loc) {
 #if defined(_DEBUG)
         Microsoft::WRL::ComPtr<ID3D12Debug> debug_controller;
 
@@ -189,33 +194,38 @@ namespace fjr::dx {
         Microsoft::WRL::ComPtr<IDXGIFactory4> factory;
 
         abort_failed(CreateDXGIFactory1(
-            IID_PPV_ARGS(factory.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(factory.ReleaseAndGetAddressOf())),
+            loc);
 
         return factory;
     }
 
     Microsoft::WRL::ComPtr<ID3D12Device>
-        DeviceUtils::create_device(IDXGIFactory4* factory) {
+        DeviceUtils::create_device(
+            IDXGIFactory4* factory,
+            std::source_location loc) {
 
-        if (auto device = create_high_performance_device(factory)) {
+        if (auto device = create_high_performance_device(factory, loc)) {
             return device;
         }
 
-        if (auto device = create_best_legacy_device(factory)) {
+        if (auto device = create_best_legacy_device(factory, loc)) {
             return device;
         }
 
         Microsoft::WRL::ComPtr<IDXGIAdapter> warp_adapter;
 
         abort_failed(factory->EnumWarpAdapter(
-            IID_PPV_ARGS(warp_adapter.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(warp_adapter.ReleaseAndGetAddressOf())),
+            loc);
 
         Microsoft::WRL::ComPtr<IDXGIAdapter1> warp_adapter1;
         abort_failed(warp_adapter->QueryInterface(
-            IID_PPV_ARGS(warp_adapter1.ReleaseAndGetAddressOf())));
+            IID_PPV_ARGS(warp_adapter1.ReleaseAndGetAddressOf())),
+            loc);
 
         DXGI_ADAPTER_DESC1 warp_description{};
-        abort_failed(warp_adapter1->GetDesc1(&warp_description));
+        abort_failed(warp_adapter1->GetDesc1(&warp_description), loc);
         auto device = try_create_device(
             warp_adapter1.Get());
         if (device) {
@@ -227,7 +237,8 @@ namespace fjr::dx {
             abort_failed(D3D12CreateDevice(
                 warp_adapter1.Get(),
                 D3D_FEATURE_LEVEL_11_0,
-                IID_PPV_ARGS(device.ReleaseAndGetAddressOf())));
+                IID_PPV_ARGS(device.ReleaseAndGetAddressOf())),
+                loc);
         }
 
         return device;

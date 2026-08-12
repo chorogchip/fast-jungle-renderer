@@ -12,6 +12,10 @@ namespace fjr::util {
     TemporaryFile::TemporaryFile(std::filesystem::path path)
         : path_(std::move(path)) {}
 
+    TemporaryFile::TemporaryFile(TemporaryFile&& other) noexcept
+        : path_(std::move(other.path_)),
+          active_(std::exchange(other.active_, false)) {}
+
     TemporaryFile::~TemporaryFile() {
         if (!active_) {
             return;

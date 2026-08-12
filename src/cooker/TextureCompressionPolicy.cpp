@@ -5,11 +5,11 @@
 
 #include "FastJungle/core/util/EnumUtils.hpp"
 #include "FastJungle/core/util/Logger.hpp"
-#include "FastJungle/cooker/TextureCompression.hpp"
+#include "TextureCompression.hpp"
 
 namespace fjr::cooker {
     namespace {
-        enum class TextureUsage : std::uint32_t {
+        enum class TextureUsage : uint32_t {
             None = 0,
             BaseColor = 1u << 0u,
             Emissive = 1u << 1u,
@@ -20,7 +20,7 @@ namespace fjr::cooker {
         };
 
         struct UsageRecord final {
-            std::uint32_t usage = 0;
+            uint32_t usage = 0;
             std::array<bool, 5> scalar_channels{};
             bool base_color_uses_alpha = false;
             bool preserve_alpha_coverage = false;
@@ -56,7 +56,7 @@ namespace fjr::cooker {
         void add_usage(
             const scene::StaticScene& scene,
             std::vector<UsageRecord>& usages,
-            std::uint32_t binding_index,
+            uint32_t binding_index,
             TextureUsage usage) {
             if (binding_index == scene::StaticScene::INVALID_INDEX) {
                 return;
@@ -106,7 +106,7 @@ namespace fjr::cooker {
             const scene::StaticScene& scene,
             std::vector<UsageRecord>& usages) {
             for (const auto& impostor : scene.impostors) {
-                for (std::uint32_t direction = 0;
+                for (uint32_t direction = 0;
                     direction < impostor.direction_count;
                     ++direction) {
                     const auto& mesh = scene.meshes[
@@ -173,7 +173,7 @@ namespace fjr::cooker {
                     "Environment texture index is invalid.");
             }
             usages[scene.environment_light.texture].usage |=
-                static_cast<std::uint32_t>(TextureUsage::Environment);
+                static_cast<uint32_t>(TextureUsage::Environment);
         }
 
         mark_impostor_normals(scene, usages);
@@ -185,7 +185,7 @@ namespace fjr::cooker {
             const auto contains = [&usage](TextureUsage expected) {
                 return enm::has(
                     usage.usage,
-                    static_cast<std::uint32_t>(expected));
+                    static_cast<uint32_t>(expected));
             };
             const bool environment = contains(TextureUsage::Environment);
             const bool base_color = contains(TextureUsage::BaseColor);

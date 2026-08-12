@@ -13,7 +13,8 @@ namespace fjr::dx {
         UINT64 size,
         D3D12_HEAP_TYPE heap_type,
         D3D12_RESOURCE_FLAGS flags,
-        D3D12_RESOURCE_STATES initial_state) {
+        D3D12_RESOURCE_STATES initial_state,
+        std::source_location loc) {
 
         D3D12_HEAP_PROPERTIES heap_properties{};
         heap_properties.Type = heap_type;
@@ -44,7 +45,8 @@ namespace fjr::dx {
             initial_state,
             nullptr,
             IID_PPV_ARGS(
-                resource.ReleaseAndGetAddressOf())));
+                resource.ReleaseAndGetAddressOf())),
+            loc);
 
         set_resource(std::move(resource), initial_state);
     }

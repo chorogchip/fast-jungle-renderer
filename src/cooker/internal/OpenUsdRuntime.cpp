@@ -1,44 +1,25 @@
 #include "OpenUsdRuntime.hpp"
 
-#include "CookError.hpp"
+#include "FastJungle/core/util/Logger.hpp"
+#include "FastJungle/core/util/Process.hpp"
 
 #include <pxr/base/plug/registry.h>
-
-#include <Windows.h>
 
 #include <array>
 #include <filesystem>
 #include <mutex>
-#include <string_view>
-#include <vector>
 
 namespace fjr::cooker::internal {
 
-    namespace {
+    using log::fail;
 
-        [[nodiscard]] std::filesystem::path executable_directory() {
-            std::vector<wchar_t> buffer(1024);
-            for (;;) {
-                const DWORD length = GetModuleFileNameW(
-                    nullptr,
-                    buffer.data(),
-                    static_cast<DWORD>(buffer.size()));
-                if (length == 0) {
-                    fail("GetModuleFileNameW failed.");
-                }
-                if (length < buffer.size() - 1) {
-                    return std::filesystem::path{
-                        std::wstring_view{buffer.data(), length}}
-                        .parent_path();
-                }
-                buffer.resize(buffer.size() * 2);
-            }
-        }
+    namespace {
 
         void register_plugins() {
             static std::once_flag once;
             std::call_once(once, [] {
-                const auto runtime_root = executable_directory() / "openusd";
+                const auto runtime_root =
+                    util::Process::executable_directory() / "openusd";
                 const std::array manifests{
                     runtime_root / "lib/usd/plugInfo.json",
                     runtime_root / "plugin/usd/plugInfo.json",

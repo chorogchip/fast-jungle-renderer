@@ -5,6 +5,7 @@
 #include <source_location>
 #include <sstream>
 #include <string_view>
+#include <utility>
 
 namespace fjr::log {
 
@@ -81,6 +82,12 @@ namespace fjr::log {
             .message = message,
             .loc = loc
         };
+    }
+
+    template<typename... Parts>
+    [[noreturn]] void fail(Parts&&... parts) {
+        ((Logger::g_logger << std::forward<Parts>(parts)), ...);
+        Logger::g_logger.abort();
     }
 
 } // namespace fjr::log
