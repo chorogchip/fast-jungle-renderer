@@ -7,9 +7,9 @@
 namespace fjr::render::data {
 
     namespace {
-        constexpr float LOD_ERROR_THRESHOLD_PX = 9.0f;
-        constexpr float IMPOSTOR_TRANSITION_RADIUS_PX = 384;
-        constexpr float CULL_RADIUS_PX = 9.0f;
+        constexpr float LOD_ERROR_THRESHOLD_PX = 13.5f;
+        constexpr float IMPOSTOR_TRANSITION_RADIUS_PX = 256.0f;
+        constexpr float CULL_RADIUS_PX = 7.2f;
     }
 
     void DataPerFrame::CameraConstants::fill_from_camera(
