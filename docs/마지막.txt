@@ -1,9 +1,9 @@
 
-왜 PE이지? L2랑 뭔관계이지? 모르겟다 -> PE가 L2를 사용하는게 맞겠지?
-다양한 곳에서 변화하는 정점 개수를 보여주면서 보면 좋겠다.
+왜 PE이지? L2랑 뭔관계이지? 모르겟다 -> PE가 L2를 사용하는게 맞겠지? -> 맞는듯?
+다양한 곳에서 변화하는 정점 개수를 보여주면서 보면 좋겠다. -> 시도함, LOD mesh가 있다면 똑같은 증상, 빌보드는 sampling latency bound
 데이터를 더 많이.
-PS가 못가져가면 VS가 만들어줄수가 없을수도. (ISBE문제?)
-occlusion은 지금 상태에서 의미가 없는 것 같다.
+PS가 못가져가면 VS가 만들어줄수가 없을수도. (ISBE문제?) -> 근데 나는 attribute개수가 적음.
+occlusion은 지금 상태에서 의미가 없는 것 같다. -> 맞음.
 
 마지막 발표는 정수를 담아서, 압축해서 해야함.
 
@@ -11,6 +11,103 @@ occlusion은 지금 상태에서 의미가 없는 것 같다.
 준비 -> GPU cull+visibility -> SW raster = 내가 생각하는 그것 (다행히 메모리는 충분해서 virtualized texturing은 안했다)
 
 그리고 좀더 양적인 접근법이 필요하다.
-Draw가 몇개고, indirect bin이 최대가 몇개였고, instance가 몇개고, index가 몇개고 이런거를 좀 더 잘 파악하고 있어야 한다.
+Draw가 몇개고, indirect bin이 최대가 몇개였고, instance가 몇개고, index가 몇개고 이런거를 좀 더 잘 파악하고 있어야 한다. -> 맞음. 하지만 draw call문제는 아님.
 그런 전체적인 관점에서 양적인 감각을 갖는 것이 중요한 것 같다.
 양적인 감각은 단시간에 얻을 수 없으니까.
+
+
+
+[08-13 진행상황]
+
+- 발표 자료를 제작했습니다.
+- 렌더러 LOD 상수를 최적화하고 1060에서 16.6ms에 맞췄습니다.
+- count에서 얻은 정보를 scatter에서 재사용해 GPU culling에 쓰이는 셰이더의 성능을 개선했습니다.
+- 정보를 얻기 위한 추가 프로파일링을 진행했습니다.
+- 코드를 리팩토링했습니다.
+
+
+____________________________________________
+
+다음날
+
+-> sw raster을 진행하는것이 맞긴하다.
+하지만 실험결과, .... 는 나중에 확인하는데
+alpha tested의 경우 raster를 넣는 것이 매우 곤란할 수 있다 (divergence가 커서)
+
+
+지금 해야 할 것이 무엇인가?
+normal correctness 수정같은건 후순위이고..
+어쨌든 sw raster까지 도입하면 그림이 딱 맞아떨어진다.
+
+일단은
+1. sw raster를 도입할 근거가 부족하다. 지금 어디서 vs warp occupancy가 떨어지는지 모르기 때문이다.
+우선 이걸 밝히는 것이 먼저이다. (sw raster로 귀결날 거 같지만은)
+
+일단 글을 정확히 읽어보자.
+
+
+
+
+
+
+
+0. 지금 문제는 shader의 memory fetch로 인한 stall이 hiding돼야 하는데 vs의 occupancy가 SM당 1.8 warp로 매우 낮다
+그래서 거기서 hiding하지 못하고 느려짐
+1. opaque에서 1ms 이상 걸림 아래 내용은 다 opaque의 내용
+2. instnace x index = 평균적으로 100k정도인 draw call들이 100개정도 있다
+3. register count로 SM당 warp가 제한되지 않음
+4. vs warp 1.x per SM, unallocated 42.5 / 48 per SM
+5. 의도적으로 계산을 추가해 vs의 latency를 아주 늘리면 vs warp가 7.9 / MS까지 증가, 8에 수렴
+6. PE, VAF, 기타등등 모든 nsight graphics에서 보이는 Unit Throughput이 튀는 값 없이 25% 미만으로 관측됨 (단, ISBE등은 안 보임)
+7. ia -> vs, vs -> ps로 넘겨주는 구조체들은 모두 매우 작음
+
+
+
+
+-> 병목은 찾지 못헀다. 아마 nsight 로 접근하는건 pro가 없기에 무리일 거 같고
+nsight를 너무 절대신처럼 신뢰하지 말아야 한다. 블랙박스가 많다는 것을 인정해야한다.
+그렇게 됐을 떄 대충 병목이 뭘까를 생각해보면은
+아마 ISBE관련 throughput일수도? (capacity는 구조체가 얇아서 아닌거같다)
+정확히는 모르겠지만 대충 vs 앞단 - vs 뒷단 - raster 이 사이 어딘가엔 반드시 존재할 것이다
+또한 내가 이미 해논 최적화도 꽤 존재한다. 그래서 구조체를 더 compact하거나 할수없다
+따라서 이게 뭐가 됐든간에 지금까지 식별한 범위에서 (존재하는 가능성중에) 내가 해볼 수 있는 것들은 제한되고 그게 SW raster이다
+임시로 codex로 실험해봤지만 잘 안됐다. 그래도 해보는수밖에 없다.
+SW raster를 만들고 그걸로 근본적으로 5070이나 5060 ti에서 성능을 개선시키는걸 이번주의 목표로 하자.
+
+
+
+
+안녕하십니까. 현재 상황에서 SW rasterization을 도입하는 것이 실제로 병목을 줄일 수 있을지 여쭤보고자 합니다.
+
+지난 주 발표에서 설명드렸던 모든 보이는 Unit의 throughput이 25%미만으로 vertex shader의 occupancy가 낮은 근본적 원인은 명확하게 규명하지 못했습니다.
+단 VS에 의도적 연산을 추가해 latency를 늘리면 VS occupancy가 기존 1.8에서  7.9 까지 수렴합니다. (max 48 warp / SM)
+latency를 늘렸을 때 occupancy가 높아지는 것을 보아 VS 자체가 만드는 어떤 residency 관련된 제약은 아니라고 보고 있습니다.
+기타 regsiter pressure도 문제가 없음을 확인했고, attribute 구조체도 float4 + uint 로 매우 작아 문제가 아니거나 줄일 수 없다고 판단했습니다.
+draw call도 문제가 되는 부분에서 call당 대략 100 instance x 1k instance = 100k triangles정도의 draw를 100번정도 해 문제가 아니라고 판단했습니다.
+
+그래서 명확한 병목의 원인은 확인할 수 없지만 문제가 될 것으로 예상하는 후보들을 우회한다는 점에서 SW rasterization을 도입하는 시도를 한 번 해 보려고 하는데,
+어떻게 생각하시는지 궁금합니다.
+opaque하고 triangle size가 작은 메쉬들만 별도의 경로로 sw raster한 후 두 visibility buffer를 resolve하려고 합니다.
+
+
+
+
+Micro Triangle로 인한 Pixel Shader 및 TRAM Allocation 병목이 원인인 지 확인하려면 우선 Render Target Resolution을 줄여보는 것이 좋을 듯 합니다.
+-> 이게 맞는 듯하다. 이걸로 가보자.
+
+
+현재 1920 1080 에서
+occupancy 1.8, TRAM unalloc 16K, alloc 37B
+
+
+안녕하십니까. 해상도 960, 1920, 3840에서 프로파일링해 보았으나 유의미한 정보를 발견하지 못했습니다.
+VS occupancy는 문제되는 부분에서 모두 1.8로 일정하고,
+TRAM allocation은 전체 SM당 16 KB 중 20 B -> 40 B -> 50 B 정도로 매우 낮고, 점점 증가하는 상태입니다.
+VS -> PS attribute가 float4 SV position과 uint instance id 총 20B로 작고
+pixel warp occupancy가 0.3%로 매우 낮아 다른 문제이지 않을까 생각을 했습니다.
+다만 직접적인 stall과 관련된 metric은 찾지 못했습니다.
+
+
+
+
+

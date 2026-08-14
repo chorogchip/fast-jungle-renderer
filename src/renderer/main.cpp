@@ -98,7 +98,7 @@ int WINAPI wWinMain(
     _In_ PWSTR,
     _In_ int show_command) {
 
-    HWND hwnd = create_window(instance, 1920, 1080);
+    HWND hwnd = create_window(instance, 3840, 2160);
     fjr::log::Logger::g_logger << fjr::log::asrt(hwnd != nullptr);
     MSVC_ASSUME(hwnd != nullptr);
 
