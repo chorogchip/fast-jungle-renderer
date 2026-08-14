@@ -7,6 +7,7 @@
 #include "FastJungle/renderer/pass/PassGPUCull.hpp"
 #include "FastJungle/renderer/pass/PassVisibility.hpp"
 #include "FastJungle/renderer/pass/PassResolve.hpp"
+#include "FastJungle/renderer/pass/PassSWRaster.hpp"
 #include "FastJungle/scene/StaticScene.hpp"
 #include "FastJungle/renderer/data/DataPersistent.hpp"
 #include "FastJungle/renderer/data/DataPerFrame.hpp"
@@ -38,6 +39,7 @@ namespace fjr::render {
         void create_pass_targets(uint32_t width, uint32_t height);
 
         PassGPUCull gpu_culling_pass_;
+        PassSWRaster sw_raster_pass_;
         PassVisibility visibility_pass_;
         PassResolve resolve_pass_;
 
@@ -48,6 +50,7 @@ namespace fjr::render {
         dx::Texture frame_buffer_;
 
         std::array<dx::DescAlloc, FRAME_COUNT> visibility_input_views_;
+
         dx::DescAlloc resolve_views_;
         dx::DescAlloc visibility_uav_;
         dx::DescAlloc visibility_clear_uav_;

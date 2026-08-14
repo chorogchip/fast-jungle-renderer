@@ -111,3 +111,63 @@ pixel warp occupancy가 0.3%로 매우 낮아 다른 문제이지 않을까 생�
 
 
 
+
+
+
+
+
+
+현재 GPU cull 0.5ms
+pyramid / terrain / river 0.2ms
+opaque tree 1.0ms
+foliage billboard 1.4ms
+alpha test foliage 1.3ms
+resolve 0.2ms
+
+여기서
+opaque tree와 alpha test foliage중 작은 삼각형들만 SW raster, async compute.
+일부만 분리해서 SW raster하고, 큰 LOD는 HW raster.
+alpha test foliage중 작은 LOD는 alpha test 미수행.
+큰것만 HW raster에서 원래 경로로 alpha test 수행.
+그렇게 small triangle 비용이 줄면 기존 LOD상수를 조잘해 billboard 개수를 줄여 billboard 감소
+ 마지막 revsolve.
+
+이러면 빨라질 것이다.
+
+
+
+
+
+
+시작 장면에서는 후보인 opaque 물체들의 instance x triangle 수가 21 M 개로 128개씩 cluster에 담을 때
+25bit 안에 쉽게 표현 가능했고, 다른 장면에서는 현재 기준 빌보드가 대부분이기에 가능하다고 판단
+
+
+
+[08-14 진행상황]
+
+- vertex/pixel shader의 attribute나 latency를 조절하며 병목을 찾는 실험을 진행했습니다.
+	residency보다는 throughput문제라고 판단했고, VS warp를 만들어주는 곳에서 문제가 있다고 판단했습니다.
+- SW rasterization 관련 내용을 찾아보며, 구현을 검토했습니다. 한 번 시도해보기로 결정했습니다.
+- depth prepass는 불가하므로 64bit atomic을 써야 합니다. 32bit depth, 32bit id를 사용하기로 결정했습니다.
+	- sw rasterization을 위해 64 vertex x 128 triangle 의 cluster로 묶으려고 합니다.
+	- 8bit batch(= visible submesh) id, 17bit cluster x instance id, 7bit triangle id in cluster 로 visibility buffer를 수정하려고 합니다.
+		cluster x instance가 아닌 batch만 compact할 수 있습니다
+	- 씬의 데이터가 해당 포맷을 쓰기에 문제가 없음을 확인했습니다.
+- SW raster 구현을 시작했습니다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

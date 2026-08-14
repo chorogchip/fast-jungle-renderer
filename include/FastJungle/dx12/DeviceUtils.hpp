@@ -22,6 +22,9 @@ namespace fjr::dx {
             IDXGIFactory4* factory,
             std::source_location loc =
                 std::source_location::current());
+
+        static void check_feature_support(
+            ID3D12Device* device);
     };
 
 } // namespace fjr::dx

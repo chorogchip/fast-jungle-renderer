@@ -199,4 +199,5 @@ namespace fjr::render::data {
             dx::DescriptorHeap& heap_srv_cbv_uav,
             dx::DescriptorHeap& heap_sampler);
     };
+
 }

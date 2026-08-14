@@ -234,7 +234,7 @@ namespace fjr::dx {
                 "WARP fallback (no hardware D3D12 adapter was usable)");
         }
         if (!device) {
-            abort_failed(D3D12CreateDevice(
+            dx::abort_failed(D3D12CreateDevice(
                 warp_adapter1.Get(),
                 D3D_FEATURE_LEVEL_11_0,
                 IID_PPV_ARGS(device.ReleaseAndGetAddressOf())),
@@ -242,6 +242,22 @@ namespace fjr::dx {
         }
 
         return device;
+    }
+
+    static void check_feature_support(
+        ID3D12Device* device) {
+
+        // feature support SM 6.6 for SW raster
+
+        D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1{};
+        D3D12_FEATURE_DATA_SHADER_MODEL shader_model{ D3D_SHADER_MODEL_6_6 };
+
+        abort_failed(device->CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
+
+        log::Logger::g_logger <<
+            log::asrt(options1.Int64ShaderOps) <<
+            shader_model.HighestShaderModel < D3D_SHADER_MODEL_6_6;
     }
 
 } // namespace fjr::dx
