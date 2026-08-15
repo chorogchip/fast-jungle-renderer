@@ -52,7 +52,7 @@ struct MeshLod
     uint submesh_count;
     float lod_error;
     float next_lod_error;
-    uint software_raster;
+    uint software_raster_mask;
 };
 
 struct Mesh
@@ -92,11 +92,9 @@ struct SoftwareBatch
 {
     uint batch_id;
     uint visible_instance_offset;
-    uint instance_count;
     uint cluster_offset;
     uint cluster_count;
     uint submesh_id;
-    uint dispatch_width;
 
     uint thread_group_count_x;
     uint thread_group_count_y;

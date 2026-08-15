@@ -194,11 +194,11 @@ void main(uint3 tid : SV_DispatchThreadID)
         const uint packed_triangle = raster_cluster_triangles[
             cluster.triangle_offset + local_triangle];
         index0 = raster_cluster_vertices[
-            cluster.vertex_offset + (packed_triangle & 0x3fu)];
+            cluster.vertex_offset + (packed_triangle & 0x7fu)];
         index1 = raster_cluster_vertices[
-            cluster.vertex_offset + ((packed_triangle >> 6u) & 0x3fu)];
+            cluster.vertex_offset + ((packed_triangle >> 7u) & 0x7fu)];
         index2 = raster_cluster_vertices[
-            cluster.vertex_offset + ((packed_triangle >> 12u) & 0x3fu)];
+            cluster.vertex_offset + ((packed_triangle >> 14u) & 0x7fu)];
         back_face = false;
     }
     else

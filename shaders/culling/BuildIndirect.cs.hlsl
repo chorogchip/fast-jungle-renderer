@@ -14,6 +14,8 @@ RWStructuredBuffer<uint> software_batch_count : register(u8);
 
 static const uint RASTER_CLASS_OPAQUE = 2;
 static const uint RASTER_CLASS_ALPHA = 4;
+static const uint SOFTWARE_RASTER_OPAQUE = 1u << 0u;
+static const uint SOFTWARE_RASTER_ALPHA = 1u << 1u;
 static const uint SOFTWARE_LOCAL_WORK_CAPACITY = 1u << 17u;
 static const uint SOFTWARE_BATCH_CAPACITY = 1u << 8u;
 static const uint MAX_DISPATCH_DIMENSION = 65535;
@@ -30,20 +32,14 @@ void WriteSoftwareBatch(
     if (batch_id >= SOFTWARE_BATCH_CAPACITY)
         return;
 
-    const uint work_count = instance_count * cluster_count;
-    const uint dispatch_width = min(work_count, MAX_DISPATCH_DIMENSION);
-
     SoftwareBatch batch;
     batch.batch_id = batch_id;
     batch.visible_instance_offset = visible_instance_offset;
-    batch.instance_count = instance_count;
     batch.cluster_offset = cluster_offset;
     batch.cluster_count = cluster_count;
     batch.submesh_id = submesh_id;
-    batch.dispatch_width = dispatch_width;
-    batch.thread_group_count_x = dispatch_width;
-    batch.thread_group_count_y =
-        (work_count + dispatch_width - 1u) / dispatch_width;
+    batch.thread_group_count_x = cluster_count;
+    batch.thread_group_count_y = instance_count;
     batch.thread_group_count_z = 1;
     software_batches[batch_id] = batch;
 }
@@ -54,11 +50,17 @@ void BuildSoftwareBatches(
     SubMesh submesh,
     uint submesh_id)
 {
-    if (submesh.raster_cluster_count <= SOFTWARE_LOCAL_WORK_CAPACITY)
+    for (uint cluster_begin = 0;
+        cluster_begin < submesh.raster_cluster_count;
+        cluster_begin += MAX_DISPATCH_DIMENSION)
     {
+        const uint cluster_count = min(
+            MAX_DISPATCH_DIMENSION,
+            submesh.raster_cluster_count - cluster_begin);
         const uint instances_per_batch =
-            SOFTWARE_LOCAL_WORK_CAPACITY /
-            submesh.raster_cluster_count;
+            min(
+                MAX_DISPATCH_DIMENSION,
+                SOFTWARE_LOCAL_WORK_CAPACITY / cluster_count);
         for (uint instance_begin = 0;
             instance_begin < instance_count;
             instance_begin += instances_per_batch)
@@ -66,26 +68,8 @@ void BuildSoftwareBatches(
             WriteSoftwareBatch(
                 visible_instance_offset + instance_begin,
                 min(instances_per_batch, instance_count - instance_begin),
-                submesh.raster_cluster_offset,
-                submesh.raster_cluster_count,
-                submesh_id);
-        }
-        return;
-    }
-
-    for (uint instance = 0; instance < instance_count; ++instance)
-    {
-        for (uint cluster_begin = 0;
-            cluster_begin < submesh.raster_cluster_count;
-            cluster_begin += SOFTWARE_LOCAL_WORK_CAPACITY)
-        {
-            WriteSoftwareBatch(
-                visible_instance_offset + instance,
-                1,
                 submesh.raster_cluster_offset + cluster_begin,
-                min(
-                    SOFTWARE_LOCAL_WORK_CAPACITY,
-                    submesh.raster_cluster_count - cluster_begin),
+                cluster_count,
                 submesh_id);
         }
     }
@@ -112,11 +96,15 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         if (submesh.raster_class >= raster_class_count)
             continue;
 
+        const uint software_raster_flag =
+            submesh.raster_class == RASTER_CLASS_OPAQUE
+                ? SOFTWARE_RASTER_OPAQUE
+                : submesh.raster_class == RASTER_CLASS_ALPHA
+                    ? SOFTWARE_RASTER_ALPHA
+                    : 0;
         const bool software_raster =
-            lod.software_raster != 0 &&
-            submesh.raster_cluster_count != 0 &&
-            (submesh.raster_class == RASTER_CLASS_OPAQUE ||
-                submesh.raster_class == RASTER_CLASS_ALPHA);
+            (lod.software_raster_mask & software_raster_flag) != 0 &&
+            submesh.raster_cluster_count != 0;
         if (software_raster)
         {
             BuildSoftwareBatches(

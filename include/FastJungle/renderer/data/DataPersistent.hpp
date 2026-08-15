@@ -164,7 +164,7 @@ namespace fjr::render::data {
             uint32_t submesh_count = 0;
             float lod_error = 0.0f;
             float next_lod_error = std::numeric_limits<float>::infinity();
-            uint32_t software_raster = 0;
+            uint32_t software_raster_mask = 0;
         };
         static_assert(sizeof(MeshLod) == 20);
         static_assert(std::is_trivially_copyable_v<MeshLod>);

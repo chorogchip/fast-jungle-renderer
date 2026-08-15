@@ -5,6 +5,7 @@
 #include "../common/RenderData.hlsli"
 
 static const uint SOFTWARE_THREADS_PER_GROUP = 64;
+static const uint SOFTWARE_CLUSTER_VERTEX_COUNT = 128;
 static const uint SOFTWARE_LOCAL_WORK_BITS = 17;
 static const uint SOFTWARE_TRIANGLE_BITS = 7;
 static const uint RASTER_CLASS_OPAQUE = 2;
@@ -14,11 +15,9 @@ cbuffer SoftwareBatchConstants : register(b1)
 {
     uint batch_id;
     uint visible_instance_offset;
-    uint instance_count;
     uint cluster_offset;
     uint cluster_count;
     uint submesh_id;
-    uint dispatch_width;
 };
 
 StructuredBuffer<uint> visible_instances : register(t0);
@@ -37,7 +36,7 @@ groupshared InstanceTransform group_instance;
 groupshared VertexDecodeParams group_decode;
 groupshared SubMesh group_submesh;
 groupshared RasterCluster group_cluster;
-groupshared float4 group_raster_positions[SOFTWARE_THREADS_PER_GROUP];
+groupshared float4 group_raster_positions[SOFTWARE_CLUSTER_VERTEX_COUNT];
 
 float Edge(float2 a, float2 b, float2 sample_position)
 {
@@ -162,12 +161,9 @@ void RasterTriangle(
 
 void SoftwareRasterMain(uint thread_id, uint3 group_id)
 {
-    const uint local_work = group_id.x + group_id.y * dispatch_width;
-    if (local_work >= instance_count * cluster_count)
-        return;
-
-    const uint local_instance = local_work / cluster_count;
-    const uint local_cluster = local_work % cluster_count;
+    const uint local_instance = group_id.y;
+    const uint local_cluster = group_id.x;
+    const uint local_work = local_instance * cluster_count + local_cluster;
 
     if (thread_id == 0)
     {
@@ -182,10 +178,12 @@ void SoftwareRasterMain(uint thread_id, uint3 group_id)
 
     const RasterCluster cluster = group_cluster;
     const SubMesh submesh = group_submesh;
-    if (thread_id < cluster.vertex_count)
+    for (uint cluster_vertex = thread_id;
+        cluster_vertex < cluster.vertex_count;
+        cluster_vertex += SOFTWARE_THREADS_PER_GROUP)
     {
         const uint local_vertex = raster_cluster_vertices[
-            cluster.vertex_offset + thread_id];
+            cluster.vertex_offset + cluster_vertex];
         const float3 encoded_position = LoadPosition(
             submesh.base_vertex + local_vertex,
             submesh.raster_class);
@@ -206,7 +204,7 @@ void SoftwareRasterMain(uint thread_id, uint3 group_id)
         raster_position = round(
             raster_position * SOFTWARE_SUBPIXEL_SCALE) /
             SOFTWARE_SUBPIXEL_SCALE;
-        group_raster_positions[thread_id] = float4(
+        group_raster_positions[cluster_vertex] = float4(
             raster_position,
             ndc.z,
             clip_position.w);
@@ -220,9 +218,9 @@ void SoftwareRasterMain(uint thread_id, uint3 group_id)
     {
         const uint packed_triangle = raster_cluster_triangles[
             cluster.triangle_offset + local_triangle];
-        const uint vertex0 = packed_triangle & 0x3fu;
-        const uint vertex1 = (packed_triangle >> 6u) & 0x3fu;
-        const uint vertex2 = (packed_triangle >> 12u) & 0x3fu;
+        const uint vertex0 = packed_triangle & 0x7fu;
+        const uint vertex1 = (packed_triangle >> 7u) & 0x7fu;
+        const uint vertex2 = (packed_triangle >> 14u) & 0x7fu;
         RasterTriangle(
             group_raster_positions[vertex0],
             group_raster_positions[vertex1],
