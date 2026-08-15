@@ -76,8 +76,26 @@ namespace fjr::render::data {
         static_assert(offsetof(IndirectGPUDraw, draw_arguments) == 12);
         static_assert(std::is_trivially_copyable_v<IndirectGPUDraw>);
 
+        struct SoftwareBatch {
+            uint32_t batch_id = Consts::IND_ERR;
+            uint32_t visible_instance_offset = Consts::IND_ERR;
+            uint32_t instance_count = 0;
+            uint32_t cluster_offset = Consts::IND_ERR;
+            uint32_t cluster_count = 0;
+            uint32_t submesh_id = Consts::IND_ERR;
+            uint32_t dispatch_width = 0;
+            D3D12_DISPATCH_ARGUMENTS dispatch_arguments{};
+
+            static constexpr inline uint32_t ROOT_CONST_CNT = 7;
+        };
+        static_assert(sizeof(SoftwareBatch) == 40);
+        static_assert(offsetof(SoftwareBatch, dispatch_arguments) == 28);
+        static_assert(std::is_trivially_copyable_v<SoftwareBatch>);
+
         dx::Buffer indirect_gpu_draw{};
         dx::Buffer indirect_gpu_draw_counts{};
+        dx::Buffer software_batches{};
+        dx::Buffer software_batch_count{};
         dx::Buffer visible_instance{};  // first uint32_t, instance transform id. later uint16_t.
 
         static DataPerFrame build(

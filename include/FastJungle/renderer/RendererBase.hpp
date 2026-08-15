@@ -47,12 +47,17 @@ namespace fjr::render {
 
         dx::CommandQueue command_queue_;
         std::array<dx::CommandContext, FRAME_COUNT> command_contexts_;
+        dx::CommandQueue compute_queue_;
+        std::array<dx::CommandContext, FRAME_COUNT> cull_contexts_;
+        std::array<dx::CommandContext, FRAME_COUNT> compute_contexts_;
+        std::array<dx::CommandContext, FRAME_COUNT> resolve_contexts_;
 
         dx::SwapChain swap_chain_;
         dx::DescAlloc desc_rtv_;
 
         dx::Texture buffer_depth_;
         dx::DescAlloc desc_dsv_;
+        dx::DescAlloc depth_srv_;
 
     private:
 

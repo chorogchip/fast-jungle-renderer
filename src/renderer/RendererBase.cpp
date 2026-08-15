@@ -16,6 +16,9 @@ namespace fjr::render {
         command_queue_.init(
             device_.Get(),
             D3D12_COMMAND_LIST_TYPE_DIRECT);
+        compute_queue_.init(
+            device_.Get(),
+            D3D12_COMMAND_LIST_TYPE_COMPUTE);
 
         swap_chain_.init(
             factory.Get(),
@@ -54,9 +57,22 @@ namespace fjr::render {
 
         desc_rtv_ = heap_rtv_.alloc(FRAME_COUNT);
         desc_dsv_ = heap_dsv_.alloc();
+        depth_srv_ = heap_srv_cbv_uav_.alloc();
 
         for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             command_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                frame);
+            cull_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_COMPUTE,
+                frame);
+            compute_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_COMPUTE,
+                frame);
+            resolve_contexts_[frame].init(
                 device_.Get(),
                 D3D12_COMMAND_LIST_TYPE_DIRECT,
                 frame);
@@ -67,6 +83,7 @@ namespace fjr::render {
 
     void RendererBase::reset() {
         command_queue_.flush();
+        compute_queue_.flush();
         heap_srv_cbv_uav_.reset();
         heap_cpu_srv_cbv_uav_.reset();
         heap_sampler_.reset();
@@ -79,6 +96,7 @@ namespace fjr::render {
         uint32_t height) {
 
         command_queue_.flush();
+        compute_queue_.flush();
         swap_chain_.resize(width, height);
         create_size_dependent_resources(width, height);
     }
@@ -104,7 +122,7 @@ namespace fjr::render {
         depth_description.Height = height;
         depth_description.DepthOrArraySize = 1;
         depth_description.MipLevels = 1;
-        depth_description.Format = DEPTH_FORMAT;
+        depth_description.Format = DXGI_FORMAT_R32_TYPELESS;
         depth_description.SampleDesc.Count = 1;
         depth_description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
         depth_description.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -122,6 +140,16 @@ namespace fjr::render {
         buffer_depth_.create_dsv(
             device_.Get(), desc_dsv_.get_cpu(),
             0, 0, 1, DEPTH_FORMAT, D3D12_DSV_FLAG_NONE);
+        buffer_depth_.create_srv(
+            device_.Get(),
+            depth_srv_.get_cpu(),
+            dx::TextureViewRange{
+                .first_mip = 0,
+                .mip_count = 1,
+                .first_slice = 0,
+                .slice_count = 1,
+            },
+            DXGI_FORMAT_R32_FLOAT);
     }
 
 

@@ -5,6 +5,10 @@
 
 namespace fjr::render::data::geom {
 
+    namespace {
+        constexpr uint32_t SOFTWARE_RASTER_FIRST_LOD = 5;
+    }
+
     std::vector<DataPersistent::MeshLod> BuilderGeomMeshLod::build(
         const scene::StaticScene& scene) {
 
@@ -23,6 +27,8 @@ namespace fjr::render::data::geom {
                 destination.next_lod_error = lod + 1 < mesh.lod_count
                     ? scene.mesh_lods[source_id + 1].max_deviation
                     : std::numeric_limits<float>::infinity();
+                destination.software_raster =
+                    lod >= SOFTWARE_RASTER_FIRST_LOD;
             }
         }
 

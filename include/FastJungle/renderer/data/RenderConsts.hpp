@@ -42,7 +42,22 @@ namespace fjr::render::data {
             static_cast<uint32_t>(EnumInstanceKind::COUNT);
         static inline constexpr uint32_t RASTER_CLASS_CNT =
             static_cast<uint32_t>(EnumRasterClass::COUNT);
+
+        static inline constexpr uint32_t SW_CLUSTER_VERTEX_COUNT = 64;
+        static inline constexpr uint32_t SW_CLUSTER_TRIANGLE_COUNT = 128;
+        static inline constexpr uint32_t SW_TRIANGLE_BITS = 7;
+        static inline constexpr uint32_t SW_LOCAL_WORK_BITS = 17;
+        static inline constexpr uint32_t SW_BATCH_BITS = 8;
+        static inline constexpr uint32_t SW_LOCAL_WORK_CAPACITY =
+            1u << SW_LOCAL_WORK_BITS;
+        static inline constexpr uint32_t SW_BATCH_CAPACITY =
+            1u << SW_BATCH_BITS;
     };
+
+    static_assert(
+        Consts::SW_TRIANGLE_BITS +
+        Consts::SW_LOCAL_WORK_BITS +
+        Consts::SW_BATCH_BITS == 32);
 
     static_assert(Consts::PNT_CLUSTER_SZ <= 256);
     static_assert(Consts::CULL_BUCKET_COUNT <=

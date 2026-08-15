@@ -25,12 +25,24 @@ StructuredBuffer<SubMesh> submeshes : register(t7);
 
 Texture2D<uint2> vis_buffer : register(t8);
 StructuredBuffer<Material> materials : register(t9);
+ByteAddressBuffer software_keys : register(t10);
+Texture2D<float> hardware_depth : register(t11);
+StructuredBuffer<SoftwareBatch> software_batches : register(t12);
+StructuredBuffer<uint> software_visible_instances : register(t13);
+StructuredBuffer<RasterCluster> raster_clusters : register(t14);
+StructuredBuffer<uint> raster_cluster_vertices : register(t15);
+StructuredBuffer<uint> raster_cluster_triangles : register(t16);
 Texture2D<float4> scene_textures[] : register(t0, space1);
 
 SamplerState material_sampler : register(s0);
 SamplerState terrain_sampler : register(s1);
 
 RWTexture2D<float4> frame_buffer : register(u0);
+
+static const uint SOFTWARE_TRIANGLE_BITS = 7;
+static const uint SOFTWARE_LOCAL_WORK_BITS = 17;
+static const uint SOFTWARE_LOCAL_WORK_MASK =
+    (1u << SOFTWARE_LOCAL_WORK_BITS) - 1u;
 
 float3 DecodeNormalR10G10B10(uint packed)
 {
@@ -133,29 +145,85 @@ void main(uint3 tid : SV_DispatchThreadID)
         return;
     
     const uint2 visibility = vis_buffer.Load(int3(pixel, 0));
-    if (IsVisibilityEmpty(visibility))
+    const uint key_offset =
+        (pixel.y * cam_pixel_width + pixel.x) * 8u;
+    const uint64_t software_key =
+        software_keys.Load<uint64_t>(key_offset);
+    bool software_winner = false;
+    if (software_key != uint64_t(-1))
+    {
+        if (IsVisibilityEmpty(visibility))
+        {
+            software_winner = true;
+        }
+        else
+        {
+            const uint software_depth = uint(software_key >> 32u);
+            const uint hardware_depth_bits = asuint(
+                hardware_depth.Load(int3(pixel, 0)));
+            software_winner = software_depth < hardware_depth_bits;
+        }
+    }
+    if (!software_winner && IsVisibilityEmpty(visibility))
         return;
 
-    const VisibilityRecord visibility_record =
-        UnpackVisibility(visibility);
-    const uint submesh_id = visibility_record.submesh_id;
+    uint submesh_id;
+    uint instance_id;
+    bool back_face;
+    uint index0;
+    uint index1;
+    uint index2;
+    if (software_winner)
+    {
+        const uint primitive_id = uint(software_key);
+        const uint batch_id = primitive_id >>
+            (SOFTWARE_LOCAL_WORK_BITS + SOFTWARE_TRIANGLE_BITS);
+        const uint local_work =
+            (primitive_id >> SOFTWARE_TRIANGLE_BITS) &
+            SOFTWARE_LOCAL_WORK_MASK;
+        const uint local_triangle = primitive_id &
+            ((1u << SOFTWARE_TRIANGLE_BITS) - 1u);
+        const SoftwareBatch batch = software_batches[batch_id];
+        const uint local_instance = local_work / batch.cluster_count;
+        const uint local_cluster = local_work % batch.cluster_count;
+        instance_id = software_visible_instances[
+            batch.visible_instance_offset + local_instance];
+        submesh_id = batch.submesh_id;
+        const RasterCluster cluster = raster_clusters[
+            batch.cluster_offset + local_cluster];
+        const uint packed_triangle = raster_cluster_triangles[
+            cluster.triangle_offset + local_triangle];
+        index0 = raster_cluster_vertices[
+            cluster.vertex_offset + (packed_triangle & 0x3fu)];
+        index1 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 6u) & 0x3fu)];
+        index2 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 12u) & 0x3fu)];
+        back_face = false;
+    }
+    else
+    {
+        const VisibilityRecord visibility_record =
+            UnpackVisibility(visibility);
+        submesh_id = visibility_record.submesh_id;
+        instance_id = visibility_record.instance_id;
+        back_face = visibility_record.back_face;
+        const SubMesh hardware_submesh = submeshes[submesh_id];
+        const uint index_offset = hardware_submesh.index_offset +
+            visibility_record.triangle_id * 3u;
+        index0 = indices[index_offset];
+        index1 = indices[index_offset + 1u];
+        index2 = indices[index_offset + 2u];
+    }
     
     const uint raster_class = submeshes[submesh_id].raster_class;
     if (raster_class > RASTER_CLASS_ALPHA)
         return;
     
     const uint material_id = submeshes[submesh_id].material_id;
-    const uint triangle_id = visibility_record.triangle_id;
-    const uint instance_id = visibility_record.instance_id;
-    const bool back_face = visibility_record.back_face;
     
     const SubMesh submesh = submeshes[submesh_id];
     const Material material = materials[material_id];
-    
-    const uint index_ofs = submesh.index_offset + triangle_id * 3;
-    const uint index0 = indices[index_ofs];
-    const uint index1 = indices[index_ofs + 1];
-    const uint index2 = indices[index_ofs + 2];
     
     const uint vertex0 = submesh.base_vertex + index0;
     const uint vertex1 = submesh.base_vertex + index1;
@@ -301,6 +369,12 @@ void main(uint3 tid : SV_DispatchThreadID)
     const float2 pixel0 = ClipToPixel(cp0, viewport);
     const float2 pixel1 = ClipToPixel(cp1, viewport);
     const float2 pixel2 = ClipToPixel(cp2, viewport);
+    if (software_winner)
+    {
+        const float2 edge1 = pixel1 - pixel0;
+        const float2 edge2 = pixel2 - pixel0;
+        back_face = edge1.x * edge2.y - edge1.y * edge2.x < 0.0f;
+    }
     
     const float2 sample_position = float2(pixel) + float2(0.5f, 0.5f);
     

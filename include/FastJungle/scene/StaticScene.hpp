@@ -186,6 +186,15 @@ namespace fjr::scene {
 			uint32_t index_count = 0;
 			uint32_t material = INVALID_INDEX;
 			EnumSubmeshFlag flags = EnumSubmeshFlag::DEFAULT;
+			uint32_t raster_cluster_offset = INVALID_INDEX;
+			uint32_t raster_cluster_count = 0;
+		};
+
+		struct RasterCluster {
+			uint32_t vertex_offset = INVALID_INDEX;
+			uint32_t triangle_offset = INVALID_INDEX;
+			uint32_t vertex_count = 0;
+			uint32_t triangle_count = 0;
 		};
 
 		struct MeshLod {
@@ -376,6 +385,9 @@ namespace fjr::scene {
     X(Material, materials) \
     \
     X(Submesh, submeshes) \
+	X(RasterCluster, raster_clusters) \
+	X(Uint32_t, raster_cluster_vertices) \
+	X(Uint32_t, raster_cluster_triangles) \
     X(MeshLod, mesh_lods) \
     X(Mesh, meshes) \
 	X(Impostor, impostors) \
@@ -414,6 +426,7 @@ namespace fjr::scene {
 		static_assert(std::is_trivially_copyable_v<Material>);
 
 		static_assert(std::is_trivially_copyable_v<Submesh>);
+		static_assert(std::is_trivially_copyable_v<RasterCluster>);
 		static_assert(std::is_trivially_copyable_v<MeshLod>);
 		static_assert(std::is_trivially_copyable_v<Mesh>);
 		static_assert(std::is_trivially_copyable_v<Impostor>);
@@ -439,6 +452,7 @@ namespace fjr::scene {
 		static_assert(std::is_standard_layout_v<Material>);
 
 		static_assert(std::is_standard_layout_v<Submesh>);
+		static_assert(std::is_standard_layout_v<RasterCluster>);
 		static_assert(std::is_standard_layout_v<MeshLod>);
 		static_assert(std::is_standard_layout_v<Mesh>);
 		static_assert(std::is_standard_layout_v<Impostor>);
