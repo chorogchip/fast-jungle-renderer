@@ -26,6 +26,26 @@ namespace fjr::render::data::geom {
                     destination[meshlod.submesh_offset + sm].raster_class = raster_class;
             }
         }
+
+        void mark_mesh_shader_submeshes(
+            std::span<DataPersistent::SubMesh> destination,
+            const scene::StaticScene& scene) {
+
+            for (const auto& mesh : scene.meshes) {
+                for (uint32_t lod = 5; lod < mesh.lod_count; ++lod) {
+                    const auto& mesh_lod =
+                        scene.mesh_lods[mesh.lod_offset + lod];
+                    for (uint32_t local = 0;
+                        local < mesh_lod.submesh_count;
+                        ++local) {
+                        auto& submesh =
+                            destination[mesh_lod.submesh_offset + local];
+                        submesh.mesh_shader = submesh.raster_class ==
+                            EnumRasterClass::OPAQUE_SINGLE_SIDED;
+                    }
+                }
+            }
+        }
     }
 
 	std::vector<DataPersistent::SubMesh> BuilderGeomSubmesh::build(
@@ -52,6 +72,10 @@ namespace fjr::render::data::geom {
             destination.index_offset = source.index_offset;
             destination.index_count = source.index_count;
             destination.base_vertex = base_vertices[index];
+            destination.raster_cluster_offset =
+                source.raster_cluster_offset;
+            destination.raster_cluster_count =
+                source.raster_cluster_count;
         }
 
         set_static_mesh_raster_class(
@@ -86,6 +110,8 @@ namespace fjr::render::data::geom {
             scene,
             scene.components.creek.instance,
             EnumRasterClass::RIVER);
+
+        mark_mesh_shader_submeshes(submeshes, scene);
 
 		return submeshes;
 	}

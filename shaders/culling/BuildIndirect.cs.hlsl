@@ -9,6 +9,8 @@ RWStructuredBuffer<IndirectGPUDraw> indirect_draws : register(u0);
 RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
 RWStructuredBuffer<uint> bin_counts : register(u3);
 RWStructuredBuffer<uint> bin_offsets : register(u4);
+RWStructuredBuffer<IndirectMeshDispatch> indirect_mesh_dispatches : register(u7);
+RWStructuredBuffer<uint> indirect_mesh_dispatch_count : register(u8);
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
@@ -30,6 +32,26 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 
         if (submesh.raster_class >= raster_class_count)
             continue;
+
+        if (submesh.mesh_shader != 0)
+        {
+            uint command_id;
+            InterlockedAdd(
+                indirect_mesh_dispatch_count[0],
+                1,
+                command_id);
+            if (command_id >= indirect_draw_capacity_per_class)
+                continue;
+
+            IndirectMeshDispatch dispatch;
+            dispatch.visible_instance_offset = bin_offsets[mesh_lod_id];
+            dispatch.submesh_id = submesh_id;
+            dispatch.thread_group_count_x = submesh.raster_cluster_count;
+            dispatch.thread_group_count_y = instance_count;
+            dispatch.thread_group_count_z = 1;
+            indirect_mesh_dispatches[command_id] = dispatch;
+            continue;
+        }
 
         uint command_in_class;
         InterlockedAdd(

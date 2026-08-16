@@ -236,6 +236,8 @@ if(FASTJUNGLE_BUILD STREQUAL "renderer")
 
         if(shader MATCHES "\\.vs\\.hlsl$")
             set(profile "vs_6_5")
+        elseif(shader MATCHES "\\.ms\\.hlsl$")
+            set(profile "ms_6_5")
         elseif(shader MATCHES "\\.ps\\.hlsl$")
             set(profile "ps_6_5")
         elseif(shader MATCHES "\\.cs\\.hlsl$")

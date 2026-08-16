@@ -6,8 +6,8 @@
 
 namespace fjr::scene::static_scene_file_io {
 
-    // v17: Removed unused impostor depth textures and their encoding metadata.
-    inline constexpr uint32_t SCENE_FORMAT_VERSION = 17;
+    // v20: Expanded mesh-shader raster clusters to 192 local vertices.
+    inline constexpr uint32_t SCENE_FORMAT_VERSION = 20;
     // v7: alpha-tested materials use dedicated RGB/BC1 and coverage-preserved
     // opacity/BC4 payloads. Impostors preserve signed normals in linear BC7.
     inline constexpr uint32_t TEXTURE_FORMAT_VERSION = 7;

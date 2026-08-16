@@ -3,6 +3,7 @@
 
 RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
 RWStructuredBuffer<uint> bin_counts : register(u3);
+RWStructuredBuffer<uint> indirect_mesh_dispatch_count : register(u8);
 
 [numthreads(256, 1, 1)]
 void main(uint3 dtid : SV_DispatchThreadID)
@@ -13,6 +14,9 @@ void main(uint3 dtid : SV_DispatchThreadID)
     {
         indirect_draw_counts[tid] = 0;
     }
+
+    if (tid == 0)
+        indirect_mesh_dispatch_count[0] = 0;
 
     if (tid < mesh_lod_count)
         bin_counts[tid] = 0;

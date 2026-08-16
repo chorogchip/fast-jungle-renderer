@@ -28,6 +28,8 @@ namespace fjr::render {
             BIN_OFFSETS,
             CLUSTER_BIN_BASES,
             CULL_RESULTS,
+            INDIRECT_MESH_DISPATCHES,
+            INDIRECT_MESH_DISPATCH_COUNT,
             COUNT,
         };
 
@@ -119,6 +121,10 @@ namespace fjr::render {
         root_builder.set_resource_table(RootParameter::CULL_RESULTS)
             .uav().reg(6).count(1).add_range()
             .vis_all().add();
+        root_builder.set_root_uav(RootParameter::INDIRECT_MESH_DISPATCHES)
+            .reg(7).vis_all().add();
+        root_builder.set_root_uav(RootParameter::INDIRECT_MESH_DISPATCH_COUNT)
+            .reg(8).vis_all().add();
 
         root_signature_ = root_builder.build(device);
 
@@ -162,6 +168,12 @@ namespace fjr::render {
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         context.transition(
             frame.indirect_gpu_draw_counts,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        context.transition(
+            frame.indirect_mesh_dispatch,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        context.transition(
+            frame.indirect_mesh_dispatch_count,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         context.transition(
             frame.visible_instance,
@@ -219,6 +231,12 @@ namespace fjr::render {
         command_list->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::CULL_RESULTS),
             cull_result_uav_.get_gpu());
+        command_list->SetComputeRootUnorderedAccessView(
+            static_cast<UINT>(RootParameter::INDIRECT_MESH_DISPATCHES),
+            frame.indirect_mesh_dispatch->GetGPUVirtualAddress());
+        command_list->SetComputeRootUnorderedAccessView(
+            static_cast<UINT>(RootParameter::INDIRECT_MESH_DISPATCH_COUNT),
+            frame.indirect_mesh_dispatch_count->GetGPUVirtualAddress());
 
         command_list->SetPipelineState(clear_pipeline_.Get());
         context.Dispatch<256>((std::max)(
@@ -239,6 +257,7 @@ namespace fjr::render {
         command_list->SetPipelineState(scatter_pipeline_.Get());
         context.Dispatch((std::max)(persistent.spatial_cluster_count, 1u));
         context.uav_barrier(frame.indirect_gpu_draw_counts);
+        context.uav_barrier(frame.indirect_mesh_dispatch_count);
 
         command_list->SetPipelineState(build_pipeline_.Get());
         context.Dispatch<256>(persistent.mesh_lod_count);
@@ -248,6 +267,12 @@ namespace fjr::render {
             D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         context.transition(
             frame.indirect_gpu_draw_counts,
+            D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+        context.transition(
+            frame.indirect_mesh_dispatch,
+            D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+        context.transition(
+            frame.indirect_mesh_dispatch_count,
             D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         context.transition(
             frame.visible_instance,

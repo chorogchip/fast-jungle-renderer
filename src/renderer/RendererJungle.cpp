@@ -79,6 +79,12 @@ namespace fjr::render {
                 .indirect_draws = data_per_frame_[frame].indirect_gpu_draw.get(),
                 .indirect_draw_counts =
                     data_per_frame_[frame].indirect_gpu_draw_counts.get(),
+                .indirect_mesh_dispatches =
+                    data_per_frame_[frame].indirect_mesh_dispatch.get(),
+                .indirect_mesh_dispatch_count = data_per_frame_[frame]
+                    .indirect_mesh_dispatch_count.get(),
+                .visible_instances = data_per_frame_[frame]
+                    .visible_instance->GetGPUVirtualAddress(),
             };
             resolve_resources.cameras[frame] =
                 data_per_frame_[frame].camera.get_address();
@@ -106,6 +112,18 @@ namespace fjr::render {
                 data_persistant_.index.get_byte_size()),
             .Format = DXGI_FORMAT_R32_UINT,
         };
+        visibility_resources.instances = data_persistant_.instance_transform
+            ->GetGPUVirtualAddress();
+        visibility_resources.vertex_decode_params = data_persistant_
+            .vertex_decode_params->GetGPUVirtualAddress();
+        visibility_resources.submeshes = data_persistant_.submesh
+            ->GetGPUVirtualAddress();
+        visibility_resources.raster_clusters = data_persistant_.raster_cluster
+            ->GetGPUVirtualAddress();
+        visibility_resources.raster_cluster_vertices = data_persistant_
+            .raster_cluster_vertices->GetGPUVirtualAddress();
+        visibility_resources.raster_cluster_triangles = data_persistant_
+            .raster_cluster_triangles->GetGPUVirtualAddress();
         visibility_resources.render_target = visibility_rtv_.get_cpu();
         visibility_resources.depth_stencil = desc_dsv_.get_cpu();
         visibility_resources.indirect_draw_capacity_per_class =
@@ -128,7 +146,7 @@ namespace fjr::render {
         for (auto& views : visibility_input_views_) {
             views = heap_srv_cbv_uav_.alloc(4);
         }
-        resolve_views_ = heap_srv_cbv_uav_.alloc(10);
+        resolve_views_ = heap_srv_cbv_uav_.alloc(13);
         visibility_uav_ = heap_srv_cbv_uav_.alloc();
         visibility_clear_uav_ = heap_cpu_srv_cbv_uav_.alloc();
         visibility_rtv_ = heap_rtv_.alloc();
@@ -197,6 +215,18 @@ namespace fjr::render {
             .create_structured_srv<data::DataPersistent::Material>(
             device_.Get(),
             resolve_views_.get_cpu(9));
+        data_persistant_.raster_cluster
+            .create_structured_srv<data::DataPersistent::RasterCluster>(
+            device_.Get(),
+            resolve_views_.get_cpu(10));
+        data_persistant_.raster_cluster_vertices
+            .create_structured_srv<uint32_t>(
+            device_.Get(),
+            resolve_views_.get_cpu(11));
+        data_persistant_.raster_cluster_triangles
+            .create_structured_srv<uint32_t>(
+            device_.Get(),
+            resolve_views_.get_cpu(12));
 
         device_->CopyDescriptorsSimple(
             1,

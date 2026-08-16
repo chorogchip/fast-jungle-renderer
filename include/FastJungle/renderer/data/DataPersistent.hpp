@@ -107,6 +107,19 @@ namespace fjr::render::data {
 
         dx::Buffer index{};
 
+        struct RasterCluster {
+            uint32_t vertex_offset = Consts::IND_ERR;
+            uint32_t triangle_offset = Consts::IND_ERR;
+            uint32_t vertex_count = 0;
+            uint32_t triangle_count = 0;
+        };
+        static_assert(sizeof(RasterCluster) == 16);
+        static_assert(std::is_trivially_copyable_v<RasterCluster>);
+
+        dx::Buffer raster_cluster{};
+        dx::Buffer raster_cluster_vertices{};
+        dx::Buffer raster_cluster_triangles{};
+
         struct VertexDecodeParams {
             DirectX::XMFLOAT4 position_min{};
             DirectX::XMFLOAT4 position_extent{};
@@ -136,8 +149,11 @@ namespace fjr::render::data {
             uint32_t index_offset = Consts::IND_ERR;
             uint32_t index_count = 0;
             int32_t base_vertex = 0;
+            uint32_t raster_cluster_offset = Consts::IND_ERR;
+            uint32_t raster_cluster_count = 0;
+            uint32_t mesh_shader = 0;
         };
-        static_assert(sizeof(SubMesh) == 20);
+        static_assert(sizeof(SubMesh) == 32);
         static_assert(std::is_trivially_copyable_v<SubMesh>);
 
         dx::Buffer submesh{};

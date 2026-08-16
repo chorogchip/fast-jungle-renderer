@@ -35,7 +35,7 @@ namespace fjr::render {
         root_builder.set_root_cbv(RootParameter::CAMERA)
             .reg(0).vis_all().add();
         root_builder.set_resource_table(RootParameter::RESOURCES)
-            .srv().reg(0).count(10)
+            .srv().reg(0).count(13)
             .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE)
             .add_range()
             .vis_all().add();

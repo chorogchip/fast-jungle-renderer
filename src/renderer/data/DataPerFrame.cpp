@@ -112,6 +112,22 @@ namespace fjr::render::data {
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);
 
+        ret.indirect_mesh_dispatch.init(
+            device,
+            static_cast<UINT64>(std::max(
+                indirect_draw_capacity_per_class,
+                1u)) * sizeof(IndirectMeshDispatch),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        ret.indirect_mesh_dispatch_count.init(
+            device,
+            sizeof(uint32_t),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON);
+
         ret.visible_instance.init(
             device,
             static_cast<UINT64>(std::max(instance_count, 1u)) *

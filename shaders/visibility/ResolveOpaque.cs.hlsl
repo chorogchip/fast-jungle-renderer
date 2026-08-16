@@ -25,6 +25,9 @@ StructuredBuffer<SubMesh> submeshes : register(t7);
 
 Texture2D<uint2> vis_buffer : register(t8);
 StructuredBuffer<Material> materials : register(t9);
+StructuredBuffer<RasterCluster> raster_clusters : register(t10);
+StructuredBuffer<uint> raster_cluster_vertices : register(t11);
+StructuredBuffer<uint> raster_cluster_triangles : register(t12);
 Texture2D<float4> scene_textures[] : register(t0, space1);
 
 SamplerState material_sampler : register(s0);
@@ -151,11 +154,32 @@ void main(uint3 tid : SV_DispatchThreadID)
     
     const SubMesh submesh = submeshes[submesh_id];
     const Material material = materials[material_id];
-    
-    const uint index_ofs = submesh.index_offset + triangle_id * 3;
-    const uint index0 = indices[index_ofs];
-    const uint index1 = indices[index_ofs + 1];
-    const uint index2 = indices[index_ofs + 2];
+
+    uint index0;
+    uint index1;
+    uint index2;
+    if (submesh.mesh_shader != 0)
+    {
+        const uint local_cluster = triangle_id / 128u;
+        const uint local_triangle = triangle_id % 128u;
+        const RasterCluster cluster = raster_clusters[
+            submesh.raster_cluster_offset + local_cluster];
+        const uint packed_triangle = raster_cluster_triangles[
+            cluster.triangle_offset + local_triangle];
+        index0 = raster_cluster_vertices[
+            cluster.vertex_offset + (packed_triangle & 0xffu)];
+        index1 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 8u) & 0xffu)];
+        index2 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 16u) & 0xffu)];
+    }
+    else
+    {
+        const uint index_ofs = submesh.index_offset + triangle_id * 3u;
+        index0 = indices[index_ofs];
+        index1 = indices[index_ofs + 1u];
+        index2 = indices[index_ofs + 2u];
+    }
     
     const uint vertex0 = submesh.base_vertex + index0;
     const uint vertex1 = submesh.base_vertex + index1;

@@ -76,8 +76,21 @@ namespace fjr::render::data {
         static_assert(offsetof(IndirectGPUDraw, draw_arguments) == 12);
         static_assert(std::is_trivially_copyable_v<IndirectGPUDraw>);
 
+        struct IndirectMeshDispatch {
+            uint32_t visible_instance_offset = Consts::IND_ERR;
+            uint32_t submesh_id = Consts::IND_ERR;
+            D3D12_DISPATCH_MESH_ARGUMENTS dispatch_arguments{};
+
+            static constexpr inline uint32_t ROOT_CONST_CNT = 2;
+        };
+        static_assert(sizeof(IndirectMeshDispatch) == 20);
+        static_assert(offsetof(IndirectMeshDispatch, dispatch_arguments) == 8);
+        static_assert(std::is_trivially_copyable_v<IndirectMeshDispatch>);
+
         dx::Buffer indirect_gpu_draw{};
         dx::Buffer indirect_gpu_draw_counts{};
+        dx::Buffer indirect_mesh_dispatch{};
+        dx::Buffer indirect_mesh_dispatch_count{};
         dx::Buffer visible_instance{};  // first uint32_t, instance transform id. later uint16_t.
 
         static DataPerFrame build(

@@ -5,6 +5,7 @@
 
 #include "ImpostorBuilder.hpp"
 #include "MeshLodBuilder.hpp"
+#include "RasterClusterBuilder.hpp"
 #include "TextureBuilder.hpp"
 #include "FastJungle/core/util/File.hpp"
 #include "FastJungle/scene/StaticSceneWriter.hpp"
@@ -24,6 +25,7 @@ namespace fjr::cooker {
         auto scene = internal::JungleSceneBuilder::build(
             internal::OpenUsdRuntime::open_stage(root_layer));
         MeshLodBuilder::build(*scene);
+        RasterClusterBuilder::build(*scene);
         auto generated_textures = ImpostorBuilder::build(*scene);
         auto texture_payload =
             TextureBuilder::build(*scene, output_path, generated_textures);
