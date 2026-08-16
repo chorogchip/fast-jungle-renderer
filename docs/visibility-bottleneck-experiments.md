@@ -127,3 +127,19 @@ The dependent loads are real latency, but they are not the current throughput li
 The approximately eight-warp plateau for a deliberately long VS is real, so an internal VTG admission or graphics resource-partition limit may still exist. These measurements do not identify that limit specifically as ISBE or TRAM. They do show that the normal shader operates far below it and is limited elsewhere in the graphics geometry/output path.
 
 VAF, output size, dependent memory, screen resolution, draw count, and render-target bit width have each been excluded as the primary cause. The remaining evidence points to fixed graphics world-pipeline/primitive scheduling plus visibility color-output coupling. Mesh and software raster paths remain useful because they bypass parts of that fixed graphics path; their benefit should not be described as merely filling nominally unused SM warp slots.
+
+## Final decision record
+
+The low VS occupancy is an effect of the workload's arrival rate and short shader lifetime, not the optimization target by itself. The normal shader does not approach the separate residency ceiling exposed by the deliberately long-ALU variants. Removing its dependent loads, vertex input, or output attributes reduces latency or allocation without increasing the primitive rate. Increasing independent indirect commands from 120 to 714 also leaves residency and world-pipe rates unchanged. The measurements therefore do not support identifying ISBE, TRAM, VAF, a shortage of draws, or nominal SM capacity as the root limiter.
+
+The supported diagnosis is a fixed rate in the classic indexed world/VTG path, at a granularity finer than a draw, combined with a separate cost for enabling visibility color output. Nsight does not expose enough of the internal queues and partitions to assign the fixed rate to one named unit such as PD, PES, or VPC. Any more specific label would exceed the evidence gathered here.
+
+The implementation priorities are consequently:
+
+1. Reduce triangle-instance work before classic primitive formation through LOD policy, tighter low-LOD foliage proxies, and raster-cluster culling.
+2. Route selected small-triangle LODs through the clustered mesh or software-raster paths. Choose by measured end-to-end visibility critical path, including resolve and queue overlap, rather than shader occupancy alone.
+3. Remove far alpha-test sampling only where projected size or cooked proxy geometry makes the opaque approximation acceptable, then retune the billboard transition.
+4. Evaluate the HW depth plus 64-bit UAV atomic output path as an independent optimization. Its isolated opaque result is 0.071 ms faster, but production use requires a decodable frame-local primitive encoding and range slicing.
+5. Do not spend further optimization time on draw splitting, synthetic shader latency, render-target width alone, or additional general-purpose vertex-load cleanup unless a different scene capture changes the measured behavior.
+
+All experimental source changes were reverted after capture. Executables and matching DXIL are retained under `out/visibility-experiments/binaries`, Nsight reports under `out/visibility-experiments/nsight`, and this analysis is isolated on the `codex/visibility-bottleneck-experiments` branch. The production clustered software-visibility work remains on `codex/clustered-sw-visibility`; the mesh experiment remains on `codex/mesh-visibility`.
