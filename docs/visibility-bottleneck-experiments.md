@@ -40,6 +40,8 @@ All measurements in this experiment set use a 1920x1080 window and viewport-driv
 | 31 | Opaque-only 1080p with color writes disabled | Separate color/PS coupling from depth work |
 | 32 | Opaque-only 1080p R32_UINT color output | Test whether 64-bit visibility bandwidth is limiting |
 | 33 | Opaque-only 1080p R16_UINT color output | Establish the render-target width trend |
+| 34 | Opaque-only 1080p, HW raster/depth plus 64-bit typed-UAV atomic min | Test whether bypassing CROP with a depth-prefiltered atomic visibility key is faster |
+| 35 | 34 with a regular 64-bit typed-UAV store | Separate the atomic cost from the UAV/CROP-routing change |
 
 Variants 02 through 15 and 17 through 27 use the isolated opaque pass and 1x1 viewport unless the row says otherwise. Instance-count and index-count caps deliberately change total vertex work; use them to inspect launch behavior and normalize throughput, not as direct frame-time optimizations.
 
@@ -64,10 +66,43 @@ GPU Trace uses the Blackwell GB20x Top-Level Triage metric set, real-time shader
 | Plus eight float4 outputs | 1.894 | 1.337 | 355.0 | 6281 | Baseline is not ISBE-capacity limited |
 | No vertex input | 1.886 | 1.208 | 457.9 | 2030 | VAF falls 11.2% to 0.94% with no speedup |
 | Double opaque submit | 2.994 | 1.583 | 389.8 | 3560 | Twice the VTG work raises residency; no hard low ceiling |
+| HW raster + 64-bit UAV atomic | 1.967 | 1.263 | 510.2 | 2996 | CROP is bypassed; L2 atomic activity is only 1.73% |
+| HW raster + 64-bit UAV store | 1.990 | 1.283 | 518.7 | 3013 | Nearly identical to the atomic path |
 
 The instance/index supply sweep is continuous: 27.5k launched VTG warps costs about 0.92 ms, 73.1k costs 1.06 ms, 173.6k costs 1.32 ms, 196.7k costs 1.39 ms, 347.8k costs 1.80 ms, and the full 383.8k costs 1.94 ms. Draw count stays at 120. This rules out a shortage of draw calls and shows geometry work scaling normally.
 
 At 1080p, removing the color/PS path reduces opaque-only time from 2.038 ms to 1.60-1.64 ms. Changing the color target from R32G32_UINT to R32_UINT or R16_UINT only reaches 2.02 or 1.99 ms. The cost is therefore associated with enabling the visibility color/PS path, not primarily its 64-bit bandwidth.
+
+Keeping HW rasterization and the D32 early-depth path while replacing the visibility render target with a typed `R32G32_UINT` UAV atomic reduces opaque-only time from 2.038 ms to 1.967 ms: 0.071 ms, or 3.5%. CROP throughput falls from 4.60% to 0.07%, while L2 atomic-input active cycles reach only 1.73%. A non-atomic 64-bit UAV store measures 1.990 ms. The 0.023 ms difference between the two UAV variants is too small to make the atomic itself a meaningful limiter in this scene. Early depth is important here: it prevents the pixel shader from atomically processing all covered fragments.
+
+This experiment measures the output mechanism, not a production visibility encoding. The current HW visibility identity occupies 64 bits by itself, so variant 34 hashes it into the key's low 32 bits. A decodable opaque-only encoding is feasible for the captured workload as `[batch:8 | local primitive:24]`, where `local primitive = local instance * triangle count + triangle`. There are 134 active opaque draws and the largest draw contains about 2.34 million triangle-instances, below the 24-bit limit. Production use would therefore require a frame-local batch descriptor and the same range-slicing rule used by the SW path.
+
+## Fixed world/primitive scheduling analysis
+
+NVIDIA defines the world pipe as the Primitive Distributor, Vertex Attribute Fetch, and the Primitive Engine/VPC path. The Primitive Distributor fetches indices and sends triangles to the vertex shader; PES/VPC then orchestrates VTG shader data and clipping/culling before rasterization. The screen pipe starts at raster and continues through PROP, ZROP, and CROP. See the [Nsight Graphics system architecture guide](https://docs.nvidia.com/nsight-graphics/UserGuide/gpu-trace-system-architecture.html).
+
+The experiments locate the opaque limiter in the classic world/VTG work-production path, but do not prove that one named fixed-function unit is saturated:
+
+| Experiment | Frame ms | Evidence |
+|---|---:|---|
+| Opaque 1x1 | 1.936 | 383.8k VTG warps launched |
+| All output clipped | 1.894 | Same 383.8k VTG warps; VPC cull-input count collapses from 5.20M to 193 |
+| No vertex input | 1.886 | VAF throughput falls from 10.8% to 0.94% |
+| No dependent loads | 1.894 | Active VS warps fall from 1.26 to 0.28 |
+| Double opaque submit | 2.994 | VTG launches double to 767.5k and time rises with the work |
+
+The mechanism is an arrival-rate limit, not an SM-capacity limit. The fixed graphics path consumes the indexed primitive stream, forms/reuses vertices, launches short VTG warps, retains their output attributes, and reconstructs primitives for VPC. The normal VS retires quickly, so only about 1.2 warps per SM are resident at once. Artificially lengthening the VS makes more in-flight warps accumulate without improving primitive arrival rate; this raises residency until the separate approximately eight-warp VTG admission ceiling becomes visible.
+
+The composite World Pipe throughput is only about 15%, and its exposed subunits are also far below 100%. Therefore the data does **not** justify saying "PD is saturated", "ISBE throughput is saturated", or "TRAM is the root cause". The narrowest supported conclusion is that classic primitive-to-VTG scheduling, including an unexposed admission/partition/latency constraint, controls the rate. Nsight's nominal peak-throughput counters do not expose which internal queue or partition causes that rate.
+
+The useful ways to improve this path, in priority order, are:
+
+1. Reduce triangle-instance work before it reaches the world pipe: retain coarser LODs farther away, use tighter low-LOD foliage proxies, and cull static raster clusters before emitting work.
+2. Use the clustered mesh-shader path selectively for small-triangle LODs. It bypasses classic IA/PD/VAF vertex formation, restores explicit vertex reuse, and permits cluster culling before primitive export. It still pays VPC, raster, depth, and visibility output costs, so large/near geometry should remain on the classic path.
+3. Use clustered SW raster selectively where bypassing both classic primitive scheduling and alpha-test work outweighs compute raster/atomic cost. Async overlap is an additional benefit, not the primary explanation.
+4. Treat HW raster plus atomic visibility as an independent output optimization. It saves about 0.07 ms for opaque here but leaves World Pipe throughput, launched VTG work, and VS residency essentially unchanged.
+
+More index reordering and draw merging are low-priority for this capture. Removing VAF work and all dependent loads barely changes time, the cooker already runs vertex-cache optimization, and the active draws contain substantial work. The next diagnostic, if a deeper silicon distinction is required, is to split the same instance/triangle workload into more independent draws without changing total work; that would distinguish draw/partition granularity from a per-primitive fixed rate.
 
 ## Interpretation
 
