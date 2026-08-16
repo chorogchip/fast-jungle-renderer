@@ -42,8 +42,12 @@ All measurements in this experiment set use a 1920x1080 window and viewport-driv
 | 33 | Opaque-only 1080p R16_UINT color output | Establish the render-target width trend |
 | 34 | Opaque-only 1080p, HW raster/depth plus 64-bit typed-UAV atomic min | Test whether bypassing CROP with a depth-prefiltered atomic visibility key is faster |
 | 35 | 34 with a regular 64-bit typed-UAV store | Separate the atomic cost from the UAV/CROP-routing change |
+| 36 | 02 with each active draw left as one command | Control for same-work draw splitting |
+| 37 | 36 with each instance range split across at most two commands | Test two-way draw/partition granularity |
+| 38 | 36 with each instance range split across at most four commands | Test four-way draw/partition granularity |
+| 39 | 36 with each instance range split across at most eight commands | Test eight-way draw/partition granularity |
 
-Variants 02 through 15 and 17 through 27 use the isolated opaque pass and 1x1 viewport unless the row says otherwise. Instance-count and index-count caps deliberately change total vertex work; use them to inspect launch behavior and normalize throughput, not as direct frame-time optimizations.
+Variants 02 through 15, 17 through 27, and 36 through 39 use the isolated opaque pass and 1x1 viewport unless the row says otherwise. Instance-count and index-count caps deliberately change total vertex work; use them to inspect launch behavior and normalize throughput, not as direct frame-time optimizations. Variants 36 through 39 instead preserve each draw's complete visible-instance range and only divide it into more indirect commands.
 
 ## Nsight collection
 
@@ -68,6 +72,7 @@ GPU Trace uses the Blackwell GB20x Top-Level Triage metric set, real-time shader
 | Double opaque submit | 2.994 | 1.583 | 389.8 | 3560 | Twice the VTG work raises residency; no hard low ceiling |
 | HW raster + 64-bit UAV atomic | 1.967 | 1.263 | 510.2 | 2996 | CROP is bypassed; L2 atomic activity is only 1.73% |
 | HW raster + 64-bit UAV store | 1.990 | 1.283 | 518.7 | 3013 | Nearly identical to the atomic path |
+| Same work, at most eight commands per draw | 1.903 | 1.303 | 504.9 | 2889 | Draw count rises from 120 to 714 without improving residency or time |
 
 The instance/index supply sweep is continuous: 27.5k launched VTG warps costs about 0.92 ms, 73.1k costs 1.06 ms, 173.6k costs 1.32 ms, 196.7k costs 1.39 ms, 347.8k costs 1.80 ms, and the full 383.8k costs 1.94 ms. Draw count stays at 120. This rules out a shortage of draw calls and shows geometry work scaling normally.
 
@@ -91,6 +96,17 @@ The experiments locate the opaque limiter in the classic world/VTG work-producti
 | No dependent loads | 1.894 | Active VS warps fall from 1.26 to 0.28 |
 | Double opaque submit | 2.994 | VTG launches double to 767.5k and time rises with the work |
 
+The same-work split experiment directly tests draw-level scheduling granularity:
+
+| Maximum commands per original draw | Actual draws | Input primitives | GPU frame ms | Active VS warps/SM | World Pipe | PDA input | VAF |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 120 | 7,095,820 | 1.8821 | 1.291 | 15.38% | 10.78% | 11.13% |
+| 2 | 222 | 7,095,820 | 1.8872 | 1.297 | 15.33% | 10.75% | 11.10% |
+| 4 | 374 | 7,207,790 | 1.8913 | 1.306 | 15.89% | 10.90% | 11.24% |
+| 8 | 714 | 7,095,820 | 1.9026 | 1.303 | 15.22% | 10.66% | 11.01% |
+
+The one-, two-, and eight-way captures process exactly the same 7,095,820 input primitives. Increasing the actual draw count almost sixfold does not raise VS residency or any exposed world-pipe rate, and costs 0.0205 ms at eight-way split. The four-way capture contains 1.58% more visible primitive work than the matched captures and is retained only as corroborating data. Its repeat capture was blocked by a transient Nsight performance-counter lock. The matched captures are sufficient to reject lack of independent draws or coarse per-draw distribution as the limiter. Extra command boundaries add front-end work and slightly reduce VTG warp packing; they do not expose idle shader capacity.
+
 The mechanism is an arrival-rate limit, not an SM-capacity limit. The fixed graphics path consumes the indexed primitive stream, forms/reuses vertices, launches short VTG warps, retains their output attributes, and reconstructs primitives for VPC. The normal VS retires quickly, so only about 1.2 warps per SM are resident at once. Artificially lengthening the VS makes more in-flight warps accumulate without improving primitive arrival rate; this raises residency until the separate approximately eight-warp VTG admission ceiling becomes visible.
 
 The composite World Pipe throughput is only about 15%, and its exposed subunits are also far below 100%. Therefore the data does **not** justify saying "PD is saturated", "ISBE throughput is saturated", or "TRAM is the root cause". The narrowest supported conclusion is that classic primitive-to-VTG scheduling, including an unexposed admission/partition/latency constraint, controls the rate. Nsight's nominal peak-throughput counters do not expose which internal queue or partition causes that rate.
@@ -102,7 +118,7 @@ The useful ways to improve this path, in priority order, are:
 3. Use clustered SW raster selectively where bypassing both classic primitive scheduling and alpha-test work outweighs compute raster/atomic cost. Async overlap is an additional benefit, not the primary explanation.
 4. Treat HW raster plus atomic visibility as an independent output optimization. It saves about 0.07 ms for opaque here but leaves World Pipe throughput, launched VTG work, and VS residency essentially unchanged.
 
-More index reordering and draw merging are low-priority for this capture. Removing VAF work and all dependent loads barely changes time, the cooker already runs vertex-cache optimization, and the active draws contain substantial work. The next diagnostic, if a deeper silicon distinction is required, is to split the same instance/triangle workload into more independent draws without changing total work; that would distinguish draw/partition granularity from a per-primitive fixed rate.
+More index reordering, draw merging, and draw splitting are low-priority for this capture. Removing VAF work and all dependent loads barely changes time, the cooker already runs vertex-cache optimization, and increasing the command count from 120 to 714 with unchanged primitive work does not improve throughput. The remaining fixed rate is finer-grained than an ExecuteIndirect command: primitive/VTG work formation or an internal queue and partition that Nsight's exposed utilization counters do not name.
 
 ## Interpretation
 
