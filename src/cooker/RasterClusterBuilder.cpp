@@ -11,14 +11,14 @@
 namespace fjr::cooker {
     namespace {
 
-        constexpr std::size_t CLUSTER_VERTEX_COUNT = 128;
+        constexpr std::size_t CLUSTER_VERTEX_COUNT = 192;
         constexpr std::size_t CLUSTER_TRIANGLE_COUNT = 128;
 
         [[nodiscard]]
         uint32_t pack_triangle(const unsigned char* triangle) noexcept {
             return uint32_t{triangle[0]} |
-                (uint32_t{triangle[1]} << 7u) |
-                (uint32_t{triangle[2]} << 14u);
+                (uint32_t{triangle[1]} << 8u) |
+                (uint32_t{triangle[2]} << 16u);
         }
 
     } // namespace

@@ -28,9 +28,9 @@ namespace fjr::render::data::geom {
                 destination.next_lod_error = lod + 1 < mesh.lod_count
                     ? scene.mesh_lods[source_id + 1].max_deviation
                     : std::numeric_limits<float>::infinity();
-                destination.software_raster_mask = lod >= 5
+                destination.software_raster_mask = lod >= 4
                     ? SOFTWARE_RASTER_OPAQUE | SOFTWARE_RASTER_ALPHA
-                    : lod == 4
+                    : lod == 3
                         ? SOFTWARE_RASTER_ALPHA
                         : 0;
             }

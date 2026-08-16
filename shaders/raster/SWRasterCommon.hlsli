@@ -5,7 +5,7 @@
 #include "../common/RenderData.hlsli"
 
 static const uint SOFTWARE_THREADS_PER_GROUP = 64;
-static const uint SOFTWARE_CLUSTER_VERTEX_COUNT = 128;
+static const uint SOFTWARE_CLUSTER_VERTEX_COUNT = 192;
 static const uint SOFTWARE_LOCAL_WORK_BITS = 17;
 static const uint SOFTWARE_TRIANGLE_BITS = 7;
 static const uint RASTER_CLASS_OPAQUE = 2;
@@ -218,9 +218,9 @@ void SoftwareRasterMain(uint thread_id, uint3 group_id)
     {
         const uint packed_triangle = raster_cluster_triangles[
             cluster.triangle_offset + local_triangle];
-        const uint vertex0 = packed_triangle & 0x7fu;
-        const uint vertex1 = (packed_triangle >> 7u) & 0x7fu;
-        const uint vertex2 = (packed_triangle >> 14u) & 0x7fu;
+        const uint vertex0 = packed_triangle & 0xffu;
+        const uint vertex1 = (packed_triangle >> 8u) & 0xffu;
+        const uint vertex2 = (packed_triangle >> 16u) & 0xffu;
         RasterTriangle(
             group_raster_positions[vertex0],
             group_raster_positions[vertex1],
