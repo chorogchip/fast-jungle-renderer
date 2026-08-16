@@ -257,7 +257,7 @@ namespace fjr::dx {
 
         log::Logger::g_logger <<
             log::asrt(options1.Int64ShaderOps) <<
-            shader_model.HighestShaderModel < D3D_SHADER_MODEL_6_6;
+            (shader_model.HighestShaderModel < D3D_SHADER_MODEL_6_6);
     }
 
 } // namespace fjr::dx

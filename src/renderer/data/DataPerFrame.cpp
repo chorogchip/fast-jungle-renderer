@@ -62,16 +62,9 @@ namespace fjr::render::data {
             DirectX::XMStoreFloat4(
                 &normalized_frustum_planes[i], planes[i]);
         }
-        
-        // temp fixed for resolution experiment
-        lod_projection_scale =
-            0.5f * 1080.0f *
-            camera.get_projection_mat()._22;
-        /*
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
             camera.get_projection_mat()._22;
-        */
 
         lod_error_threshold_px = LOD_ERROR_THRESHOLD_PX;
         impostor_transition_radius_px = IMPOSTOR_TRANSITION_RADIUS_PX;
