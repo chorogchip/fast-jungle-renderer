@@ -45,6 +45,8 @@ struct RasterCluster
     uint triangle_offset;
     uint vertex_count;
     uint triangle_count;
+    float4 bounds_sphere;
+    float4 normal_cone;
 };
 
 struct MeshLod

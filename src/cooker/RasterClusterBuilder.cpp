@@ -61,6 +61,13 @@ namespace fjr::cooker {
                 meshlet_id < meshlet_count;
                 ++meshlet_id) {
                 const auto& meshlet = meshlets[meshlet_id];
+                const auto bounds = meshopt_computeMeshletBounds(
+                    vertices.data() + meshlet.vertex_offset,
+                    triangles.data() + meshlet.triangle_offset,
+                    meshlet.triangle_count,
+                    positions,
+                    submesh.vertex_count,
+                    sizeof(scene::StaticScene::Vertex));
 
                 scene::StaticScene::RasterCluster cluster;
                 cluster.vertex_offset = checked_u32(
@@ -71,6 +78,18 @@ namespace fjr::cooker {
                     "Raster cluster triangle offset");
                 cluster.vertex_count = meshlet.vertex_count;
                 cluster.triangle_count = meshlet.triangle_count;
+                cluster.bounds_sphere = {
+                    bounds.center[0],
+                    bounds.center[1],
+                    bounds.center[2],
+                    bounds.radius
+                };
+                cluster.normal_cone = {
+                    bounds.cone_axis[0],
+                    bounds.cone_axis[1],
+                    bounds.cone_axis[2],
+                    bounds.cone_cutoff
+                };
                 scene.raster_clusters.push_back(cluster);
 
                 scene.raster_cluster_vertices.insert(

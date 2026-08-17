@@ -112,8 +112,10 @@ namespace fjr::render::data {
             uint32_t triangle_offset = Consts::IND_ERR;
             uint32_t vertex_count = 0;
             uint32_t triangle_count = 0;
+            DirectX::XMFLOAT4 bounds_sphere{};
+            DirectX::XMFLOAT4 normal_cone{};
         };
-        static_assert(sizeof(RasterCluster) == 16);
+        static_assert(sizeof(RasterCluster) == 48);
         static_assert(std::is_trivially_copyable_v<RasterCluster>);
 
         dx::Buffer raster_cluster{};

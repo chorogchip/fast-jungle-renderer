@@ -2,6 +2,7 @@
 #include "../common/ConstantMeshDispatch.hlsli"
 #include "../common/Quaternion.hlsli"
 #include "../common/RenderData.hlsli"
+#include "../common/SphereCulling.hlsli"
 
 static const uint MESH_THREAD_COUNT = 32;
 static const uint MESH_VERTEX_COUNT = 128;
@@ -32,6 +33,7 @@ groupshared InstanceTransform group_instance;
 groupshared VertexDecodeParams group_decode;
 groupshared SubMesh group_submesh;
 groupshared RasterCluster group_cluster;
+groupshared uint group_visible;
 
 float3 LoadPosition(uint vertex_id)
 {
@@ -60,11 +62,36 @@ void main(
         group_instance_id = visible_instances[
             visible_instance_offset + group_id.y];
         group_instance = instances[group_instance_id];
+
+        float3 world_center;
+        float world_radius;
+        TransformSphere(
+            group_cluster.bounds_sphere,
+            group_instance,
+            world_center,
+            world_radius);
+        float3 world_axis = normalize(RotateForwardVector(
+            group_cluster.normal_cone.xyz / group_instance.scale,
+            group_instance.rotation));
+        world_axis *= group_instance.scale.x *
+            group_instance.scale.y * group_instance.scale.z < 0.0f
+            ? -1.0f
+            : 1.0f;
+        const float3 camera_to_center =
+            world_center - cam_world_position;
+        group_visible = dot(camera_to_center, world_axis) <
+            group_cluster.normal_cone.w * length(camera_to_center) +
+            world_radius;
     }
     GroupMemoryBarrierWithGroupSync();
 
     const RasterCluster cluster = group_cluster;
-    SetMeshOutputCounts(cluster.vertex_count, cluster.triangle_count);
+    SetMeshOutputCounts(
+        group_visible != 0 ? cluster.vertex_count : 0,
+        group_visible != 0 ? cluster.triangle_count : 0);
+
+    if (group_visible == 0)
+        return;
 
     for (uint local_vertex = thread_id;
         local_vertex < cluster.vertex_count;

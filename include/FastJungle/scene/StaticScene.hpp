@@ -195,6 +195,8 @@ namespace fjr::scene {
 			uint32_t triangle_offset = INVALID_INDEX;
 			uint32_t vertex_count = 0;
 			uint32_t triangle_count = 0;
+			DirectX::XMFLOAT4 bounds_sphere{};
+			DirectX::XMFLOAT4 normal_cone{};
 		};
 
 		struct MeshLod {
