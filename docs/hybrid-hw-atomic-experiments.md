@@ -30,8 +30,9 @@ existing hybrid renderer in the visual correctness check.
 
 ## Result
 
-1920x1080, default camera, 192-vertex/128-triangle cooked clusters, opaque LOD
-4+ and alpha LOD 4+ routed to SW raster:
+3840x2160, default camera, LOD projection scale fixed to a 1080-pixel viewport
+height, 192-vertex/128-triangle cooked clusters, opaque LOD 4+ and alpha LOD
+4+ routed to SW raster:
 
 | Variant | Median GPU frame (ms) | Delta |
 | --- | ---: | ---: |
@@ -40,6 +41,10 @@ existing hybrid renderer in the visual correctness check.
 
 Both values use the 300-frame warm-up, 60-frame screening GPU Trace protocol at
 base clocks without the real-time shader profiler.
+
+These two values were originally mislabeled as 1920x1080. The comparison is
+still matched because both variants used the same 4K viewport and fixed-1080
+LOD selection.
 
 ## Decision
 
