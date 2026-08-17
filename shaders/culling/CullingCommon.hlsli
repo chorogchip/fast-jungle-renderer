@@ -1,7 +1,8 @@
 #pragma once
 
 #include "../common/ConstBufCamera.hlsli"
-#include "../common/SphereCulling.hlsli"
+#include "../common/Quaternion.hlsli"
+#include "../common/RenderData.hlsli"
 
 StructuredBuffer<Mesh> meshes : register(t2);
 StructuredBuffer<MeshLod> mesh_lods : register(t3);
@@ -12,11 +13,33 @@ void GetWorldSphere(
     out float3 center,
     out float radius)
 {
-    TransformSphere(
-        float4(mesh.bounds_center, mesh.bounds_radius),
-        instance,
-        center,
-        radius);
+    float3 local_center = mesh.bounds_center * instance.scale;
+
+    center =
+        instance.position +
+        RotateForwardVector(local_center, instance.rotation);
+    
+    float3 abs_scale = abs(instance.scale);
+    float max_scale = max(abs_scale.x, max(abs_scale.y, abs_scale.z));
+
+    radius = mesh.bounds_radius * max_scale;
+}
+
+bool SphereInFrustum(
+    float4 frustum_planes[6],
+    float3 center,
+    float radius)
+{
+    [unroll]
+    for (uint i = 0; i < 6; ++i)
+    {
+        float4 plane = frustum_planes[i];
+
+        if (dot(plane.xyz, center) + plane.w < -radius)
+            return false;
+    }
+
+    return true;
 }
 
 float ComputeDistanceToCamera(float3 world_center)
