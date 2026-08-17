@@ -46,7 +46,11 @@ namespace fjr::render {
         dx::DescriptorHeap heap_rtv_;
 
         dx::CommandQueue command_queue_;
+        dx::CommandQueue compute_queue_;
         std::array<dx::CommandContext, FRAME_COUNT> command_contexts_;
+        std::array<dx::CommandContext, FRAME_COUNT> cull_contexts_;
+        std::array<dx::CommandContext, FRAME_COUNT> software_contexts_;
+        std::array<dx::CommandContext, FRAME_COUNT> resolve_contexts_;
 
         dx::SwapChain swap_chain_;
         dx::DescAlloc desc_rtv_;

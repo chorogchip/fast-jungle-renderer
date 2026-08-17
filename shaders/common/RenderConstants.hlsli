@@ -10,3 +10,8 @@ static const uint MATERIAL_MODE_CONSTANT_PBR = 2u << MATERIAL_MODE_SHIFT;
 static const uint MATERIAL_MODE_WATER = 3u << MATERIAL_MODE_SHIFT;
 
 static const uint INVALID_INDEX = 0xffffffffu;
+
+static const uint SOFTWARE_LOCAL_WORK_CAPACITY = 1u << 17u;
+static const uint SOFTWARE_BATCH_CAPACITY = 1u << 8u;
+static const uint SOFTWARE_LOCAL_WORK_BITS = 17u;
+static const uint SOFTWARE_TRIANGLE_BITS = 7u;

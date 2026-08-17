@@ -96,6 +96,46 @@ namespace fjr::render::data {
             D3D12_RESOURCE_STATE_INDEX_BUFFER |
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+        output.raster_cluster.init(
+            device,
+            static_cast<UINT64>(
+                scene.raster_clusters.size() *
+                sizeof(scene::StaticScene::RasterCluster)),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.raster_cluster,
+            scene.raster_clusters,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        output.raster_cluster_vertices.init(
+            device,
+            static_cast<UINT64>(
+                scene.raster_cluster_vertices.size() * sizeof(uint32_t)),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.raster_cluster_vertices,
+            scene.raster_cluster_vertices,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+        output.raster_cluster_triangles.init(
+            device,
+            static_cast<UINT64>(
+                scene.raster_cluster_triangles.size() * sizeof(uint32_t)),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        uploader.upload_buffer(
+            output.raster_cluster_triangles,
+            scene.raster_cluster_triangles,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
         output.vertex_decode_params.init(
             device,
             static_cast<UINT64>(

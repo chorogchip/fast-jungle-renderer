@@ -69,6 +69,8 @@ namespace fjr::render {
 
         PassVisibility::PassVisibilityResources visibility_resources{};
         visibility_resources.frames.resize(FRAME_COUNT);
+        PassSWRaster::Resources software_resources{};
+        software_resources.frames.resize(FRAME_COUNT);
         PassResolve::PassResolveResources resolve_resources{};
         resolve_resources.cameras.resize(FRAME_COUNT);
         for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
@@ -79,6 +81,15 @@ namespace fjr::render {
                 .indirect_draws = data_per_frame_[frame].indirect_gpu_draw.get(),
                 .indirect_draw_counts =
                     data_per_frame_[frame].indirect_gpu_draw_counts.get(),
+            };
+            software_resources.frames[frame] =
+                PassSWRaster::FrameResources{
+                .camera = data_per_frame_[frame].camera.get_address(),
+                .visible_instances = data_per_frame_[frame].visible_instance
+                    ->GetGPUVirtualAddress(),
+                .batches = data_per_frame_[frame].software_batches.get(),
+                .batch_count =
+                    data_per_frame_[frame].software_batch_count.get(),
             };
             resolve_resources.cameras[frame] =
                 data_per_frame_[frame].camera.get_address();
@@ -114,10 +125,38 @@ namespace fjr::render {
             device_.Get(),
             std::move(visibility_resources));
 
+        software_resources.instances =
+            data_persistant_.instance_transform->GetGPUVirtualAddress();
+        software_resources.vertex_decode_params =
+            data_persistant_.vertex_decode_params->GetGPUVirtualAddress();
+        software_resources.submeshes =
+            data_persistant_.submesh->GetGPUVirtualAddress();
+        software_resources.raster_clusters =
+            data_persistant_.raster_cluster->GetGPUVirtualAddress();
+        software_resources.raster_cluster_vertices =
+            data_persistant_.raster_cluster_vertices->GetGPUVirtualAddress();
+        software_resources.raster_cluster_triangles =
+            data_persistant_.raster_cluster_triangles->GetGPUVirtualAddress();
+        software_resources.opaque_vertices = data_persistant_
+            .vertex_opaque_visibility->GetGPUVirtualAddress();
+        software_resources.alpha_vertices = data_persistant_
+            .vertex_alpha_visibility->GetGPUVirtualAddress();
+        sw_raster_pass_.init(
+            device_.Get(),
+            heap_srv_cbv_uav_,
+            heap_cpu_srv_cbv_uav_,
+            std::move(software_resources),
+            width,
+            height);
+        update_software_resolve_views();
+
         resolve_resources.inputs = resolve_views_;
         resolve_resources.textures = data_persistant_.texture_descriptors;
         resolve_resources.samplers = pass_samplers_;
         resolve_resources.frame_buffer_uav = frame_buffer_uav_;
+        resolve_resources.software_inputs.assign(
+            software_resolve_views_.begin(),
+            software_resolve_views_.end());
         resolve_pass_.init(
             device_.Get(),
             std::move(resolve_resources));
@@ -127,6 +166,9 @@ namespace fjr::render {
 
         for (auto& views : visibility_input_views_) {
             views = heap_srv_cbv_uav_.alloc(4);
+        }
+        for (auto& views : software_resolve_views_) {
+            views = heap_srv_cbv_uav_.alloc(7);
         }
         resolve_views_ = heap_srv_cbv_uav_.alloc(10);
         visibility_uav_ = heap_srv_cbv_uav_.alloc();
@@ -154,6 +196,35 @@ namespace fjr::render {
                 .create_structured_srv<data::DataPersistent::Material>(
                 device_.Get(),
                 views.get_cpu(3));
+
+            data_per_frame_[frame].software_batches
+                .create_structured_srv<data::DataPerFrame::SoftwareBatch>(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(2));
+            data_per_frame_[frame].visible_instance
+                .create_structured_srv<uint32_t>(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(3));
+        }
+
+        data_persistant_.raster_cluster
+            .create_structured_srv<scene::StaticScene::RasterCluster>(
+            device_.Get(),
+            software_resolve_views_[0].get_cpu(4));
+        data_persistant_.raster_cluster_vertices
+            .create_structured_srv<uint32_t>(
+            device_.Get(),
+            software_resolve_views_[0].get_cpu(5));
+        data_persistant_.raster_cluster_triangles
+            .create_structured_srv<uint32_t>(
+            device_.Get(),
+            software_resolve_views_[0].get_cpu(6));
+        for (uint32_t frame = 1; frame < FRAME_COUNT; ++frame) {
+            device_->CopyDescriptorsSimple(
+                3,
+                software_resolve_views_[frame].get_cpu(4),
+                software_resolve_views_[0].get_cpu(4),
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
         data_persistant_.instance_transform
@@ -288,10 +359,33 @@ namespace fjr::render {
             DXGI_FORMAT_R8G8B8A8_UNORM);
     }
 
+    void RendererJungle::update_software_resolve_views() {
+        for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
+            auto& key = sw_raster_pass_.get_key(frame);
+            key.create_raw_srv(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(0),
+                0,
+                key.get_element_count<uint32_t>());
+            buffer_depth_.create_srv(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(1),
+                dx::TextureViewRange{
+                    .first_mip = 0,
+                    .mip_count = 1,
+                    .first_slice = 0,
+                    .slice_count = 1,
+                },
+                DXGI_FORMAT_R32_FLOAT);
+        }
+    }
+
     void RendererJungle::resize(uint32_t width, uint32_t height) {
 
         RendererBase::resize(width, height);
         create_pass_targets(width, height);
+        sw_raster_pass_.resize(device_.Get(), width, height);
+        update_software_resolve_views();
         camera.set_aspect_ratio(
             static_cast<float>(width) / static_cast<float>(height));
     }
@@ -302,10 +396,12 @@ namespace fjr::render {
             swap_chain_.get_current_frame();
 
         auto& context = command_contexts_[frame];
-        command_queue_.wait(
-            context.get_fence_value());
+        auto& cull_context = cull_contexts_[frame];
+        auto& software_context = software_contexts_[frame];
+        auto& resolve_context = resolve_contexts_[frame];
 
-        context.reset();
+        command_queue_.wait(
+            resolve_context.get_fence_value());
 
         data_per_frame_[frame].camera.data().fill_from_camera(
             camera,
@@ -314,14 +410,28 @@ namespace fjr::render {
             data_persistant_.spatial_cluster_count,
             data_persistant_.mesh_lod_count);
 
-        context.SetDescriptorHeaps(
+        compute_queue_.wait(cull_context.get_fence_value());
+        cull_context.reset();
+        cull_context.SetDescriptorHeaps(
             heap_sampler_.get(),
             heap_srv_cbv_uav_.get());
 
         gpu_culling_pass_.record(
-            context,
+            cull_context,
             data_persistant_,
             data_per_frame_[frame]);
+
+        cull_context.close();
+        compute_queue_.execute(cull_context.get());
+        const UINT64 cull_fence = compute_queue_.signal();
+        cull_context.set_fence_value(cull_fence);
+
+        command_queue_.wait(context.get_fence_value());
+        command_queue_.wait(compute_queue_, cull_fence);
+        context.reset();
+        context.SetDescriptorHeaps(
+            heap_sampler_.get(),
+            heap_srv_cbv_uav_.get());
 
         context.transition(
             visibility_buffer_,
@@ -340,6 +450,9 @@ namespace fjr::render {
         context.transition(
             visibility_buffer_,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
+        context.transition(
+            buffer_depth_,
+            D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
         visibility_pass_.record(
             context,
@@ -347,11 +460,41 @@ namespace fjr::render {
             swap_chain_.get_width(),
             swap_chain_.get_height());
 
-        context.transition(
+        context.close();
+        command_queue_.execute(context.get());
+        context.set_fence_value(command_queue_.signal());
+
+        compute_queue_.wait(software_context.get_fence_value());
+        software_context.reset();
+        software_context.SetDescriptorHeaps(
+            heap_sampler_.get(),
+            heap_srv_cbv_uav_.get());
+        sw_raster_pass_.record(software_context, frame);
+        software_context.close();
+        compute_queue_.execute(software_context.get());
+        const UINT64 software_fence = compute_queue_.signal();
+        software_context.set_fence_value(software_fence);
+
+        command_queue_.wait(compute_queue_, software_fence);
+        resolve_context.reset();
+        resolve_context.SetDescriptorHeaps(
+            heap_sampler_.get(),
+            heap_srv_cbv_uav_.get());
+
+        resolve_context.transition(
             visibility_buffer_,
             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        resolve_context.transition(
+            buffer_depth_,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        resolve_context.transition(
+            sw_raster_pass_.get_key(frame),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        resolve_context.transition(
+            data_per_frame_[frame].software_batches,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-        context.transition(
+        resolve_context.transition(
             frame_buffer_,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -359,7 +502,7 @@ namespace fjr::render {
         // encoding of the linear fog/background color (0.015, 0.025, 0.04).
         constexpr float frame_clear_color[4]{
             0.12835404f, 0.17184409f, 0.22091636f, 1.0f};
-        context.get()->ClearUnorderedAccessViewFloat(
+        resolve_context.get()->ClearUnorderedAccessViewFloat(
             frame_buffer_uav_.get_gpu(),
             frame_buffer_clear_uav_.get_cpu(),
             frame_buffer_.get(),
@@ -368,30 +511,30 @@ namespace fjr::render {
             nullptr);
 
         resolve_pass_.record(
-            context,
+            resolve_context,
             frame,
             swap_chain_.get_width(),
             swap_chain_.get_height());
 
-        context.transition(
+        resolve_context.transition(
             frame_buffer_,
             D3D12_RESOURCE_STATE_COPY_SOURCE);
 
-        context.transition(
+        resolve_context.transition(
             swap_chain_.get_current_buffer(),
             D3D12_RESOURCE_STATE_COPY_DEST);
 
-        context.get()->CopyResource(
+        resolve_context.get()->CopyResource(
             swap_chain_.get_current_buffer().get(),
             frame_buffer_.get());
 
-        context.transition(
+        resolve_context.transition(
             swap_chain_.get_current_buffer(),
             D3D12_RESOURCE_STATE_PRESENT);
 
-        context.close();
-        command_queue_.execute(context.get());
-        context.set_fence_value(command_queue_.signal());
+        resolve_context.close();
+        command_queue_.execute(resolve_context.get());
+        resolve_context.set_fence_value(command_queue_.signal());
         swap_chain_.present();
     }
 

@@ -18,6 +18,7 @@ namespace fjr::render {
             dx::DescAlloc textures{};
             dx::DescAlloc samplers{};
             dx::DescAlloc frame_buffer_uav{};
+            std::vector<dx::DescAlloc> software_inputs{};
         };
 
         void init(

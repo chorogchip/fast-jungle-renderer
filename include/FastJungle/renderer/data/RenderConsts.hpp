@@ -42,6 +42,7 @@ namespace fjr::render::data {
             static_cast<uint32_t>(EnumInstanceKind::COUNT);
         static inline constexpr uint32_t RASTER_CLASS_CNT =
             static_cast<uint32_t>(EnumRasterClass::COUNT);
+        static inline constexpr uint32_t SW_BATCH_CAPACITY = 1u << 8;
     };
 
     static_assert(Consts::PNT_CLUSTER_SZ <= 256);

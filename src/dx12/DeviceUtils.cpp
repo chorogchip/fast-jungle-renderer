@@ -254,10 +254,15 @@ namespace fjr::dx {
 
         abort_failed(device->CheckFeatureSupport(
             D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
+        abort_failed(device->CheckFeatureSupport(
+            D3D12_FEATURE_SHADER_MODEL,
+            &shader_model,
+            sizeof(shader_model)));
 
         log::Logger::g_logger <<
             log::asrt(options1.Int64ShaderOps) <<
-            shader_model.HighestShaderModel < D3D_SHADER_MODEL_6_6;
+            log::asrt(
+                shader_model.HighestShaderModel >= D3D_SHADER_MODEL_6_6);
     }
 
 } // namespace fjr::dx

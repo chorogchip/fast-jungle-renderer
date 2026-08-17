@@ -18,15 +18,27 @@ namespace fjr::render {
     public:
         struct FrameResources final {
             D3D12_GPU_VIRTUAL_ADDRESS camera = 0;
-            dx::DescAlloc inputs{};
+            D3D12_GPU_VIRTUAL_ADDRESS visible_instances = 0;
+            ID3D12Resource* batches = nullptr;
+            ID3D12Resource* batch_count = nullptr;
         };
 
         struct Resources final {
             std::vector<FrameResources> frames{};
+            D3D12_GPU_VIRTUAL_ADDRESS instances = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS vertex_decode_params = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS submeshes = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS raster_clusters = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS raster_cluster_vertices = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS raster_cluster_triangles = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS opaque_vertices = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS alpha_vertices = 0;
         };
 
         void init(
             ID3D12Device* device,
+            dx::DescriptorHeap& shader_heap,
+            dx::DescriptorHeap& cpu_heap,
             Resources resources,
             uint32_t width,
             uint32_t height);
@@ -38,9 +50,12 @@ namespace fjr::render {
 
         void record(
             dx::CommandContext& context,
-            uint32_t frame_index,
-            uint32_t width,
-            uint32_t height);
+            uint32_t frame_index);
+
+        [[nodiscard]] dx::Buffer& get_key(
+            uint32_t frame_index) noexcept {
+            return keys_[frame_index];
+        }
 
     private:
         static constexpr uint32_t FRAME_COUNT = 2;
@@ -50,6 +65,9 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12PipelineState> pso_;
 
         Resources resources_{};
+        std::array<dx::Buffer, FRAME_COUNT> keys_{};
+        std::array<dx::DescAlloc, FRAME_COUNT> key_uavs_{};
+        std::array<dx::DescAlloc, FRAME_COUNT> key_clear_uavs_{};
     };
 
 } // namespace fjr::render

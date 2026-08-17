@@ -63,15 +63,9 @@ namespace fjr::render::data {
                 &normalized_frustum_planes[i], planes[i]);
         }
         
-        // temp fixed for resolution experiment
-        lod_projection_scale =
-            0.5f * 1080.0f *
-            camera.get_projection_mat()._22;
-        /*
         lod_projection_scale =
             0.5f * static_cast<float>(std::max(viewport_height, 1u)) *
             camera.get_projection_mat()._22;
-        */
 
         lod_error_threshold_px = LOD_ERROR_THRESHOLD_PX;
         impostor_transition_radius_px = IMPOSTOR_TRANSITION_RADIUS_PX;
@@ -108,6 +102,21 @@ namespace fjr::render::data {
         ret.indirect_gpu_draw_counts.init(
             device,
             data::Consts::RASTER_CLASS_CNT * sizeof(uint32_t),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        ret.software_batches.init(
+            device,
+            static_cast<UINT64>(Consts::SW_BATCH_CAPACITY) *
+                sizeof(SoftwareBatch),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON);
+
+        ret.software_batch_count.init(
+            device,
+            sizeof(uint32_t),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON);

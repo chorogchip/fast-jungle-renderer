@@ -37,6 +37,7 @@ namespace fjr::render {
     private:
         void create_pass_views();
         void create_pass_targets(uint32_t width, uint32_t height);
+        void update_software_resolve_views();
 
         PassGPUCull gpu_culling_pass_;
         PassSWRaster sw_raster_pass_;
@@ -50,6 +51,7 @@ namespace fjr::render {
         dx::Texture frame_buffer_;
 
         std::array<dx::DescAlloc, FRAME_COUNT> visibility_input_views_;
+        std::array<dx::DescAlloc, FRAME_COUNT> software_resolve_views_;
 
         dx::DescAlloc resolve_views_;
         dx::DescAlloc visibility_uav_;

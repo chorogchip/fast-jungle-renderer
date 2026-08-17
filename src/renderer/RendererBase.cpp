@@ -16,6 +16,9 @@ namespace fjr::render {
         command_queue_.init(
             device_.Get(),
             D3D12_COMMAND_LIST_TYPE_DIRECT);
+        compute_queue_.init(
+            device_.Get(),
+            D3D12_COMMAND_LIST_TYPE_COMPUTE);
 
         swap_chain_.init(
             factory.Get(),
@@ -60,12 +63,25 @@ namespace fjr::render {
                 device_.Get(),
                 D3D12_COMMAND_LIST_TYPE_DIRECT,
                 frame);
+            cull_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_COMPUTE,
+                frame);
+            software_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_COMPUTE,
+                frame);
+            resolve_contexts_[frame].init(
+                device_.Get(),
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                frame);
         }
 
         create_size_dependent_resources(width, height);
     }
 
     void RendererBase::reset() {
+        compute_queue_.flush();
         command_queue_.flush();
         heap_srv_cbv_uav_.reset();
         heap_cpu_srv_cbv_uav_.reset();
@@ -78,6 +94,7 @@ namespace fjr::render {
         uint32_t width,
         uint32_t height) {
 
+        compute_queue_.flush();
         command_queue_.flush();
         swap_chain_.resize(width, height);
         create_size_dependent_resources(width, height);
@@ -104,7 +121,7 @@ namespace fjr::render {
         depth_description.Height = height;
         depth_description.DepthOrArraySize = 1;
         depth_description.MipLevels = 1;
-        depth_description.Format = DEPTH_FORMAT;
+        depth_description.Format = DXGI_FORMAT_R32_TYPELESS;
         depth_description.SampleDesc.Count = 1;
         depth_description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
         depth_description.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;

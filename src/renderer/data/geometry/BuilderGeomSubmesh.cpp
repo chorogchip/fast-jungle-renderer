@@ -52,6 +52,10 @@ namespace fjr::render::data::geom {
             destination.index_offset = source.index_offset;
             destination.index_count = source.index_count;
             destination.base_vertex = base_vertices[index];
+            destination.raster_cluster_offset =
+                source.raster_cluster_offset;
+            destination.raster_cluster_count =
+                source.raster_cluster_count;
         }
 
         set_static_mesh_raster_class(

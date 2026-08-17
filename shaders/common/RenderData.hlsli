@@ -34,6 +34,16 @@ struct SubMesh
     uint index_offset;
     uint index_count;
     uint base_vertex;
+    uint raster_cluster_offset;
+    uint raster_cluster_count;
+};
+
+struct RasterCluster
+{
+    uint vertex_offset;
+    uint triangle_offset;
+    uint vertex_count;
+    uint triangle_count;
 };
 
 struct MeshLod
@@ -42,6 +52,7 @@ struct MeshLod
     uint submesh_count;
     float lod_error;
     float next_lod_error;
+    uint software_raster;
 };
 
 struct Mesh
@@ -75,6 +86,19 @@ struct IndirectGPUDraw
     uint start_index_location;
     uint base_vertex_location;
     uint start_instance_location;
+};
+
+struct SoftwareBatch
+{
+    uint batch_id;
+    uint visible_instance_offset;
+    uint cluster_offset;
+    uint cluster_count;
+    uint submesh_id;
+
+    uint thread_group_count_x;
+    uint thread_group_count_y;
+    uint thread_group_count_z;
 };
 
 struct VertexDecodeParams

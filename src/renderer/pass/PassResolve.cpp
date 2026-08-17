@@ -17,6 +17,7 @@ namespace fjr::render {
             TEXTURES,
             SAMPLERS,
             FRAME_BUFFER,
+            SOFTWARE_RESOURCES,
             COUNT,
         };
 
@@ -50,6 +51,11 @@ namespace fjr::render {
             .vis_all().add();
         root_builder.set_resource_table(RootParameter::FRAME_BUFFER)
             .uav().reg(0).count(1).add_range()
+            .vis_all().add();
+        root_builder.set_resource_table(RootParameter::SOFTWARE_RESOURCES)
+            .srv().reg(10).count(7)
+            .flags(D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE)
+            .add_range()
             .vis_all().add();
 
         root_signature_ = root_builder.build(device);
@@ -91,6 +97,9 @@ namespace fjr::render {
         context->SetComputeRootDescriptorTable(
             static_cast<UINT>(RootParameter::FRAME_BUFFER),
             resources_.frame_buffer_uav.get_gpu());
+        context->SetComputeRootDescriptorTable(
+            static_cast<UINT>(RootParameter::SOFTWARE_RESOURCES),
+            resources_.software_inputs[frame_index].get_gpu());
 
         context.Dispatch<16, 16>(width, height);
     }

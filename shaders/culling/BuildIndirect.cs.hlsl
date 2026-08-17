@@ -9,6 +9,66 @@ RWStructuredBuffer<IndirectGPUDraw> indirect_draws : register(u0);
 RWStructuredBuffer<uint> indirect_draw_counts : register(u1);
 RWStructuredBuffer<uint> bin_counts : register(u3);
 RWStructuredBuffer<uint> bin_offsets : register(u4);
+RWStructuredBuffer<SoftwareBatch> software_batches : register(u7);
+RWStructuredBuffer<uint> software_batch_count : register(u8);
+
+static const uint RASTER_CLASS_OPAQUE = 2;
+static const uint RASTER_CLASS_ALPHA = 4;
+static const uint MAX_DISPATCH_DIMENSION = 65535;
+
+void WriteSoftwareBatch(
+    uint visible_instance_offset,
+    uint instance_count,
+    uint cluster_offset,
+    uint cluster_count,
+    uint submesh_id)
+{
+    uint batch_id;
+    InterlockedAdd(software_batch_count[0], 1, batch_id);
+    if (batch_id >= SOFTWARE_BATCH_CAPACITY)
+        return;
+
+    SoftwareBatch batch;
+    batch.batch_id = batch_id;
+    batch.visible_instance_offset = visible_instance_offset;
+    batch.cluster_offset = cluster_offset;
+    batch.cluster_count = cluster_count;
+    batch.submesh_id = submesh_id;
+    batch.thread_group_count_x = cluster_count;
+    batch.thread_group_count_y = instance_count;
+    batch.thread_group_count_z = 1;
+    software_batches[batch_id] = batch;
+}
+
+void BuildSoftwareBatches(
+    uint visible_instance_offset,
+    uint instance_count,
+    SubMesh submesh,
+    uint submesh_id)
+{
+    for (uint cluster_begin = 0;
+        cluster_begin < submesh.raster_cluster_count;
+        cluster_begin += MAX_DISPATCH_DIMENSION)
+    {
+        const uint cluster_count = min(
+            MAX_DISPATCH_DIMENSION,
+            submesh.raster_cluster_count - cluster_begin);
+        const uint instances_per_batch = min(
+            MAX_DISPATCH_DIMENSION,
+            SOFTWARE_LOCAL_WORK_CAPACITY / cluster_count);
+        for (uint instance_begin = 0;
+            instance_begin < instance_count;
+            instance_begin += instances_per_batch)
+        {
+            WriteSoftwareBatch(
+                visible_instance_offset + instance_begin,
+                min(instances_per_batch, instance_count - instance_begin),
+                submesh.raster_cluster_offset + cluster_begin,
+                cluster_count,
+                submesh_id);
+        }
+    }
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
@@ -30,6 +90,21 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
 
         if (submesh.raster_class >= raster_class_count)
             continue;
+
+        const bool software_raster =
+            lod.software_raster != 0 &&
+            (submesh.raster_class == RASTER_CLASS_OPAQUE ||
+                submesh.raster_class == RASTER_CLASS_ALPHA) &&
+            submesh.raster_cluster_count != 0;
+        if (software_raster)
+        {
+            BuildSoftwareBatches(
+                bin_offsets[mesh_lod_id],
+                instance_count,
+                submesh,
+                submesh_id);
+            continue;
+        }
 
         uint command_in_class;
         InterlockedAdd(
