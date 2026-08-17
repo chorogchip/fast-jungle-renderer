@@ -8,6 +8,9 @@ result with the clustered SW 64-bit depth/primitive key. They use the selected
 
 The formal protocol is the same as the workload experiment: 300 warm-up
 frames, 60 GPU Trace frames, base clocks, and the real-time shader profiler.
+The viewport was 3840 x 2160 while LOD projection scale was temporarily fixed
+to a 1080-pixel viewport height. These runs were originally mislabeled as
+1920 x 1080.
 
 ## Results
 
@@ -46,7 +49,7 @@ Keep the current dense primitive ID decode. It is not a useful optimization
 target.
 
 A per-tile SW-presence mask could avoid the 64-bit key load in tiles with no SW
-coverage, but its measured best-case ceiling here is only about 0.134 ms. It
+coverage, but its measured 4K best-case ceiling here is only about 0.134 ms. It
 would also add producer-side mask writes and another resolve branch. Do not add
 that structure unless a wider resolution/camera sweep shows a materially
 larger merge cost.
