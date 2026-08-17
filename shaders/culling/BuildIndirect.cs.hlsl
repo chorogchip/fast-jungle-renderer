@@ -19,30 +19,6 @@ static const uint SOFTWARE_RASTER_ALPHA = 1u << 1u;
 static const uint SOFTWARE_LOCAL_WORK_CAPACITY = 1u << 17u;
 static const uint SOFTWARE_BATCH_CAPACITY = 1u << 8u;
 static const uint MAX_DISPATCH_DIMENSION = 65535;
-static const uint HARDWARE_BATCH_FLAG = 1u << 31u;
-
-uint WriteHardwareBatch(
-    uint visible_instance_offset,
-    uint triangle_count,
-    uint submesh_id)
-{
-    uint batch_id;
-    InterlockedAdd(software_batch_count[0], 1, batch_id);
-    if (batch_id >= SOFTWARE_BATCH_CAPACITY)
-        return ~0u;
-
-    SoftwareBatch batch;
-    batch.batch_id = batch_id | HARDWARE_BATCH_FLAG;
-    batch.visible_instance_offset = visible_instance_offset;
-    batch.cluster_offset = 0;
-    batch.cluster_count = triangle_count;
-    batch.submesh_id = submesh_id;
-    batch.thread_group_count_x = 0;
-    batch.thread_group_count_y = 0;
-    batch.thread_group_count_z = 0;
-    software_batches[batch_id] = batch;
-    return batch_id;
-}
 
 void WriteSoftwareBatch(
     uint visible_instance_offset,
@@ -156,13 +132,6 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
         draw.visible_instance_offset = bin_offsets[mesh_lod_id];
         draw.material_id = submesh.material_id;
         draw.submesh_id = submesh_id;
-        draw.visibility_batch_id = submesh.raster_class == RASTER_CLASS_OPAQUE
-            ? WriteHardwareBatch(
-                bin_offsets[mesh_lod_id],
-                submesh.index_count / 3u,
-                submesh_id)
-            : ~0u;
-        draw.triangle_count = submesh.index_count / 3u;
         draw.index_count_per_instance = submesh.index_count;
         draw.instance_count = instance_count;
         draw.start_index_location = submesh.index_offset;

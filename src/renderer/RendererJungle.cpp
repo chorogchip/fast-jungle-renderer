@@ -411,7 +411,6 @@ namespace fjr::render {
             cull_context,
             data_persistant_,
             data_per_frame_[frame]);
-        sw_raster_pass_.clear(cull_context, frame);
         cull_context.close();
         compute_queue_.execute(cull_context.get());
         const UINT64 cull_fence = compute_queue_.signal();
@@ -449,7 +448,6 @@ namespace fjr::render {
         visibility_pass_.record(
             context,
             frame,
-            sw_raster_pass_.get_key(frame)->GetGPUVirtualAddress(),
             swap_chain_.get_width(),
             swap_chain_.get_height());
 

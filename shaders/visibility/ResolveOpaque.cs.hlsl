@@ -43,8 +43,6 @@ static const uint SOFTWARE_TRIANGLE_BITS = 7;
 static const uint SOFTWARE_LOCAL_WORK_BITS = 17;
 static const uint SOFTWARE_LOCAL_WORK_MASK =
     (1u << SOFTWARE_LOCAL_WORK_BITS) - 1u;
-static const uint HARDWARE_PRIMITIVE_MASK = 0x00ffffffu;
-static const uint HARDWARE_BATCH_FLAG = 1u << 31u;
 
 float3 DecodeNormalR10G10B10(uint packed)
 {
@@ -151,22 +149,22 @@ void main(uint3 tid : SV_DispatchThreadID)
         (pixel.y * cam_pixel_width + pixel.x) * 8u;
     const uint64_t software_key =
         software_keys.Load<uint64_t>(key_offset);
-    bool key_winner = false;
+    bool software_winner = false;
     if (software_key != uint64_t(-1))
     {
         if (IsVisibilityEmpty(visibility))
         {
-            key_winner = true;
+            software_winner = true;
         }
         else
         {
-            const uint key_depth = uint(software_key >> 32u);
+            const uint software_depth = uint(software_key >> 32u);
             const uint hardware_depth_bits = asuint(
                 hardware_depth.Load(int3(pixel, 0)));
-            key_winner = key_depth <= hardware_depth_bits;
+            software_winner = software_depth < hardware_depth_bits;
         }
     }
-    if (!key_winner && IsVisibilityEmpty(visibility))
+    if (!software_winner && IsVisibilityEmpty(visibility))
         return;
 
     uint submesh_id;
@@ -175,57 +173,33 @@ void main(uint3 tid : SV_DispatchThreadID)
     uint index0;
     uint index1;
     uint index2;
-    if (key_winner)
+    if (software_winner)
     {
         const uint primitive_id = uint(software_key);
         const uint batch_id = primitive_id >>
             (SOFTWARE_LOCAL_WORK_BITS + SOFTWARE_TRIANGLE_BITS);
+        const uint local_work =
+            (primitive_id >> SOFTWARE_TRIANGLE_BITS) &
+            SOFTWARE_LOCAL_WORK_MASK;
+        const uint local_triangle = primitive_id &
+            ((1u << SOFTWARE_TRIANGLE_BITS) - 1u);
         const SoftwareBatch batch = software_batches[batch_id];
-        if ((batch.batch_id & HARDWARE_BATCH_FLAG) != 0u)
-        {
-            const uint local_primitive =
-                primitive_id & HARDWARE_PRIMITIVE_MASK;
-            const uint local_instance =
-                local_primitive / batch.cluster_count;
-            const uint local_triangle =
-                local_primitive % batch.cluster_count;
-            instance_id = software_visible_instances[
-                batch.visible_instance_offset + local_instance];
-            submesh_id = batch.submesh_id;
-            const SubMesh hardware_submesh = submeshes[submesh_id];
-            const uint index_offset = hardware_submesh.index_offset +
-                local_triangle * 3u;
-            index0 = indices[index_offset];
-            index1 = indices[index_offset + 1u];
-            index2 = indices[index_offset + 2u];
-            back_face = false;
-        }
-        else
-        {
-            const uint local_work =
-                (primitive_id >> SOFTWARE_TRIANGLE_BITS) &
-                SOFTWARE_LOCAL_WORK_MASK;
-            const uint local_triangle = primitive_id &
-                ((1u << SOFTWARE_TRIANGLE_BITS) - 1u);
-            const uint local_instance = local_work / batch.cluster_count;
-            const uint local_cluster = local_work % batch.cluster_count;
-            instance_id = software_visible_instances[
-                batch.visible_instance_offset + local_instance];
-            submesh_id = batch.submesh_id;
-            const RasterCluster cluster = raster_clusters[
-                batch.cluster_offset + local_cluster];
-            const uint packed_triangle = raster_cluster_triangles[
-                cluster.triangle_offset + local_triangle];
-            index0 = raster_cluster_vertices[
-                cluster.vertex_offset + (packed_triangle & 0xffu)];
-            index1 = raster_cluster_vertices[
-                cluster.vertex_offset +
-                ((packed_triangle >> 8u) & 0xffu)];
-            index2 = raster_cluster_vertices[
-                cluster.vertex_offset +
-                ((packed_triangle >> 16u) & 0xffu)];
-            back_face = false;
-        }
+        const uint local_instance = local_work / batch.cluster_count;
+        const uint local_cluster = local_work % batch.cluster_count;
+        instance_id = software_visible_instances[
+            batch.visible_instance_offset + local_instance];
+        submesh_id = batch.submesh_id;
+        const RasterCluster cluster = raster_clusters[
+            batch.cluster_offset + local_cluster];
+        const uint packed_triangle = raster_cluster_triangles[
+            cluster.triangle_offset + local_triangle];
+        index0 = raster_cluster_vertices[
+            cluster.vertex_offset + (packed_triangle & 0xffu)];
+        index1 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 8u) & 0xffu)];
+        index2 = raster_cluster_vertices[
+            cluster.vertex_offset + ((packed_triangle >> 16u) & 0xffu)];
+        back_face = false;
     }
     else
     {
@@ -395,7 +369,7 @@ void main(uint3 tid : SV_DispatchThreadID)
     const float2 pixel0 = ClipToPixel(cp0, viewport);
     const float2 pixel1 = ClipToPixel(cp1, viewport);
     const float2 pixel2 = ClipToPixel(cp2, viewport);
-    if (key_winner)
+    if (software_winner)
     {
         const float2 edge1 = pixel1 - pixel0;
         const float2 edge2 = pixel2 - pixel0;

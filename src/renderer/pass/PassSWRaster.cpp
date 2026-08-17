@@ -151,9 +151,10 @@ namespace fjr::render {
         }
     }
 
-    void PassSWRaster::clear(
+    void PassSWRaster::record(
         dx::CommandContext& context,
         uint32_t frame_index) {
+        const auto& frame = resources_.frames[frame_index];
         auto& key = keys_[frame_index];
 
         context.transition(key, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -167,13 +168,6 @@ namespace fjr::render {
             0,
             nullptr);
         context.uav_barrier(key);
-    }
-
-    void PassSWRaster::record(
-        dx::CommandContext& context,
-        uint32_t frame_index) {
-        const auto& frame = resources_.frames[frame_index];
-        auto& key = keys_[frame_index];
 
         context->SetComputeRootSignature(root_signature_.Get());
         context->SetPipelineState(pso_.Get());

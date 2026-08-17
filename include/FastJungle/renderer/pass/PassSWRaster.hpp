@@ -48,10 +48,6 @@ namespace fjr::render {
             uint32_t width,
             uint32_t height);
 
-        void clear(
-            dx::CommandContext& context,
-            uint32_t frame_index);
-
         void record(
             dx::CommandContext& context,
             uint32_t frame_index);
