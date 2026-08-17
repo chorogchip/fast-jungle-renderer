@@ -4,7 +4,7 @@ Date: 2026-08-17
 
 ## Setup
 
-- 1920x1080, default camera
+- 3840x2160, default camera
 - cooked raster clusters: 192 vertices / 128 triangles
 - SW policy: opaque LOD 4+ and alpha LOD 4+
 - screening capture: 300 warm-up frames, 60 GPU Trace frames, base clocks
@@ -12,7 +12,9 @@ Date: 2026-08-17
 - frame result: median of 60 GPU frame times
 
 The projection scale was held at the 1080p value so that resolution could not
-silently change the selected LOD during this sweep.
+silently change the selected LOD during this sweep. These measurements were
+originally mislabeled as 1920x1080; the preserved executable contains the 4K
+window literal.
 
 ## Screening results
 
