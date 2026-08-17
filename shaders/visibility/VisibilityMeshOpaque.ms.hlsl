@@ -3,8 +3,8 @@
 #include "../common/Quaternion.hlsli"
 #include "../common/RenderData.hlsli"
 
-static const uint MESH_THREAD_COUNT = 64;
-static const uint MESH_VERTEX_COUNT = 192;
+static const uint MESH_THREAD_COUNT = 32;
+static const uint MESH_VERTEX_COUNT = 128;
 static const uint MESH_TRIANGLE_COUNT = 128;
 
 StructuredBuffer<uint> visible_instances : register(t0);

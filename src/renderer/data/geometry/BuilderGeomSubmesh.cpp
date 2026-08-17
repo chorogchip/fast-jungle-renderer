@@ -32,7 +32,7 @@ namespace fjr::render::data::geom {
             const scene::StaticScene& scene) {
 
             for (const auto& mesh : scene.meshes) {
-                for (uint32_t lod = 3; lod < mesh.lod_count; ++lod) {
+                for (uint32_t lod = 2; lod < mesh.lod_count; ++lod) {
                     const auto& mesh_lod =
                         scene.mesh_lods[mesh.lod_offset + lod];
                     for (uint32_t local = 0;
