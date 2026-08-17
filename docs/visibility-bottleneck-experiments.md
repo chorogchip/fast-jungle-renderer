@@ -53,6 +53,20 @@ Variants 02 through 15, 17 through 27, and 36 through 39 use the isolated opaque
 
 GPU Trace uses the Blackwell GB20x Top-Level Triage metric set, real-time shader profiling, and base clocks. Nsight Graphics 2026.3 reports that multi-pass metrics are unavailable on Blackwell GB20x, so the sweep uses the supported single-pass metric set. Every result below is the median of 60 or 120 captured frames after warm-up. The complete `.ngfx-gputrace` reports and exported spreadsheets are under `out/visibility-experiments/nsight`.
 
+### Corrected baseline repeat (2026-08-17)
+
+The final experiment pass repeated the complete 1920x1080 HW renderer after 300 warm-up frames. Three warning-free 60-frame GPU Traces used base clocks, the Blackwell GB20x Top-Level Triage set, real-time shader profiling, and an 8000 KiB hardware-event buffer.
+
+| Run | Median GPU frame ms |
+|---|---:|
+| 1 | 6.2976 |
+| 2 | 6.3289 |
+| 3 | 6.3785 |
+
+The median of the three run medians is **6.3289 ms**. The middle run reports World Pipe 12.15%, VAF 10.38%, CROP 3.46%, and 1.384 active VTG warps per SM. This independently reproduces the low-residency baseline and is close to the earlier 6.269 ms capture; the small difference is ordinary run-to-run drift rather than a changed renderer configuration.
+
+The matching executable, PDB, and DXIL files are retained under `out/visibility-final-experiments/binaries/hw-baseline-1080`. The three accepted reports and automatic exports are under `out/visibility-final-experiments/nsight/hw-baseline-1080-r2` through `hw-baseline-1080-r4`. The earlier `r1` trace is retained for inspection but excluded from counter comparisons because its 120-frame collection exhausted the default hardware-event buffer.
+
 ## Key results
 
 | Variant | GPU frame ms | Active VS warps/SM | VTG latency | ISBE bytes | Relevant observation |
