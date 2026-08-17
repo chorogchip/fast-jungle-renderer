@@ -210,6 +210,7 @@ void SoftwareRasterMain(uint thread_id, uint3 group_id)
     GroupMemoryBarrierWithGroupSync();
 
     const bool double_sided = submesh.raster_class != RASTER_CLASS_OPAQUE;
+    [unroll(2)]
     for (uint local_triangle = thread_id;
         local_triangle < cluster.triangle_count;
         local_triangle += SOFTWARE_THREADS_PER_GROUP)
