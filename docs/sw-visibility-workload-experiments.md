@@ -3,7 +3,8 @@
 ## Test setup
 
 - GPU: NVIDIA GeForce RTX 5060 Ti
-- viewport: 1920 x 1080
+- viewport: 3840 x 2160
+- LOD projection scale: temporarily fixed to a 1080-pixel viewport height
 - scene format: 20
 - raster cluster: 192 vertices / 128 triangles
 - GPU Trace: 300 warm-up frames, 60 captured frames, base clocks
@@ -40,7 +41,8 @@ LOD4+ and alpha LOD4+.
 | Selected SW hybrid, serialized | 7.974465 | 7.996940 | 7.951360 | 7.974465 |
 
 The selected async hybrid is 2.145685 ms, or 27.10%, faster than the matched
-HW-only path. Serializing SW after HW makes it 2.202660 ms, or 27.62%, slower
+HW-only path at 4K with the same fixed-1080 LOD selection. Serializing SW after
+HW makes it 2.202660 ms, or 27.62%, slower
 than the async hybrid. Its representative time returns to approximately the
 HW-only time.
 
@@ -62,8 +64,13 @@ the SW raster kernel wins when placed serially on the critical path.
 
 The selected hybrid was inspected at the fixed authored camera. No new holes
 or missing tree trunks and branches were visible. The noisy close pyramid
-surface is also present in the pre-mesh scene-format-17 HW baseline and is not
-caused by SW visibility.
+surface is also present in the matched HW-only path and in an older renderer
+capture, so it is not caused by SW visibility.
+
+These measurements were originally mislabeled as 1920 x 1080. Disassembly of
+the preserved executable shows the packed 3840 x 2160 window literal. Correct
+1080p and native-4K dynamic-LOD results are recorded on
+`codex/sw-1080-correction-experiments`.
 
 Important preserved binaries:
 
