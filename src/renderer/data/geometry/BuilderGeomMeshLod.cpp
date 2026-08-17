@@ -30,9 +30,7 @@ namespace fjr::render::data::geom {
                     : std::numeric_limits<float>::infinity();
                 destination.software_raster_mask = lod >= 4
                     ? SOFTWARE_RASTER_OPAQUE | SOFTWARE_RASTER_ALPHA
-                    : lod == 3
-                        ? SOFTWARE_RASTER_ALPHA
-                        : 0;
+                    : 0;
             }
         }
 
