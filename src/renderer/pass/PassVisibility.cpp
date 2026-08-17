@@ -20,6 +20,7 @@ namespace fjr::render {
             INPUTS,
             TEXTURES,
             MATERIAL_SAMPLER,
+            VISIBILITY_KEY,
             COUNT,
         };
 
@@ -40,7 +41,7 @@ namespace fjr::render {
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
 
         root_builder.set_root_cbv(RootParameter::CAMERA)
-            .reg(0).vis_vertex().add();
+            .reg(0).vis_all().add();
         root_builder.set_constants(RootParameter::DRAW_CONSTANTS)
             .reg(1)
             .count(data::DataPerFrame::IndirectGPUDraw::ROOT_CONST_CNT)
@@ -59,6 +60,8 @@ namespace fjr::render {
         root_builder.set_sampler_table(RootParameter::MATERIAL_SAMPLER)
             .sampler().reg(0).count(1).add_range()
             .vis_pixel().add();
+        root_builder.set_root_uav(RootParameter::VISIBILITY_KEY)
+            .reg(0).vis_pixel().add();
 
         root_signature_ = root_builder.build(device);
 
@@ -94,12 +97,20 @@ namespace fjr::render {
             FASTJUNGLE_SHADER_OUTPUT_DIR};
         dx::Shader vertex_shader;
         dx::Shader opaque_pixel_shader;
+        dx::Shader atomic_vertex_shader;
+        dx::Shader atomic_pixel_shader;
         dx::Shader alpha_vertex_shader;
         dx::Shader alpha_pixel_shader;
         vertex_shader.load(
             shader_directory / "visibility" / "VisibilityOpaque.vs.dxil");
         opaque_pixel_shader.load(
             shader_directory / "visibility" / "VisibilityOpaque.ps.dxil");
+        atomic_vertex_shader.load(
+            shader_directory /
+                "visibility" / "VisibilityOpaqueAtomic.vs.dxil");
+        atomic_pixel_shader.load(
+            shader_directory /
+                "visibility" / "VisibilityOpaqueAtomic.ps.dxil");
         alpha_vertex_shader.load(
             shader_directory / "visibility" / "VisibilityAlpha.vs.dxil");
         alpha_pixel_shader.load(
@@ -133,6 +144,17 @@ namespace fjr::render {
         opaque_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);
 
+        description.VS = atomic_vertex_shader.get_bytecode();
+        description.PS = atomic_pixel_shader.get_bytecode();
+        description.NumRenderTargets = 0;
+        description.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+        atomic_opaque_pipeline_state_ =
+            dx::PSOUtils::create_graphics(device, description);
+
+        description.VS = vertex_shader.get_bytecode();
+        description.PS = opaque_pixel_shader.get_bytecode();
+        description.NumRenderTargets = 1;
+        description.RTVFormats[0] = DXGI_FORMAT_R32G32_UINT;
         description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         river_pipeline_state_ =
             dx::PSOUtils::create_graphics(device, description);
@@ -173,6 +195,7 @@ namespace fjr::render {
     void PassVisibility::record(
         dx::CommandContext& context,
         uint32_t frame_index,
+        D3D12_GPU_VIRTUAL_ADDRESS visibility_key,
         UINT width,
         UINT height) {
 
@@ -205,6 +228,9 @@ namespace fjr::render {
         context->SetGraphicsRootDescriptorTable(
             static_cast<UINT>(RootParameter::MATERIAL_SAMPLER),
             resources_.samplers.get_gpu());
+        context->SetGraphicsRootUnorderedAccessView(
+            static_cast<UINT>(RootParameter::VISIBILITY_KEY),
+            visibility_key);
 
         context->IASetPrimitiveTopology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -232,6 +258,8 @@ namespace fjr::render {
         context->SetPipelineState(opaque_pipeline_state_.Get());
         execute_indirect(data::EnumRasterClass::PYRAMID);
         execute_indirect(data::EnumRasterClass::TERRAIN);
+
+        context->SetPipelineState(atomic_opaque_pipeline_state_.Get());
         execute_indirect(data::EnumRasterClass::OPAQUE_SINGLE_SIDED);
 
         context->SetPipelineState(river_pipeline_state_.Get());

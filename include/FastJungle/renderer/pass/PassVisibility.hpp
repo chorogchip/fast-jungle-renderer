@@ -39,6 +39,7 @@ namespace fjr::render {
         void record(
             dx::CommandContext& context,
             uint32_t frame_index,
+            D3D12_GPU_VIRTUAL_ADDRESS visibility_key,
             UINT width,
             UINT height);
 
@@ -46,6 +47,8 @@ namespace fjr::render {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
         Microsoft::WRL::ComPtr<ID3D12CommandSignature> command_signature_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> opaque_pipeline_state_;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState>
+            atomic_opaque_pipeline_state_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> river_pipeline_state_;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> alpha_pipeline_state_;
 

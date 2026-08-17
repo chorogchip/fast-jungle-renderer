@@ -80,6 +80,8 @@ struct IndirectGPUDraw
     uint visible_instance_offset;
     uint material_id;
     uint submesh_id;
+    uint visibility_batch_id;
+    uint triangle_count;
     
     uint index_count_per_instance;
     uint instance_count;

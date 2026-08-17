@@ -68,12 +68,14 @@ namespace fjr::render::data {
             uint32_t visible_instance_offset = Consts::IND_ERR;
             uint32_t material_id = Consts::IND_ERR;
             uint32_t submesh_id = Consts::IND_ERR;
+            uint32_t visibility_batch_id = Consts::IND_ERR;
+            uint32_t triangle_count = 0;
             D3D12_DRAW_INDEXED_ARGUMENTS draw_arguments{};
 
-            static constexpr inline uint32_t ROOT_CONST_CNT = 3;
+            static constexpr inline uint32_t ROOT_CONST_CNT = 5;
         };
-        static_assert(sizeof(IndirectGPUDraw) == 32);
-        static_assert(offsetof(IndirectGPUDraw, draw_arguments) == 12);
+        static_assert(sizeof(IndirectGPUDraw) == 40);
+        static_assert(offsetof(IndirectGPUDraw, draw_arguments) == 20);
         static_assert(std::is_trivially_copyable_v<IndirectGPUDraw>);
 
         struct SoftwareBatch {
