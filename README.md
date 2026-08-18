@@ -6,11 +6,13 @@ It renders nearly 9 million instances at 1920 × 1080 and 60 FPS on an NVIDIA Ge
 
 To handle massive instancing, FastJungle uses offline scene cooking, GPU-driven LOD selection and culling, indirect rendering, visibility-buffer shading, and software rasterization.
 
+FastJungle is a scene-specialized research renderer rather than a general-purpose USD renderer.
+
 ## Performance
 
 Measured frame time in initial camera state which has high workload among the scene:
 - 1060: 16.6 ms
-- 5070: 3.1 ms
+- 5070: 3.2 ms
 
 ### NVIDIA GeForce GTX 1060 Mobile
 
@@ -94,10 +96,27 @@ Intel Jungle Ruins USD
 Meshes, materials, instances, and textures
   ↓ Meshoptimizer LOD generation, raster clustering, and texture cooking
 JungleRuins.fjscene + JungleRuins.fjtex
-  ↓ Runtime upload
-Renderer memory footprint
-  ↓ GPU culling, per-instance LOD selection
-  ↓ Hardware visibility rendering + software rasterization with indirect rendering
+  ↓ Runtime loading and GPU upload
+Packed runtime GPU resources
+  ↓ GPU culling and per-instance LOD selection
+  ↓ Hardware visibility rendering + indirect software rasterization
   ↓ Compute resolve and shading
 Final frame
 ```
+
+## License
+
+FastJungle's source code is licensed under the [MIT License](LICENSE).
+
+The Intel Jungle Ruins assets are not included in this repository and remain subject to Intel's applicable asset terms. Third-party dependencies retain their respective licenses.
+
+## Third-party software
+
+FastJungle uses the following open-source projects:
+
+- [OpenUSD](https://github.com/PixarAnimationStudios/OpenUSD)
+- [oneTBB](https://github.com/uxlfoundation/oneTBB) — Apache-2.0
+- [DirectXTex](https://github.com/microsoft/DirectXTex) — MIT
+- [meshoptimizer](https://github.com/zeux/meshoptimizer) — MIT
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for license and copyright notices.
