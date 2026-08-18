@@ -1,6 +1,10 @@
 # FastJungle
 
-FastJungle is a D3D12 renderer built specifically for the Intel Jungle Ruins scene.
+![](docs/jungle1.png)
+![](docs/jungle2.png)
+![](docs/jungle3.png)
+
+FastJungle is a performance-focused D3D12 renderer for the Intel Jungle Ruins scene, prioritizing throughput and scalability over production-quality visuals.
 
 It renders nearly 9 million instances at 1920 × 1080 and 60 FPS on an NVIDIA GeForce GTX 1060 Mobile.
 
@@ -21,6 +25,34 @@ Measured frame time in initial camera state which has high workload among the sc
 ### NVIDIA GeForce RTX 5070
 
 ![RTX 5070 performance](docs/performance-rtx-5070.png)
+
+## Pipeline
+
+```text
+Intel Jungle Ruins USD
+  ↓ OpenUSD import
+Meshes, materials, instances, and textures
+  ↓ meshoptimizer LOD generation and raster clustering; texture and impostor cooking
+JungleRuins.fjscene + JungleRuins.fjtex
+  ↓ Runtime loading and GPU upload
+Packed runtime GPU resources
+  ↓ GPU culling, per-instance LOD selection, and indirect work generation
+Hardware visibility rasterization + compute software rasterization
+  ↓ Visibility and depth merge
+  ↓ Compute resolve and PBR shading
+Final frame
+```
+
+| Technique              | What it does                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GPU-driven culling     | Rejects spatial clusters and individual instances on the GPU, eliminating per-object CPU draw preparation. |
+| Screen-space LOD       | Selects one of seven mesh LODs or a directional impostor using projected geometric error.                  |
+| Indirect rendering     | Generates hardware visibility draws and software-raster dispatches entirely on the GPU.                    |
+| Visibility buffer      | Stores geometry IDs per pixel and shades only the final visible surface in a compute resolve pass.         |
+| Software rasterization | Rasterizes distant small-triangle LODs in a compute shader and merges them with hardware depth.            |
+| Offline cooking        | Precomputes LODs, raster clusters, impostors, compressed textures, and GPU-ready scene data.               |
+
+For implementation details and design rationale, see the [Technical Overview](docs/TECHNICAL_OVERVIEW.md).
 
 ## Requirements
 
@@ -87,22 +119,6 @@ The generated `JungleRuins.fjscene` and `JungleRuins.fjtex` files occupy approxi
 | `Left Shift` | Move down         |
 | `Ctrl`       | Move faster       |
 | Arrow keys   | Rotate the camera |
-
-## Pipeline
-
-```text
-Intel Jungle Ruins USD
-  ↓ OpenUSD import
-Meshes, materials, instances, and textures
-  ↓ Meshoptimizer LOD generation, raster clustering, and texture cooking
-JungleRuins.fjscene + JungleRuins.fjtex
-  ↓ Runtime loading and GPU upload
-Packed runtime GPU resources
-  ↓ GPU culling and per-instance LOD selection
-  ↓ Hardware visibility rendering + indirect software rasterization
-  ↓ Compute resolve and shading
-Final frame
-```
 
 ## License
 
