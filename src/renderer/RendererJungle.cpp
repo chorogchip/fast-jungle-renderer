@@ -16,7 +16,7 @@ namespace fjr::render {
             device_.Get(), command_queue_,
             128ull * 1024ull * 1024ull, 2);
 
-        data_persistant_ = data::DataPersistent::build(
+        data_persistent_ = data::DataPersistent::build(
             scene, device_.Get(), uploader, heap_srv_cbv_uav_, heap_sampler_);
 
         uploader.wait();
@@ -50,8 +50,8 @@ namespace fjr::render {
         for (auto& frame : data_per_frame_) {
             frame = data::DataPerFrame::build(
                 device_.Get(),
-                data_persistant_.instance_count,
-                data_persistant_.submesh_count);
+                data_persistent_.instance_count,
+                data_persistent_.submesh_count);
         }
 
         // init pass
@@ -59,10 +59,10 @@ namespace fjr::render {
         gpu_culling_pass_.init(
             device_.Get(),
             heap_srv_cbv_uav_,
-            data_persistant_.mesh_lod_count,
-            data_persistant_.spatial_cluster_count,
-            data_persistant_.instance_count,
-            data_persistant_.submesh_count);
+            data_persistent_.mesh_lod_count,
+            data_persistent_.spatial_cluster_count,
+            data_persistent_.instance_count,
+            data_persistent_.submesh_count);
 
         create_pass_views();
         create_pass_targets(width, height);
@@ -95,51 +95,51 @@ namespace fjr::render {
                 data_per_frame_[frame].camera.get_address();
         }
 
-        visibility_resources.textures = data_persistant_.texture_descriptors;
+        visibility_resources.textures = data_persistent_.texture_descriptors;
         visibility_resources.samplers = pass_samplers_;
         visibility_resources.opaque_vertices = {
-            .BufferLocation = data_persistant_.vertex_opaque_visibility
+            .BufferLocation = data_persistent_.vertex_opaque_visibility
                 ->GetGPUVirtualAddress(),
             .SizeInBytes = static_cast<UINT>(
-                data_persistant_.vertex_opaque_visibility.get_byte_size()),
+                data_persistent_.vertex_opaque_visibility.get_byte_size()),
             .StrideInBytes = sizeof(data::DataPersistent::OpaqueVertex0),
         };
         visibility_resources.alpha_vertices = {
-            .BufferLocation = data_persistant_.vertex_alpha_visibility
+            .BufferLocation = data_persistent_.vertex_alpha_visibility
                 ->GetGPUVirtualAddress(),
             .SizeInBytes = static_cast<UINT>(
-                data_persistant_.vertex_alpha_visibility.get_byte_size()),
+                data_persistent_.vertex_alpha_visibility.get_byte_size()),
             .StrideInBytes = sizeof(data::DataPersistent::AlphaVertex0),
         };
         visibility_resources.indices = {
-            .BufferLocation = data_persistant_.index->GetGPUVirtualAddress(),
+            .BufferLocation = data_persistent_.index->GetGPUVirtualAddress(),
             .SizeInBytes = static_cast<UINT>(
-                data_persistant_.index.get_byte_size()),
+                data_persistent_.index.get_byte_size()),
             .Format = DXGI_FORMAT_R32_UINT,
         };
         visibility_resources.render_target = visibility_rtv_.get_cpu();
         visibility_resources.depth_stencil = desc_dsv_.get_cpu();
         visibility_resources.indirect_draw_capacity_per_class =
-            data_persistant_.submesh_count;
+            data_persistent_.submesh_count;
         visibility_pass_.init(
             device_.Get(),
             std::move(visibility_resources));
 
         software_resources.instances =
-            data_persistant_.instance_transform->GetGPUVirtualAddress();
+            data_persistent_.instance_transform->GetGPUVirtualAddress();
         software_resources.vertex_decode_params =
-            data_persistant_.vertex_decode_params->GetGPUVirtualAddress();
+            data_persistent_.vertex_decode_params->GetGPUVirtualAddress();
         software_resources.submeshes =
-            data_persistant_.submesh->GetGPUVirtualAddress();
+            data_persistent_.submesh->GetGPUVirtualAddress();
         software_resources.raster_clusters =
-            data_persistant_.raster_cluster->GetGPUVirtualAddress();
+            data_persistent_.raster_cluster->GetGPUVirtualAddress();
         software_resources.raster_cluster_vertices =
-            data_persistant_.raster_cluster_vertices->GetGPUVirtualAddress();
+            data_persistent_.raster_cluster_vertices->GetGPUVirtualAddress();
         software_resources.raster_cluster_triangles =
-            data_persistant_.raster_cluster_triangles->GetGPUVirtualAddress();
-        software_resources.opaque_vertices = data_persistant_
+            data_persistent_.raster_cluster_triangles->GetGPUVirtualAddress();
+        software_resources.opaque_vertices = data_persistent_
             .vertex_opaque_visibility->GetGPUVirtualAddress();
-        software_resources.alpha_vertices = data_persistant_
+        software_resources.alpha_vertices = data_persistent_
             .vertex_alpha_visibility->GetGPUVirtualAddress();
         sw_raster_pass_.init(
             device_.Get(),
@@ -151,7 +151,7 @@ namespace fjr::render {
         update_software_resolve_views();
 
         resolve_resources.inputs = resolve_views_;
-        resolve_resources.textures = data_persistant_.texture_descriptors;
+        resolve_resources.textures = data_persistent_.texture_descriptors;
         resolve_resources.samplers = pass_samplers_;
         resolve_resources.frame_buffer_uav = frame_buffer_uav_;
         resolve_resources.software_inputs.assign(
@@ -184,15 +184,15 @@ namespace fjr::render {
                 .create_structured_srv<uint32_t>(
                 device_.Get(),
                 views.get_cpu(0));
-            data_persistant_.instance_transform
+            data_persistent_.instance_transform
                 .create_structured_srv<data::DataPersistent::InstanceTransform>(
                 device_.Get(),
                 views.get_cpu(1));
-            data_persistant_.vertex_decode_params
+            data_persistent_.vertex_decode_params
                 .create_structured_srv<data::DataPersistent::VertexDecodeParams>(
                 device_.Get(),
                 views.get_cpu(2));
-            data_persistant_.material
+            data_persistent_.material
                 .create_structured_srv<data::DataPersistent::Material>(
                 device_.Get(),
                 views.get_cpu(3));
@@ -207,15 +207,15 @@ namespace fjr::render {
                 software_resolve_views_[frame].get_cpu(3));
         }
 
-        data_persistant_.raster_cluster
+        data_persistent_.raster_cluster
             .create_structured_srv<scene::StaticScene::RasterCluster>(
             device_.Get(),
             software_resolve_views_[0].get_cpu(4));
-        data_persistant_.raster_cluster_vertices
+        data_persistent_.raster_cluster_vertices
             .create_structured_srv<uint32_t>(
             device_.Get(),
             software_resolve_views_[0].get_cpu(5));
-        data_persistant_.raster_cluster_triangles
+        data_persistent_.raster_cluster_triangles
             .create_structured_srv<uint32_t>(
             device_.Get(),
             software_resolve_views_[0].get_cpu(6));
@@ -227,44 +227,44 @@ namespace fjr::render {
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
-        data_persistant_.instance_transform
+        data_persistent_.instance_transform
             .create_structured_srv<data::DataPersistent::InstanceTransform>(
             device_.Get(),
             resolve_views_.get_cpu(0));
-        data_persistant_.vertex_decode_params
+        data_persistent_.vertex_decode_params
             .create_structured_srv<data::DataPersistent::VertexDecodeParams>(
             device_.Get(),
             resolve_views_.get_cpu(1));
-        data_persistant_.vertex_opaque_visibility.create_typed_srv(
+        data_persistent_.vertex_opaque_visibility.create_typed_srv(
             device_.Get(),
             resolve_views_.get_cpu(2),
             DXGI_FORMAT_R16G16B16A16_UNORM,
             0,
-            data_persistant_.vertex_opaque_visibility
+            data_persistent_.vertex_opaque_visibility
                 .get_element_count<data::DataPersistent::OpaqueVertex0>());
-        data_persistant_.vertex_opaque_shading
+        data_persistent_.vertex_opaque_shading
             .create_structured_srv<data::DataPersistent::OpaqueVertex1>(
             device_.Get(),
             resolve_views_.get_cpu(3));
-        data_persistant_.vertex_alpha_visibility
+        data_persistent_.vertex_alpha_visibility
             .create_structured_srv<data::DataPersistent::AlphaVertex0>(
             device_.Get(),
             resolve_views_.get_cpu(4));
-        data_persistant_.vertex_alpha_shading
+        data_persistent_.vertex_alpha_shading
             .create_structured_srv<data::DataPersistent::AlphaVertex1>(
             device_.Get(),
             resolve_views_.get_cpu(5));
-        data_persistant_.index.create_typed_srv(
+        data_persistent_.index.create_typed_srv(
             device_.Get(),
             resolve_views_.get_cpu(6),
             DXGI_FORMAT_R32_UINT,
             0,
-            data_persistant_.index.get_element_count<uint32_t>());
-        data_persistant_.submesh
+            data_persistent_.index.get_element_count<uint32_t>());
+        data_persistent_.submesh
             .create_structured_srv<data::DataPersistent::SubMesh>(
             device_.Get(),
             resolve_views_.get_cpu(7));
-        data_persistant_.material
+        data_persistent_.material
             .create_structured_srv<data::DataPersistent::Material>(
             device_.Get(),
             resolve_views_.get_cpu(9));
@@ -272,12 +272,12 @@ namespace fjr::render {
         device_->CopyDescriptorsSimple(
             1,
             pass_samplers_.get_cpu(0),
-            data_persistant_.samplers.get_cpu(data_persistant_.wrap_sampler),
+            data_persistent_.samplers.get_cpu(data_persistent_.wrap_sampler),
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
         device_->CopyDescriptorsSimple(
             1,
             pass_samplers_.get_cpu(1),
-            data_persistant_.samplers.get_cpu(data_persistant_.clamp_sampler),
+            data_persistent_.samplers.get_cpu(data_persistent_.clamp_sampler),
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
 
@@ -407,8 +407,8 @@ namespace fjr::render {
             camera,
             swap_chain_.get_width(),
             swap_chain_.get_height(),
-            data_persistant_.spatial_cluster_count,
-            data_persistant_.mesh_lod_count);
+            data_persistent_.spatial_cluster_count,
+            data_persistent_.mesh_lod_count);
 
         compute_queue_.wait(cull_context.get_fence_value());
         cull_context.reset();
@@ -418,7 +418,7 @@ namespace fjr::render {
 
         gpu_culling_pass_.record(
             cull_context,
-            data_persistant_,
+            data_persistent_,
             data_per_frame_[frame]);
 
         cull_context.close();

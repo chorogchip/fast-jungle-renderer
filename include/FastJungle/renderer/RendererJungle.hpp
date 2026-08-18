@@ -44,7 +44,7 @@ namespace fjr::render {
         PassVisibility visibility_pass_;
         PassResolve resolve_pass_;
 
-        data::DataPersistent data_persistant_;
+        data::DataPersistent data_persistent_;
         std::array<data::DataPerFrame, FRAME_COUNT> data_per_frame_;
 
         dx::Texture visibility_buffer_;
