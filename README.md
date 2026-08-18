@@ -1,8 +1,8 @@
 # FastJungle
 
-![](docs/jungle1.png)
-![](docs/jungle2.png)
-![](docs/jungle3.png)
+![FastJungle pyramid view](docs/jungle1.png)
+![FastJungle forest view](docs/jungle2.png)
+![FastJungle cliff view](docs/jungle3.png)
 
 FastJungle is a performance-focused D3D12 renderer for the Intel Jungle Ruins scene, prioritizing throughput and scalability over production-quality visuals.
 
@@ -14,9 +14,11 @@ FastJungle is a scene-specialized research renderer rather than a general-purpos
 
 ## Performance
 
-Measured frame time in initial camera state which has high workload among the scene:
-- 1060: 16.6 ms
-- 5070: 3.2 ms
+Benchmarked at 1920 × 1080 from the initial camera position, one of the scene's heavier views:
+- GTX 1060 Mobile: 16.6 ms
+- RTX 5070: 3.2 ms
+
+CPU wall-clock frame time measured after warm-up using a Release build.
 
 ### NVIDIA GeForce GTX 1060 Mobile
 
@@ -42,6 +44,8 @@ Hardware visibility rasterization + compute software rasterization
   ↓ Compute resolve and PBR shading
 Final frame
 ```
+
+## Core Techniques
 
 | Technique              | What it does                                                                                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
