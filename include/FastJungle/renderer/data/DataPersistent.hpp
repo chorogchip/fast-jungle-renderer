@@ -51,9 +51,7 @@ namespace fjr::render::data {
         dx::Buffer material{};
         std::vector<dx::Texture> textures;
         dx::DescAlloc texture_descriptors{};
-        dx::DescAlloc samplers{};  // only 2 samplers
-        uint32_t wrap_sampler = 0;
-        uint32_t clamp_sampler = 0;
+        dx::DescAlloc samplers{};  // s0 material wrap, s1 terrain clamp
 
         struct PackedPosition {
             uint16_t x = 0;

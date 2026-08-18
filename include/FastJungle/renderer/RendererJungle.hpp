@@ -59,7 +59,6 @@ namespace fjr::render {
         dx::DescAlloc visibility_rtv_;
         dx::DescAlloc frame_buffer_uav_;
         dx::DescAlloc frame_buffer_clear_uav_;
-        dx::DescAlloc pass_samplers_;
 
     };
 

@@ -96,7 +96,7 @@ namespace fjr::render {
         }
 
         visibility_resources.textures = data_persistent_.texture_descriptors;
-        visibility_resources.samplers = pass_samplers_;
+        visibility_resources.samplers = data_persistent_.samplers;
         visibility_resources.opaque_vertices = {
             .BufferLocation = data_persistent_.vertex_opaque_visibility
                 ->GetGPUVirtualAddress(),
@@ -152,7 +152,7 @@ namespace fjr::render {
 
         resolve_resources.inputs = resolve_views_;
         resolve_resources.textures = data_persistent_.texture_descriptors;
-        resolve_resources.samplers = pass_samplers_;
+        resolve_resources.samplers = data_persistent_.samplers;
         resolve_resources.frame_buffer_uav = frame_buffer_uav_;
         resolve_resources.software_inputs.assign(
             software_resolve_views_.begin(),
@@ -176,7 +176,6 @@ namespace fjr::render {
         visibility_rtv_ = heap_rtv_.alloc();
         frame_buffer_uav_ = heap_srv_cbv_uav_.alloc();
         frame_buffer_clear_uav_ = heap_cpu_srv_cbv_uav_.alloc();
-        pass_samplers_ = heap_sampler_.alloc(2);
 
         for (uint32_t frame = 0; frame < FRAME_COUNT; ++frame) {
             auto& views = visibility_input_views_[frame];
@@ -205,26 +204,19 @@ namespace fjr::render {
                 .create_structured_srv<uint32_t>(
                 device_.Get(),
                 software_resolve_views_[frame].get_cpu(3));
-        }
 
-        data_persistent_.raster_cluster
-            .create_structured_srv<scene::StaticScene::RasterCluster>(
-            device_.Get(),
-            software_resolve_views_[0].get_cpu(4));
-        data_persistent_.raster_cluster_vertices
-            .create_structured_srv<uint32_t>(
-            device_.Get(),
-            software_resolve_views_[0].get_cpu(5));
-        data_persistent_.raster_cluster_triangles
-            .create_structured_srv<uint32_t>(
-            device_.Get(),
-            software_resolve_views_[0].get_cpu(6));
-        for (uint32_t frame = 1; frame < FRAME_COUNT; ++frame) {
-            device_->CopyDescriptorsSimple(
-                3,
-                software_resolve_views_[frame].get_cpu(4),
-                software_resolve_views_[0].get_cpu(4),
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            data_persistent_.raster_cluster
+                .create_structured_srv<scene::StaticScene::RasterCluster>(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(4));
+            data_persistent_.raster_cluster_vertices
+                .create_structured_srv<uint32_t>(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(5));
+            data_persistent_.raster_cluster_triangles
+                .create_structured_srv<uint32_t>(
+                device_.Get(),
+                software_resolve_views_[frame].get_cpu(6));
         }
 
         data_persistent_.instance_transform
@@ -268,17 +260,6 @@ namespace fjr::render {
             .create_structured_srv<data::DataPersistent::Material>(
             device_.Get(),
             resolve_views_.get_cpu(9));
-
-        device_->CopyDescriptorsSimple(
-            1,
-            pass_samplers_.get_cpu(0),
-            data_persistent_.samplers.get_cpu(data_persistent_.wrap_sampler),
-            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-        device_->CopyDescriptorsSimple(
-            1,
-            pass_samplers_.get_cpu(1),
-            data_persistent_.samplers.get_cpu(data_persistent_.clamp_sampler),
-            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
 
     void RendererJungle::create_pass_targets(
