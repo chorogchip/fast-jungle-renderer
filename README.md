@@ -52,7 +52,7 @@ Final frame
 | Software rasterization | Rasterizes distant small-triangle LODs in a compute shader and merges them with hardware depth.            |
 | Offline cooking        | Precomputes LODs, raster clusters, impostors, compressed textures, and GPU-ready scene data.               |
 
-For implementation details and design rationale, see the [Technical Overview](docs/TECHNICAL_OVERVIEW.md).
+For implementation details and design rationale, see the [Technical Overview](TECHNICAL_OVERVIEW.md).
 
 ## Requirements
 
